@@ -1,0 +1,1036 @@
+<!DOCTYPE html>
+<html lang="it">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Generatore attività — PdM CDCD</title>
+<style>
+  :root{
+    --bg:#F4F6F3;
+    --panel:#FFFFFF;
+    --ink:#1E2A26;
+    --ink-soft:#4B5A55;
+    --line:#D9DFD9;
+    --accent:#2F6F63;
+    --accent-ink:#FFFFFF;
+    --warn:#A6503A;
+    --warn-soft:#F3E4DF;
+    --stage:#FDFEFC;
+    --focus:#2F6F63;
+  }
+  *{box-sizing:border-box;}
+  html,body{margin:0;padding:0;}
+  body{
+    font-family:"Segoe UI","Helvetica Neue",Arial,sans-serif;
+    background:var(--bg);
+    color:var(--ink);
+    display:flex;
+    min-height:100vh;
+  }
+  h1,h2,h3{
+    font-family:Georgia,"Iowan Old Style","Palatino Linotype",serif;
+    font-weight:600;
+    margin:0 0 6px 0;
+  }
+  button:focus-visible, input:focus-visible, select:focus-visible{
+    outline:3px solid var(--focus);
+    outline-offset:2px;
+  }
+
+  /* ---- layout ---- */
+  #sidebar{
+    width:320px;
+    min-width:320px;
+    background:var(--panel);
+    border-right:1px solid var(--line);
+    padding:22px 20px 30px 20px;
+    overflow-y:auto;
+    height:100vh;
+    position:sticky;
+    top:0;
+  }
+  #main{
+    flex:1;
+    padding:28px 36px;
+    display:flex;
+    flex-direction:column;
+    min-width:0;
+  }
+  .eyebrow{
+    font-size:12.5px;
+    color:var(--ink-soft);
+    margin-bottom:2px;
+  }
+  #sidebar h1{
+    font-size:19px;
+    line-height:1.25;
+    margin-bottom:2px;
+  }
+  #sidebar .sub{
+    font-size:13px;
+    color:var(--ink-soft);
+    margin-bottom:20px;
+    line-height:1.4;
+  }
+
+  .exlist{
+    list-style:none;
+    margin:0 0 22px 0;
+    padding:0;
+    border:1px solid var(--line);
+    border-radius:10px;
+    overflow:hidden;
+  }
+  .exlist li{border-bottom:1px solid var(--line);}
+  .exlist li:last-child{border-bottom:none;}
+  .exlist button{
+    width:100%;
+    text-align:left;
+    background:var(--panel);
+    border:none;
+    padding:12px 14px;
+    font-size:14px;
+    color:var(--ink);
+    cursor:pointer;
+    display:flex;
+    flex-direction:column;
+    gap:2px;
+  }
+  .exlist button .ex-name{font-weight:600;}
+  .exlist button .ex-desc{font-size:11.5px;color:var(--ink-soft);}
+  .exlist button:hover{background:#EEF3EF;}
+  .exlist button.active{background:var(--accent);color:var(--accent-ink);}
+  .exlist button.active .ex-desc{color:#D7E7E1;}
+
+  .field{margin-bottom:18px;}
+  .field label{
+    display:block;
+    font-size:12.5px;
+    font-weight:600;
+    margin-bottom:6px;
+    color:var(--ink-soft);
+    text-transform:none;
+  }
+  .level-row{display:flex;align-items:center;gap:10px;}
+  .level-row input[type=range]{flex:1;accent-color:var(--accent);}
+  .level-badge{
+    min-width:34px;
+    text-align:center;
+    background:var(--accent);
+    color:var(--accent-ink);
+    border-radius:6px;
+    padding:4px 6px;
+    font-weight:700;
+    font-size:13px;
+  }
+  .level-note{
+    font-size:11.5px;
+    color:var(--ink-soft);
+    margin-top:6px;
+    line-height:1.4;
+  }
+
+  select, input[type=number]{
+    width:100%;
+    padding:8px 10px;
+    border:1px solid var(--line);
+    border-radius:8px;
+    font-size:13.5px;
+    background:#fff;
+    color:var(--ink);
+  }
+
+  .btn-group{display:flex;flex-wrap:wrap;gap:6px;}
+  .chip{
+    border:1px solid var(--line);
+    background:#fff;
+    border-radius:20px;
+    padding:6px 12px;
+    font-size:12.5px;
+    cursor:pointer;
+    color:var(--ink);
+  }
+  .chip.active{background:var(--accent);border-color:var(--accent);color:#fff;}
+
+  .action{
+    width:100%;
+    padding:11px 14px;
+    border-radius:9px;
+    border:none;
+    font-size:14px;
+    font-weight:600;
+    cursor:pointer;
+    margin-bottom:10px;
+  }
+  .action.primary{background:var(--accent);color:#fff;}
+  .action.primary:hover{background:#28584F;}
+  .action.ghost{background:#fff;border:1px solid var(--line);color:var(--ink);}
+  .action.ghost:hover{background:#EEF3EF;}
+  .action.warn{background:var(--warn-soft);color:var(--warn);border:1px solid #E4C3B8;}
+
+  /* ---- stage ---- */
+  #stageHead{
+    display:flex;
+    justify-content:space-between;
+    align-items:flex-start;
+    margin-bottom:18px;
+    gap:16px;
+  }
+  #stageHead h2{font-size:22px;}
+  #stageHead .meta{font-size:13px;color:var(--ink-soft);margin-top:3px;}
+  #ruleBox{
+    background:#EEF3EF;
+    border:1px solid var(--line);
+    border-radius:10px;
+    padding:12px 16px;
+    font-size:14.5px;
+    color:var(--ink);
+    margin-bottom:18px;
+    max-width:640px;
+    line-height:1.45;
+  }
+  #ruleBox b{color:var(--accent);}
+
+  #stage{
+    flex:1;
+    background:var(--stage);
+    border:1px solid var(--line);
+    border-radius:16px;
+    display:flex;
+    align-items:center;
+    justify-content:center;
+    padding:30px;
+    min-height:420px;
+    position:relative;
+    overflow:auto;
+  }
+
+  .single-item{
+    font-size:96px;
+    font-weight:700;
+    letter-spacing:2px;
+    text-align:center;
+  }
+  .single-word{
+    font-size:60px;
+    font-weight:700;
+    letter-spacing:3px;
+  }
+  .sub-label{
+    position:absolute;
+    top:14px;
+    left:18px;
+    font-size:12px;
+    color:var(--ink-soft);
+  }
+
+  .grid-wrap{
+    display:grid;
+    gap:6px;
+  }
+  .cell{
+    display:flex;
+    align-items:center;
+    justify-content:center;
+    font-size:20px;
+    font-weight:700;
+    border:2px solid transparent;
+    border-radius:6px;
+    min-width:38px;
+    min-height:38px;
+    padding:4px;
+  }
+  .cell.answer{outline:3px solid var(--warn);outline-offset:-3px;}
+
+  .strip{
+    display:flex;
+    gap:14px;
+    flex-wrap:wrap;
+    justify-content:center;
+    align-items:center;
+  }
+  .strip .cell{font-size:26px;padding:10px 14px;min-width:56px;min-height:56px;}
+
+  .word-list{
+    display:flex;
+    flex-direction:column;
+    gap:16px;
+    width:100%;
+  }
+  .word-block h3{font-size:13px;color:var(--ink-soft);margin-bottom:8px;text-transform:none;letter-spacing:.2px;}
+  .word-items{display:flex;gap:12px;flex-wrap:wrap;}
+  .word-items span{
+    background:#fff;
+    border:1px solid var(--line);
+    border-radius:8px;
+    padding:8px 14px;
+    font-size:22px;
+    font-weight:700;
+    letter-spacing:1px;
+  }
+  .word-items span small{
+    display:block;
+    font-size:11px;
+    font-weight:400;
+    color:var(--ink-soft);
+    letter-spacing:0;
+    margin-top:2px;
+  }
+
+  .cat-grid{
+    display:grid;
+    grid-template-columns:repeat(3,1fr);
+    gap:18px;
+  }
+  .cat-tile{
+    background:#fff;
+    border:1px solid var(--line);
+    border-radius:12px;
+    padding:18px;
+    text-align:center;
+    font-size:56px;
+  }
+  .cat-tile.answer{outline:3px solid var(--warn);}
+  .cat-tile .cat-label{
+    display:block;
+    font-size:12px;
+    color:var(--ink-soft);
+    margin-top:6px;
+  }
+
+  #stageFoot{
+    display:flex;
+    justify-content:center;
+    align-items:center;
+    gap:16px;
+    margin-top:18px;
+  }
+  #stageFoot button{
+    background:var(--panel);
+    border:1px solid var(--line);
+    border-radius:8px;
+    padding:8px 16px;
+    font-size:14px;
+    cursor:pointer;
+  }
+  #stageFoot button:hover{background:#EEF3EF;}
+  #slideCounter{font-size:13px;color:var(--ink-soft);min-width:70px;text-align:center;}
+
+  .hint{font-size:12px;color:var(--ink-soft);margin-top:14px;line-height:1.5;}
+
+  @media print{
+    #sidebar,#stageFoot,#ruleBox .hide-print{display:none;}
+    #main{padding:0;}
+    #stage{border:none;min-height:auto;}
+  }
+</style>
+</head>
+<body>
+
+<div id="sidebar">
+  <div class="eyebrow">PdM CDCD — prototipo</div>
+  <h1>Generatore attività</h1>
+  <div class="sub">Materiale nuovo, stessa difficoltà del livello scelto — per ripetere la stimolazione senza effetto apprendimento.</div>
+
+  <ul class="exlist" id="exList"></ul>
+
+  <div class="field">
+    <label for="levelRange">Livello di difficoltà (sessione di riferimento)</label>
+    <div class="level-row">
+      <input type="range" id="levelRange" min="1" max="16" value="1">
+      <div class="level-badge" id="levelBadge">1</div>
+    </div>
+    <div class="level-note" id="levelNote"></div>
+  </div>
+
+  <div class="field" id="exControls"></div>
+
+  <button class="action primary" id="btnGenerate">Genera nuovo materiale</button>
+  <button class="action ghost" id="btnReveal">Mostra risposta / regola</button>
+  <button class="action ghost" id="btnPrint">Stampa questa schermata</button>
+
+  <div class="hint">Il materiale è generato casualmente ad ogni clic: stessa struttura e stesso livello di difficoltà dell'esercizio originale, contenuto sempre diverso.</div>
+</div>
+
+<div id="main">
+  <div id="stageHead">
+    <div>
+      <h2 id="exTitle">—</h2>
+      <div class="meta" id="exMeta"></div>
+    </div>
+  </div>
+  <div id="ruleBox" style="display:none;"></div>
+  <div id="stage"></div>
+  <div id="stageFoot" style="display:none;">
+    <button id="prevSlide">◀ precedente</button>
+    <div id="slideCounter">1 / 1</div>
+    <button id="nextSlide">successiva ▶</button>
+  </div>
+</div>
+
+<script>
+/* =========================================================
+   DATI DI BASE
+   ========================================================= */
+const ALPHABET = "ABCDEFGHILMNOPQRSTUVZ".split("");
+const VOWELS = "AEIOU".split("");
+const CONSONANTS = ALPHABET.filter(c=>!VOWELS.includes(c));
+
+const REAL_WORDS = {
+  3: ["TRE","VIA","PIO","SEI","MIA","PRO","DAI","SAN","AIA","VOI","FIO","SIR","REA","ORI","NEO","OCA","ALA","ORO","ITA","ALI"],
+  4: ["PANE","VINO","RANE","MANO","NOIA","CERA","ARCO","VOLA","PURE","BENI","MURA","ARSO","ORCA","TIPO","NANO","SAVI","PENA","TEMO","MIRA","ORMA"]
+};
+
+const LEXICAL_TIERS = [
+  { // 1 - concreto, alta frequenza
+    words:["Pomodoro","Cane","Martello","Sedia","Finestra","Bicicletta","Cucchiaio","Gatto","Scarpa","Ombrello","Chiave","Bottiglia","Orologio","Zaino","Lampada"]
+  },
+  { // 2 - concreto specifico / categorie meno immediate
+    words:["Quercia","Delfino","Treno","Falegname","Vulcano","Cascata","Ghiacciaio","Farfalla","Girasole","Chitarra","Elicottero","Bussola","Ventaglio","Telaio","Lanterna"]
+  },
+  { // 3 - astratto / semi-tecnico
+    words:["Tristezza","Varietà","Conservazione","Equilibrio","Pazienza","Coraggio","競争","Abitudine","Rassegnazione","Nostalgia","Percezione","Esitazione","Armonia","Delusione","Serenità"]
+  },
+  { // 4 - astratto/tecnico raro, proprio
+    words:["Pacciamatura","Timbratura","Marte","Futuro","Fato","Sussidiarietà","Circospezione","Reticenza","Empirismo","Ossimoro","Meridiana","Alambicco","Estemporaneo","Palinsesto","Sincretismo"]
+  }
+];
+// piccola correzione: rimuove un carattere non italiano rimasto per errore
+LEXICAL_TIERS[2].words = LEXICAL_TIERS[2].words.filter(w=>/^[A-Za-zàèéìòù]+$/.test(w));
+
+const CAT_DOMAINS = [
+  {name:"Frutta e verdura", items:["🍎","🥕","🍌","🍇","🥔","🍅","🍊","🥦","🍓","🍍","🥑","🌽"]},
+  {name:"Animali da fattoria e non", items:["🐶","🐱","🐴","🐮","🐷","🐑","🦆","🐔","🐟","🐢","🦋","🐝"]},
+  {name:"Mezzi di trasporto", items:["🚗","🚌","🚲","🚂","✈️","🚁","⛵","🚕","🚜","🛵","🚒","🚚"]},
+  {name:"Oggetti da cucina", items:["🍴","🥄","🍳","🥣","☕","🍽️","🔪","🧂","🥤","🫖","🧊","🥡"]},
+  {name:"Attrezzatura sportiva", items:["⚽","🏀","🎾","🏓","🏸","⛳","🥊","🚴","🏋️","🤿","🥋","🏹"]},
+  {name:"Utensili e attrezzi", items:["🔨","🪛","🔧","🪚","🪓","🧰","🧹","🪣","🧲","🪝","🔩","🧵"]}
+];
+
+const SERIE_RULES = [
+  "Mano dx se il carattere è nero, mano sx se è rosso.",
+  "Mano dx se è una lettera, mano sx se è un numero. Variante: A o 1 → mano dx, B o 2 → mano sx.",
+  "Mano dx se A, dire «Sì» se B, No-Go se 2, dire «No» se 1.",
+  "Dire «Sì» se A (1 No-Go), mano sx se B o 2; variante: No-Go se A, mano dx se 1, dire «No» se B o 2.",
+  "Dire «Sì» se A (1 No-Go), mano sx se B o 2 (come sopra, stessa consegna).",
+  "Mano dx se A, mano sx se B, dire «Sì» se 1, dire «No» se 2 — poi invertire lettera/numero.",
+  "Mano dx se A, dire «Sì» se B, mano sx se 1, dire «No» se 2 — poi invertire.",
+  "Mano sx se A, dire «No» se B, mano dx se 1, dire «Sì» se 2 — poi invertire.",
+  "Mano dx se A, dire «No» se B, mano sx se 1, dire «Sì» se 2 — poi invertire.",
+  "Mano sx se A, dire «Sì» se B, mano dx se 1, dire «No» se 2 — poi invertire.",
+  "Mano dx se lettera nera, No-Go se lettera rossa; mano sx se numero rosso, No-Go se numero nero. (poi invertire)",
+  "Mano sx se lettera nera, No-Go se lettera rossa; dire «Sì» se numero rosso, No-Go se numero rosso. (poi invertire)",
+  "Mano dx se lettera nera O numero rosso; mano sx se lettera rossa O numero nero.",
+  "Mano sx se lettera nera O numero rosso; dire «Sì» se lettera rossa O numero nero.",
+  "Mano dx se lettera rossa O numero nero; dire «No» se lettera nera O numero rosso.",
+  "Rispondere in base allo STIMOLO PRECEDENTE (n-1 indietro): mano dx se il precedente era nero / una lettera; mano sx se il precedente era rosso / un numero."
+];
+
+const DIGIT_RULES = [
+  {key:"ripeti", label:"Ripeti in avanti", apply:s=>s},
+  {key:"inverti", label:"Inverti", apply:s=>s.split("").reverse().join("")},
+  {key:"crescente", label:"Riordina crescente", apply:s=>s.split("").sort().join("")},
+  {key:"somma", label:"Somma le cifre", apply:s=>String(s.split("").reduce((a,c)=>a+Number(c),0))},
+  {key:"parita", label:"Solo pari/dispari alternati", apply:s=>{
+      let ev=s.split("").filter(c=>Number(c)%2===0);
+      let od=s.split("").filter(c=>Number(c)%2!==0);
+      let out=[]; let i=0;
+      while(ev.length||od.length){ if(i%2===0 && ev.length) out.push(ev.shift()); else if(od.length) out.push(od.shift()); i++; }
+      return out.join("")||"—";
+  }}
+];
+
+/* =========================================================
+   UTILITY
+   ========================================================= */
+function rnd(n){return Math.floor(Math.random()*n);}
+function pick(arr){return arr[rnd(arr.length)];}
+function pickN(arr,n){
+  const pool=[...arr]; const out=[];
+  while(out.length<n && pool.length){ out.push(pool.splice(rnd(pool.length),1)[0]); }
+  return out;
+}
+function shuffle(arr){
+  const a=[...arr];
+  for(let i=a.length-1;i>0;i--){const j=rnd(i+1);[a[i],a[j]]=[a[j],a[i]];}
+  return a;
+}
+function randCase(str){
+  return str.split("").map(c=>Math.random()<0.5?c.toUpperCase():c.toLowerCase()).join("");
+}
+function randDigits(len){
+  let s="";
+  for(let i=0;i<len;i++) s+= (i===0? (1+rnd(9)) : rnd(10));
+  return s;
+}
+function randLetters(len,pool=ALPHABET){
+  let s="";
+  for(let i=0;i<len;i++) s+=pick(pool);
+  return s;
+}
+function randAlnum(len){
+  let s="";
+  for(let i=0;i<len;i++){
+    s += Math.random()<0.5 ? pick(ALPHABET) : String(rnd(10));
+  }
+  return randCase(s);
+}
+function tierFromLevel(level, nTiers){
+  return Math.min(nTiers-1, Math.floor((level-1)/(16/nTiers)));
+}
+
+/* =========================================================
+   STATO
+   ========================================================= */
+const state = {
+  exercise:"griglie",
+  level:1,
+  digitRule:"inverti",
+  catMode:"raggruppa",
+  deck:null,
+  slideIndex:0,
+  reveal:false
+};
+
+const EXERCISES = [
+  {id:"griglie", name:"Griglie-Conteggio", desc:"Ricerca visiva e conteggio in griglia"},
+  {id:"intruso", name:"Intruso percettivo", desc:"Trova l'elemento diverso"},
+  {id:"inversione", name:"Inversione e riordino", desc:"Span e manipolazione di sequenze"},
+  {id:"serie", name:"Serie attentive alternate", desc:"Attenzione alternata, task-switching, n-back"},
+  {id:"accesso", name:"Accesso lessicale online", desc:"Denominazione con cueing graduato"},
+  {id:"categorizzazione", name:"Categorizzazione", desc:"Raggruppamento / intruso semantico (prototipo con icone)"}
+];
+
+/* =========================================================
+   GENERATORI — uno per esercizio, dipendenti dal livello
+   ========================================================= */
+
+// ---------- GRIGLIE-CONTEGGIO ----------
+const GRID_FAMILIES = [
+  {id:1, kind:"char", pool:["1","2","3","4"], rows:5, cols:7},
+  {id:2, kind:"char", pool:["A","B","D","E"], rows:5, cols:7},
+  {id:3, kind:"char", pool:["1","2","3","4"], rows:5, cols:7},
+  {id:4, kind:"char", pool:["A","B","D","E"], rows:5, cols:7},
+  {id:5, kind:"shape", pool:["●","▲","■"], rows:7, cols:10},
+  {id:6, kind:"shape", pool:["●","▲","■"], rows:7, cols:10},
+  {id:7, kind:"char", pool:["1","2","3","4"], rows:7, cols:15},
+  {id:8, kind:"char", pool:["3","4","6","7"], rows:7, cols:15},
+  {id:9, kind:"char", pool:["A","B","D","E"], rows:7, cols:15},
+  {id:10,kind:"char", pool:["A","U","N","L"], rows:7, cols:15},
+  {id:11,kind:"char", pool:["1","4","D","A"], rows:7, cols:15},
+  {id:12,kind:"arrow",pool:["↑","↓","←","→"], rows:6, cols:12},
+  {id:13,kind:"unicode", base:0x0410, count:5, rows:6, cols:12}, // cirillico
+  {id:14,kind:"unicode", base:0x53E3, count:4, rows:7, cols:15}, // cjk
+  {id:15,kind:"unicode", base:0x1200, count:5, rows:6, cols:12}, // ge'ez
+  {id:16,kind:"unicode", base:0x1218, count:5, rows:6, cols:12}  // ge'ez (altro blocco)
+];
+const COLORS = [
+  {name:"giallo", css:"#F4DE7A"},
+  {name:"bianco", css:"#FFFFFF"},
+  {name:"azzurro", css:"#AED6E0"},
+  {name:"verde", css:"#B7D8B0"},
+  {name:"viola", css:"#CBB3D9"},
+  {name:"rosso", css:"#E39387"},
+  {name:"nero", css:"#3A3A3A"}
+];
+
+function genGriglie(level){
+  const fam = GRID_FAMILIES[level-1];
+  const n = fam.rows*fam.cols;
+  let symbols;
+  if(fam.kind==="unicode"){
+    symbols = Array.from({length:fam.count},(_,i)=>String.fromCodePoint(fam.base+i));
+  } else {
+    symbols = fam.pool;
+  }
+  const cells = [];
+  for(let i=0;i<n;i++){
+    const sym = pick(symbols);
+    cells.push({
+      sym,
+      bg: pick(COLORS).name,
+      border: pick(COLORS).name,
+      row: Math.floor(i/fam.cols),
+      col: i%fam.cols
+    });
+  }
+  // regola, in base al livello (1 attributo -> 4 attributi + posizione)
+  const tier = tierFromLevel(level,4);
+  const targetSym = pick(symbols);
+  let ruleText, matches;
+  const bgColor = pick(COLORS).name;
+  const borderColor = pick(COLORS).name;
+  if(tier===0){
+    ruleText = `Conta tutti gli elementi «${targetSym}».`;
+    matches = c=>c.sym===targetSym;
+  } else if(tier===1){
+    ruleText = `Conta tutti gli elementi «${targetSym}» con sfondo ${bgColor}.`;
+    matches = c=>c.sym===targetSym && c.bg===bgColor;
+  } else if(tier===2){
+    ruleText = `Conta tutti gli elementi «${targetSym}» con sfondo ${bgColor} e bordo ${borderColor}.`;
+    matches = c=>c.sym===targetSym && c.bg===bgColor && c.border===borderColor;
+  } else {
+    ruleText = `Conta tutti gli elementi «${targetSym}» con bordo ${borderColor}, nelle righe dispari.`;
+    matches = c=>c.sym===targetSym && c.border===borderColor && c.row%2===1;
+  }
+  const answerCount = cells.filter(matches).length;
+  cells.forEach(c=>c.isAnswer = matches(c));
+  return {
+    type:"griglie",
+    rows:fam.rows, cols:fam.cols,
+    cells,
+    rule:ruleText,
+    answer:`${answerCount} elementi`,
+    slides:[{cells, rows:fam.rows, cols:fam.cols}]
+  };
+}
+
+// ---------- INTRUSO PERCETTIVO ----------
+const INTRUSO_FAMILIES = [
+  {id:1, mode:"value", len:1, pool:"0123456789".split("")},
+  {id:2, mode:"value", len:1, pool:"ABCDEFGHI".split("")},
+  {id:3, mode:"value", len:1, pool:Array.from({length:6},(_,i)=>String.fromCodePoint(0x2680+i))}, // dadi
+  {id:4, mode:"value", len:1, pool:Array.from({length:8},(_,i)=>String.fromCodePoint(0x1F030+i))}, // domino
+  {id:5, mode:"value", len:2, pool:"ABCDEFGH".split("")},
+  {id:6, mode:"value", len:2, pool:"0123456789".split("")},
+  {id:7, mode:"order", len:3, pool:"0123456789".split("")},
+  {id:8, mode:"order", len:3, pool:"ABCDEFGH".split("")},
+  {id:9, mode:"value", len:2, pool:Array.from({length:10},(_,i)=>String.fromCodePoint(0x0460+i*2))}, // cirillico arcaico
+  {id:10,mode:"value", len:2, pool:Array.from({length:10},(_,i)=>String.fromCodePoint(0x0E01+i))}, // thai
+  {id:11,mode:"value", len:1, pool:["↑","↓","←","→","↖","↗","↘","↙"]},
+  {id:12,mode:"value", len:1, pool:Array.from({length:8},(_,i)=>String.fromCodePoint(0x1F0A1+i))}, // carte
+  {id:13,mode:"order", len:4, pool:"0123456789".split("")},
+  {id:14,mode:"order", len:4, pool:"ABCDEFGH".split("")},
+  {id:15,mode:"value", len:2, pool:Array.from({length:6},(_,i)=>String.fromCodePoint(0x1200+i))}, // ge'ez fine
+  {id:16,mode:"value", len:2, pool:Array.from({length:8},(_,i)=>String.fromCodePoint(0x91D0+i))}  // cjk simili
+];
+
+function genIntruso(level){
+  const fam = INTRUSO_FAMILIES[level-1];
+  const arraySize = 15 + (level%2===0?3:0);
+  let common, odd;
+  if(fam.mode==="value"){
+    common = randLettersFromPool(fam.len, fam.pool);
+    do{ odd = randLettersFromPool(fam.len, fam.pool);}while(odd===common);
+  } else {
+    const base = pickN(fam.pool, fam.len);
+    common = shuffle(base).join("");
+    do{ odd = shuffle(base).join(""); }while(odd===common);
+  }
+  const oddIndex = rnd(arraySize);
+  const items = [];
+  for(let i=0;i<arraySize;i++) items.push(i===oddIndex? odd: common);
+  return {
+    type:"intruso",
+    items, oddIndex,
+    rule: fam.mode==="value" ? "Trova l'elemento diverso dagli altri." : "Trova l'elemento con l'ordine dei caratteri diverso dagli altri.",
+    answer: `Posizione ${oddIndex+1}: «${odd}»`,
+    slides:[{items, oddIndex}]
+  };
+}
+function randLettersFromPool(len,pool){
+  let s=""; for(let i=0;i<len;i++) s+=pick(pool); return s;
+}
+
+// ---------- INVERSIONE E RIORDINO ----------
+function genInversione(level){
+  const lexical = level<=4;
+  const mixedCase = level>=11;
+  const alnum = level>=11;
+  const lens = level<10 ? [3,4] : [3,4,5];
+  const itemsPer = level>=13 ? 5 : (level>=11 ? 3 : 5);
+
+  const blocks = [];
+  lens.forEach(len=>{
+    let items;
+    if(lexical && REAL_WORDS[len]){
+      items = pickN(REAL_WORDS[len], Math.min(itemsPer, REAL_WORDS[len].length));
+    } else {
+      items = Array.from({length:itemsPer},()=>{
+        let w = randLetters(len);
+        return mixedCase ? randCase(w) : w;
+      });
+    }
+    blocks.push({label:`Lettere — ${len} caratteri`, items, kind:"letters"});
+  });
+  lens.forEach(len=>{
+    const items = Array.from({length:itemsPer},()=>randDigits(len));
+    blocks.push({label:`Numeri — ${len} cifre`, items, kind:"digits"});
+  });
+  if(alnum){
+    lens.filter(l=>l>=4).forEach(len=>{
+      const items = Array.from({length:itemsPer},()=>randAlnum(len));
+      blocks.push({label:`Alfanumerico misto — ${len} caratteri`, items, kind:"alnum"});
+    });
+  }
+  return {type:"inversione", blocks, slides:[{blocks}]};
+}
+
+// ---------- SERIE ATTENTIVE ALTERNATE ----------
+function genSerie(level){
+  const length = 40;
+  const pool = ["A","B","1","2"];
+  let color = Math.random()<0.5 ? "black":"red";
+  const seq = [];
+  for(let i=0;i<length;i++){
+    seq.push({char:pick(pool), color});
+    color = color==="black" ? "red":"black";
+  }
+  return {
+    type:"serie",
+    seq,
+    rule: SERIE_RULES[level-1],
+    slides: seq.map((s,i)=>({...s, index:i}))
+  };
+}
+
+// ---------- ACCESSO LESSICALE ----------
+function genAccesso(level){
+  const tier = tierFromLevel(level,4);
+  const word = pick(LEXICAL_TIERS[tier].words);
+  return {
+    type:"accesso",
+    word,
+    rule: "Gerarchia di facilitazione se il paziente non recupera la parola: sovraordinata → subordinata/esempi → somiglianze e parentele → usi → caratteristiche tipiche.",
+    slides:[{word}]
+  };
+}
+
+// ---------- CATEGORIZZAZIONE ----------
+function genCategorizzazione(level){
+  const idx = (level-1) % CAT_DOMAINS.length;
+  const domain = CAT_DOMAINS[idx];
+  const advanced = level>=13;
+  let items, ruleText, oddIndex=-1;
+  if(advanced){
+    const other = CAT_DOMAINS[(idx+1)%CAT_DOMAINS.length];
+    const main5 = pickN(domain.items,5);
+    const intruder = pick(other.items);
+    oddIndex = rnd(6);
+    items = [];
+    let mi=0;
+    for(let i=0;i<6;i++){
+      if(i===oddIndex) items.push(intruder);
+      else items.push(main5[mi++]);
+    }
+    ruleText = `Trova l'intruso: 5 immagini appartengono alla categoria «${domain.name}», una no.`;
+  } else {
+    items = pickN(domain.items,6);
+    ruleText = `Categoria proposta: «${domain.name}». Raggruppare/nominare gli elementi.`;
+  }
+  return {
+    type:"categorizzazione",
+    items, oddIndex, domainName:domain.name,
+    rule: ruleText,
+    answer: advanced ? `Intruso in posizione ${oddIndex+1}` : `Categoria: ${domain.name}`,
+    slides:[{items, oddIndex}]
+  };
+}
+
+/* =========================================================
+   RENDER
+   ========================================================= */
+const LEVEL_NOTES = {
+  griglie:[
+    "Cifre 1-4, griglia piccola, ricerca su un solo attributo.",
+    "Lettere, griglia piccola, ricerca su un solo attributo.",
+    "Cifre 1-4, come sopra.",
+    "Lettere, come sopra.",
+    "Forme geometriche pure (no alfanumerico), griglia media.",
+    "Forme geometriche pure, griglia media.",
+    "Cifre, griglia grande, due attributi combinati.",
+    "Cifre (range diverso), griglia grande.",
+    "Lettere, griglia grande.",
+    "Lettere, griglia grande.",
+    "Alfanumerico misto, griglia grande.",
+    "Frecce con orientamento, griglia grande.",
+    "Alfabeto cirillico (script non familiare).",
+    "Ideogrammi cinesi visivamente simili.",
+    "Sillabario Ge'ez, differenze diacritiche minime.",
+    "Sillabario Ge'ez, altro sotto-set."
+  ],
+  intruso:[
+    "Cifra singola.","Lettera singola.","Simboli dado (familiari, non verbalizzabili).",
+    "Tessere domino.","Coppia di lettere (valore diverso).","Coppia di cifre (valore diverso).",
+    "Terna di cifre, stesso set in ordine diverso.","Terna di lettere, stesso set in ordine diverso.",
+    "Coppia in script non familiare (cirillico arcaico).","Coppia in script non familiare (thai).",
+    "Frecce direzionali.","Simboli di carte da gioco.",
+    "Quaterna di cifre, ordine diverso.","Quaterna di lettere, ordine diverso.",
+    "Coppia Ge'ez, discriminazione fine.","Coppia CJK, radicali molto simili."
+  ],
+  inversione:[
+    "Parole reali, 3-4 lettere; numeri 3-4 cifre.","Parole reali.","Parole reali.","Parole reali.",
+    "Non-parole maiuscole uniformi.","Non-parole.","Non-parole.","Non-parole.","Non-parole.",
+    "Introduzione di lunghezza 5 (lettere e cifre).",
+    "Case misto nella stessa stringa; primi item alfanumerici.",
+    "Case misto; alfanumerico.",
+    "Alfanumerico misto esteso.","Alfanumerico misto esteso.","Alfanumerico misto esteso.","Alfanumerico misto esteso."
+  ],
+  serie:[
+    "Scelta a 2 vie su colore.","Categorizzazione lettera/numero + raggruppamento arbitrario.",
+    "Mappatura a 4 vie con No-Go.","Mappatura a 4 vie con No-Go.","Mappatura a 4 vie con No-Go.",
+    "Mappatura a 4 vie, doppia modalità, con inversione.","Come sopra.","Come sopra.","Come sopra.","Come sopra.",
+    "Regola congiunta colore×categoria + No-Go.","Regola congiunta + No-Go.",
+    "Regola congiuntiva OR cross-dimensionale.","Come sopra.","Come sopra.",
+    "N-1 back: risposta sullo stimolo precedente."
+  ],
+  accesso:[
+    "Nomi concreti, alta frequenza.","Nomi concreti, alta frequenza.","Nomi concreti, alta frequenza.","Nomi concreti, alta frequenza.",
+    "Concreto specifico / categorie meno immediate.","Concreto specifico.","Concreto specifico.","Concreto specifico.",
+    "Astratto / semi-tecnico.","Astratto / semi-tecnico.","Astratto / semi-tecnico.","Astratto / semi-tecnico.",
+    "Astratto/tecnico raro o nome proprio.","Astratto/tecnico raro.","Astratto/tecnico raro.","Astratto/tecnico raro."
+  ],
+  categorizzazione:[
+    "Categoria concreta 1, raggruppamento semplice.","Categoria concreta 2.","Categoria concreta 3.",
+    "Categoria concreta 4.","Categoria concreta 5.","Categoria concreta 6 (il ciclo riparte).",
+    "Ciclo domini, raggruppamento.","Ciclo domini.","Ciclo domini.","Ciclo domini.","Ciclo domini.","Ciclo domini.",
+    "Intruso semantico tra 2 domini combinati.","Intruso semantico.","Intruso semantico.","Intruso semantico."
+  ]
+};
+
+function colorHex(name){
+  const c = COLORS.find(x=>x.name===name);
+  return c? c.css : "#fff";
+}
+
+function renderGriglie(deck){
+  const s = deck.slides[0];
+  const wrap = document.createElement("div");
+  wrap.className = "grid-wrap";
+  wrap.style.gridTemplateColumns = `repeat(${s.cols}, minmax(0,1fr))`;
+  s.cells.forEach(c=>{
+    const div = document.createElement("div");
+    div.className = "cell" + (state.reveal && c.isAnswer ? " answer":"");
+    div.style.background = colorHex(c.bg);
+    div.style.borderColor = state.reveal && c.isAnswer ? "" : colorHex(c.border);
+    div.style.color = (c.bg==="nero")? "#fff":"#1E2A26";
+    div.textContent = c.sym;
+    wrap.appendChild(div);
+  });
+  return wrap;
+}
+
+function renderIntruso(deck){
+  const s = deck.slides[0];
+  const wrap = document.createElement("div");
+  wrap.className = "strip";
+  s.items.forEach((it,i)=>{
+    const div = document.createElement("div");
+    div.className = "cell" + (state.reveal && i===s.oddIndex ? " answer":"");
+    div.style.borderColor = "#D9DFD9";
+    div.style.background = "#fff";
+    div.textContent = it;
+    wrap.appendChild(div);
+  });
+  return wrap;
+}
+
+function renderInversione(deck){
+  const wrap = document.createElement("div");
+  wrap.className = "word-list";
+  deck.blocks.forEach(b=>{
+    const block = document.createElement("div");
+    block.className = "word-block";
+    const h = document.createElement("h3");
+    h.textContent = b.label;
+    block.appendChild(h);
+    const row = document.createElement("div");
+    row.className = "word-items";
+    b.items.forEach(it=>{
+      const span = document.createElement("span");
+      span.textContent = it;
+      if(state.reveal && b.kind==="digits"){
+        const rule = DIGIT_RULES.find(r=>r.key===state.digitRule);
+        const small = document.createElement("small");
+        small.textContent = `${rule.label}: ${rule.apply(it)}`;
+        span.appendChild(small);
+      } else if(state.reveal && b.kind!=="digits"){
+        const small = document.createElement("small");
+        small.textContent = `Inverti: ${it.split("").reverse().join("")}`;
+        span.appendChild(small);
+      }
+      row.appendChild(span);
+    });
+    block.appendChild(row);
+    wrap.appendChild(block);
+  });
+  return wrap;
+}
+
+function renderSerie(deck){
+  const s = deck.slides[state.slideIndex];
+  const div = document.createElement("div");
+  div.className = "single-item";
+  div.style.color = s.color==="red" ? "#B23A2C" : "#1E2A26";
+  div.textContent = s.char;
+  const label = document.createElement("div");
+  label.className = "sub-label";
+  label.textContent = `Stimolo ${s.index+1} / ${deck.slides.length}`;
+  const holder = document.createElement("div");
+  holder.style.position="relative";
+  holder.style.width="100%";
+  holder.style.height="100%";
+  holder.style.display="flex";
+  holder.style.alignItems="center";
+  holder.style.justifyContent="center";
+  holder.appendChild(label);
+  holder.appendChild(div);
+  return holder;
+}
+
+function renderAccesso(deck){
+  const s = deck.slides[0];
+  const div = document.createElement("div");
+  div.className = "single-word";
+  div.textContent = s.word;
+  return div;
+}
+
+function renderCategorizzazione(deck){
+  const s = deck.slides[0];
+  const wrap = document.createElement("div");
+  wrap.className = "cat-grid";
+  s.items.forEach((it,i)=>{
+    const tile = document.createElement("div");
+    tile.className = "cat-tile" + (state.reveal && i===s.oddIndex ? " answer":"");
+    tile.textContent = it;
+    wrap.appendChild(tile);
+  });
+  return wrap;
+}
+
+const RENDERERS = {
+  griglie: renderGriglie,
+  intruso: renderIntruso,
+  inversione: renderInversione,
+  serie: renderSerie,
+  accesso: renderAccesso,
+  categorizzazione: renderCategorizzazione
+};
+
+const GENERATORS = {
+  griglie: genGriglie,
+  intruso: genIntruso,
+  inversione: genInversione,
+  serie: genSerie,
+  accesso: genAccesso,
+  categorizzazione: genCategorizzazione
+};
+
+const EX_CONTROLS = {
+  inversione: ()=>{
+    const wrap = document.createElement("div");
+    const label = document.createElement("label");
+    label.textContent = "Regola per il blocco numerico";
+    wrap.appendChild(label);
+    const group = document.createElement("div");
+    group.className = "btn-group";
+    DIGIT_RULES.forEach(r=>{
+      const chip = document.createElement("button");
+      chip.className = "chip" + (state.digitRule===r.key ? " active":"");
+      chip.textContent = r.label;
+      chip.onclick = ()=>{ state.digitRule=r.key; renderExControls(); render(); };
+      group.appendChild(chip);
+    });
+    wrap.appendChild(group);
+    return wrap;
+  },
+  categorizzazione: ()=>{
+    const wrap = document.createElement("div");
+    const p = document.createElement("div");
+    p.className = "level-note";
+    p.textContent = "Livelli 1-12: raggruppamento per categoria. Livelli 13-16: trova l'intruso semantico tra due domini. (Prototipo con icone: nella versione con foto reali qui comparirà la libreria immagini.)";
+    wrap.appendChild(p);
+    return wrap;
+  }
+};
+
+function renderExControls(){
+  const host = document.getElementById("exControls");
+  host.innerHTML = "";
+  const fn = EX_CONTROLS[state.exercise];
+  if(fn) host.appendChild(fn());
+}
+
+/* =========================================================
+   UI WIRING
+   ========================================================= */
+function buildExList(){
+  const ul = document.getElementById("exList");
+  ul.innerHTML = "";
+  EXERCISES.forEach(ex=>{
+    const li = document.createElement("li");
+    const btn = document.createElement("button");
+    btn.className = ex.id===state.exercise ? "active":"";
+    btn.innerHTML = `<span class="ex-name">${ex.name}</span><span class="ex-desc">${ex.desc}</span>`;
+    btn.onclick = ()=>{
+      state.exercise = ex.id;
+      state.slideIndex = 0;
+      state.reveal = false;
+      buildExList();
+      renderExControls();
+      generate();
+    };
+    li.appendChild(btn);
+    ul.appendChild(li);
+  });
+}
+
+function generate(){
+  state.slideIndex = 0;
+  state.deck = GENERATORS[state.exercise](state.level);
+  document.getElementById("ruleBox").style.display = "none";
+  render();
+}
+
+function render(){
+  const ex = EXERCISES.find(e=>e.id===state.exercise);
+  document.getElementById("exTitle").textContent = ex.name;
+  document.getElementById("exMeta").textContent = `Livello ${state.level} di 16`;
+  document.getElementById("levelBadge").textContent = state.level;
+  document.getElementById("levelNote").textContent = LEVEL_NOTES[state.exercise][state.level-1];
+
+  const stage = document.getElementById("stage");
+  stage.innerHTML = "";
+  stage.appendChild(RENDERERS[state.exercise](state.deck));
+
+  const ruleBox = document.getElementById("ruleBox");
+  if(state.deck.rule){
+    ruleBox.style.display = "block";
+    ruleBox.innerHTML = `<b>Regola:</b> ${state.deck.rule}` + (state.reveal && state.deck.answer ? `<br><b>Risposta:</b> ${state.deck.answer}` : "");
+  } else {
+    ruleBox.style.display = "none";
+  }
+
+  const foot = document.getElementById("stageFoot");
+  if(state.exercise==="serie"){
+    foot.style.display = "flex";
+    document.getElementById("slideCounter").textContent = `${state.slideIndex+1} / ${state.deck.slides.length}`;
+  } else {
+    foot.style.display = "none";
+  }
+}
+
+document.getElementById("levelRange").addEventListener("input", e=>{
+  state.level = Number(e.target.value);
+  generate();
+});
+document.getElementById("btnGenerate").addEventListener("click", generate);
+document.getElementById("btnReveal").addEventListener("click", ()=>{
+  state.reveal = !state.reveal;
+  render();
+});
+document.getElementById("btnPrint").addEventListener("click", ()=>window.print());
+document.getElementById("prevSlide").addEventListener("click", ()=>{
+  if(state.slideIndex>0){ state.slideIndex--; render(); }
+});
+document.getElementById("nextSlide").addEventListener("click", ()=>{
+  if(state.slideIndex < state.deck.slides.length-1){ state.slideIndex++; render(); }
+});
+
+buildExList();
+renderExControls();
+generate();
+</script>
+</body>
+</html>
