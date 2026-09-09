@@ -241,6 +241,7 @@
     padding:4px;
   }
   .cell.answer{outline:3px solid var(--warn);outline-offset:-3px;}
+  .circle-cell{aspect-ratio:1/1; width:auto; font-size:16px;}
 
   .strip{
     display:flex;
@@ -436,14 +437,52 @@ const LEXICAL_TIERS = [
 // piccola correzione: rimuove un carattere non italiano rimasto per errore
 LEXICAL_TIERS[2].words = LEXICAL_TIERS[2].words.filter(w=>/^[A-Za-zàèéìòù]+$/.test(w));
 
-const CAT_DOMAINS = [
-  {name:"Frutta e verdura", items:["🍎","🥕","🍌","🍇","🥔","🍅","🍊","🥦","🍓","🍍","🥑","🌽"]},
-  {name:"Animali da fattoria e non", items:["🐶","🐱","🐴","🐮","🐷","🐑","🦆","🐔","🐟","🐢","🦋","🐝"]},
-  {name:"Mezzi di trasporto", items:["🚗","🚌","🚲","🚂","✈️","🚁","⛵","🚕","🚜","🛵","🚒","🚚"]},
-  {name:"Oggetti da cucina", items:["🍴","🥄","🍳","🥣","☕","🍽️","🔪","🧂","🥤","🫖","🧊","🥡"]},
-  {name:"Attrezzatura sportiva", items:["⚽","🏀","🎾","🏓","🏸","⛳","🥊","🚴","🏋️","🤿","🥋","🏹"]},
-  {name:"Utensili e attrezzi", items:["🔨","🪛","🔧","🪚","🪓","🧰","🧹","🪣","🧲","🪝","🔩","🧵"]}
+// coppie di domini "vicini" semanticamente, per costruire intrusi difficili
+// (l'intruso non è ovviamente estraneo: appartiene a un dominio contiguo/facilmente confondibile)
+// Coppie di gruppi reali (6 immagini = due gruppi da 3), vicinanza semantica crescente col livello.
+// Alcune coppie replicano direttamente esempi osservati nei materiali originali.
+const CAT_PAIRS = [
+  // livello 1-4: categorie molto distanti (tassonomiche, ovvie)
+  {a:{label:"Animali", items:["🐶","🐱","🐴"]}, b:{label:"Utensili", items:["🔨","🔧","🪛"]}},
+  {a:{label:"Frutta", items:["🍇","🍊","🍓"]}, b:{label:"Mezzi di trasporto", items:["🚗","🚌","🚲"]}},
+  {a:{label:"Strumenti musicali", items:["🎸","🎹","🥁"]}, b:{label:"Animali", items:["🐢","🦋","🐝"]}},
+  // livello 5-8: ancora tassonomiche, ma più vicine tra loro (dagli originali)
+  {a:{label:"Animali", items:["🐧","🐸","🐱"]}, b:{label:"Cibo", items:["🍈","🥦","🍅"]}}, // dagli originali
+  {a:{label:"Bevande", items:["🥛","☕","💧"]}, b:{label:"Cibi solidi", items:["🧀","🍆","🥩"]}}, // dagli originali
+  {a:{label:"Frutta", items:["🍊","🍎","🍓"]}, b:{label:"Verdura", items:["🥬","🥕","🧅"]}}, // dagli originali — vicine ma ancora tassonomiche
+  // livello 9-12: raggruppamento FUNZIONALE/concettuale entro un dominio condiviso (dagli originali)
+  {a:{label:"Edifici religiosi", items:["⛪","🕌","🛕"]}, b:{label:"Edifici civili", items:["🏠","🏥","🏰"]}}, // dagli originali (Partenone/chiesa/moschea vs casa/ospedale/castello)
+  {a:{label:"Ascesa con sforzo fisico", items:["🪜","🧗","🚶"]}, b:{label:"Ascesa meccanica/assistita", items:["🛗","🚡","🎿"]}}, // dagli originali (scala, arrampicata, scalinata vs scala mobile, seggiovia, ascensore)
+  {a:{label:"Producono/amplificano il suono", items:["📢","🎸","📯"]}, b:{label:"Bloccano/attenuano il suono", items:["🎧","🙉","🔇"]}}, // dagli originali (megafono, chitarra, apparecchio acustico vs cuffie antirumore, barriera fonoassorbente, tappi)
+  // livello 13-16: categorie astratte per QUALITÀ/PROCESSO, non per tipo di oggetto — le più difficili (dagli originali)
+  {a:{label:"Richiedono precisione fine", items:["🎯","⌚","💉"]}, b:{label:"Richiedono forza grossolana", items:["🤼","🏋️","🪓"]}}, // dagli originali (freccette/orologiaio/bisturi vs lotta/manubri/accetta)
+  {a:{label:"Segnalano un pericolo", items:["⚠️","🚨","☣️"]}, b:{label:"Segnalano un'informazione neutra", items:["ℹ️","📋","🪧"]}},
+  {a:{label:"Trattengono/contengono", items:["🧲","🪤","🗜️"]}, b:{label:"Lasciano passare/aprono", items:["🔓","🚪","🕳️"]}}
 ];
+
+function tierPairs(level){
+  const t = Math.min(3, Math.floor((level-1)/4)); // 0..3
+  return CAT_PAIRS.filter((_,i)=> Math.floor(i/3)===t);
+}
+
+function genCategorizzazione(level){
+  const pool = tierPairs(level);
+  const pair = pick(pool);
+  const tagged = [
+    ...pair.a.items.map(it=>({it, group:"A"})),
+    ...pair.b.items.map(it=>({it, group:"B"}))
+  ];
+  const shuffled = shuffle(tagged);
+  return {
+    type:"categorizzazione",
+    items: shuffled.map(t=>t.it),
+    groups: shuffled.map(t=>t.group),
+    labelA: pair.a.label, labelB: pair.b.label,
+    rule: `Dividi le 6 immagini in due gruppi da 3, in base a una categoria comune (non è detto quale sia più immediata).`,
+    answer: `Gruppo 1 — ${pair.a.label}: ${pair.a.items.join(" ")} · Gruppo 2 — ${pair.b.label}: ${pair.b.items.join(" ")}`,
+    slides:[{items:shuffled.map(t=>t.it), groups:shuffled.map(t=>t.group)}]
+  };
+}
 
 const SERIE_RULES = [
   "Mano dx se il carattere è nero, mano sx se è rosso.",
@@ -538,7 +577,7 @@ function summarizeDeck(exId, level, deck){
     case "inversione": return `${deck.blocks.length} blocchi (${deck.blocks.map(b=>b.items.length).reduce((a,b)=>a+b,0)} item totali)`;
     case "serie": return `Sequenza di ${deck.seq.length} stimoli`;
     case "accesso": return `Parola: ${deck.word}`;
-    case "categorizzazione": return `${deck.domainName}${deck.oddIndex>-1? " (intruso)":""}`;
+    case "categorizzazione": return `${deck.domainName}${deck.oddIndexes && deck.oddIndexes.length ? ` (${deck.oddIndexes.length} intrusi)`:""}`;
     default: return "";
   }
 }
@@ -564,6 +603,7 @@ const state = {
   level:1,
   digitRule:"inverti",
   catMode:"raggruppa",
+  materialOverride:{griglie:"auto", intruso:"auto", inversione:"auto"},
   deck:null,
   slideIndex:0,
   reveal:false
@@ -571,11 +611,11 @@ const state = {
 
 const EXERCISES = [
   {id:"griglie", name:"Griglie-Conteggio", desc:"Ricerca visiva e conteggio in griglia"},
-  {id:"intruso", name:"Intruso percettivo", desc:"Trova l'elemento diverso"},
+  {id:"intruso", name:"Intruso percettivo", desc:"Trova l'unico elemento senza il suo pari"},
   {id:"inversione", name:"Inversione e riordino", desc:"Span e manipolazione di sequenze"},
   {id:"serie", name:"Serie attentive alternate", desc:"Attenzione alternata, task-switching, n-back"},
   {id:"accesso", name:"Accesso lessicale online", desc:"Denominazione con cueing graduato"},
-  {id:"categorizzazione", name:"Categorizzazione", desc:"Raggruppamento / intruso semantico (prototipo con icone)"}
+  {id:"categorizzazione", name:"Categorizzazione", desc:"Dividi 6 immagini in 2 gruppi da 3 (prototipo con icone)"}
 ];
 
 /* =========================================================
@@ -601,18 +641,25 @@ const GRID_FAMILIES = [
   {id:15,kind:"unicode", base:0x1200, count:5, rows:6, cols:12}, // ge'ez
   {id:16,kind:"unicode", base:0x1218, count:5, rows:6, cols:12}  // ge'ez (altro blocco)
 ];
-const COLORS = [
-  {name:"giallo", css:"#F4DE7A"},
-  {name:"bianco", css:"#FFFFFF"},
-  {name:"azzurro", css:"#AED6E0"},
-  {name:"verde", css:"#B7D8B0"},
-  {name:"viola", css:"#CBB3D9"},
-  {name:"rosso", css:"#E39387"},
-  {name:"nero", css:"#3A3A3A"}
+// Fedele agli originali: solo 2 sfondi (giallo/bianco) e 2 bordi (rosso/nero), colori pieni.
+const FILL_COLORS = [
+  {name:"giallo", css:"#FFD400"},
+  {name:"bianco", css:"#FFFFFF"}
 ];
+const BORDER_COLORS = [
+  {name:"rosso", css:"#E30613"},
+  {name:"nero", css:"#000000"}
+];
+const COLORS = [...FILL_COLORS, ...BORDER_COLORS];
+function randInt(lo,hi){ return lo + rnd(hi-lo+1); }
 
 function genGriglie(level){
-  const fam = GRID_FAMILIES[level-1];
+  let fam = GRID_FAMILIES[level-1];
+  const ov = state.materialOverride.griglie;
+  if(ov && ov!=="auto"){
+    const opt = MATERIAL_OPTIONS.griglie.find(o=>o.id===ov);
+    fam = {...fam, kind:opt.kind, pool:opt.pool, base:opt.base, count:opt.count};
+  }
   const n = fam.rows*fam.cols;
   let symbols;
   if(fam.kind==="unicode"){
@@ -620,44 +667,89 @@ function genGriglie(level){
   } else {
     symbols = fam.pool;
   }
-  const cells = [];
-  for(let i=0;i<n;i++){
-    const sym = pick(symbols);
-    cells.push({
-      sym,
-      bg: pick(COLORS).name,
-      border: pick(COLORS).name,
-      row: Math.floor(i/fam.cols),
-      col: i%fam.cols
-    });
-  }
-  // regola, in base al livello (1 attributo -> 4 attributi + posizione)
-  const tier = tierFromLevel(level,4);
+  const tier = tierFromLevel(level,4); // 0..3
+
+  // Ogni cella parte "neutra" (sfondo bianco, bordo nero): il colore "speciale" (giallo/rosso)
+  // viene sovrapposto solo su un numero di celle scelto apposta (5-12) — non su metà griglia,
+  // altrimenti su griglie grandi il conteggio esploderebbe oltre ogni range utile.
+  const cells = Array.from({length:n}, (_,i)=>({
+    sym: pick(symbols), fill:"bianco", border:"nero",
+    row: Math.floor(i/fam.cols), col: i%fam.cols
+  }));
+  const allIdx = cells.map((_,i)=>i);
+  const specs = []; // {text, matches} — il conteggio si calcola SOLO a mutazioni finite, mai prima
+
+  // Regola 1 (sempre): simbolo singolo, forzato a comparire tra 7 e 12 volte.
   const targetSym = pick(symbols);
-  let ruleText, matches;
-  const bgColor = pick(COLORS).name;
-  const borderColor = pick(COLORS).name;
-  if(tier===0){
-    ruleText = `Conta tutti gli elementi «${targetSym}».`;
-    matches = c=>c.sym===targetSym;
-  } else if(tier===1){
-    ruleText = `Conta tutti gli elementi «${targetSym}» con sfondo ${bgColor}.`;
-    matches = c=>c.sym===targetSym && c.bg===bgColor;
-  } else if(tier===2){
-    ruleText = `Conta tutti gli elementi «${targetSym}» con sfondo ${bgColor} e bordo ${borderColor}.`;
-    matches = c=>c.sym===targetSym && c.bg===bgColor && c.border===borderColor;
-  } else {
-    ruleText = `Conta tutti gli elementi «${targetSym}» con bordo ${borderColor}, nelle righe dispari.`;
-    matches = c=>c.sym===targetSym && c.border===borderColor && c.row%2===1;
+  const Tsym = randInt(7,12);
+  const symCells = pickN(allIdx, Math.min(Tsym, n));
+  symCells.forEach(i=>cells[i].sym = targetSym);
+  const otherSymbols = symbols.filter(s=>s!==targetSym);
+  allIdx.forEach(i=>{
+    if(!symCells.includes(i) && cells[i].sym===targetSym){
+      cells[i].sym = pick(otherSymbols.length?otherSymbols:symbols);
+    }
+  });
+  specs.push({ text:`Conta tutti gli elementi «${targetSym}».`, matches:c=>c.sym===targetSym });
+
+  let fillCells = [];
+  if(tier>=1){
+    const Tfill = randInt(6,11);
+    fillCells = pickN(allIdx, Math.min(Tfill, n));
+    fillCells.forEach(i=>cells[i].fill = "giallo");
+    specs.push({ text:`Conta tutti gli elementi con sfondo giallo.`, matches:c=>c.fill==="giallo" });
   }
-  const answerCount = cells.filter(matches).length;
-  cells.forEach(c=>c.isAnswer = matches(c));
+
+  if(tier>=1){
+    let compoundCells = [];
+    if(tier>=2 && fillCells.length){
+      // Regola composta: un sotto-insieme DELLE celle già gialle riceve anche il bordo rosso,
+      // così l'intersezione è garantita, non lasciata al caso.
+      const Tcompound = randInt(5, Math.min(9, fillCells.length));
+      compoundCells = pickN(fillCells, Tcompound);
+    }
+    const Tborder = randInt(6,11);
+    const extraNeeded = Math.max(0, Tborder - compoundCells.length);
+    const otherAvail = allIdx.filter(i=>!compoundCells.includes(i));
+    const extraBorderCells = pickN(otherAvail, Math.min(extraNeeded, otherAvail.length));
+    const borderCells = [...compoundCells, ...extraBorderCells];
+    borderCells.forEach(i=>cells[i].border = "rosso");
+    specs.push({ text:`Conta tutti gli elementi con bordo rosso.`, matches:c=>c.border==="rosso" });
+    if(compoundCells.length>=5){
+      specs.push({ text:`Conta gli elementi con sfondo giallo E bordo rosso.`,
+        matches:c=>c.fill==="giallo" && c.border==="rosso" });
+    }
+  }
+
+  if(tier>=3){
+    // Regola posizionale: alcune celle gialle aggiuntive, tutte in righe dispari, per far sì
+    // che "sfondo giallo nelle righe dispari" sia anch'esso un numero controllato.
+    const oddRowIdx = allIdx.filter(i=>cells[i].row%2===1 && cells[i].fill!=="giallo");
+    const Trow = randInt(5,9);
+    const rowCells = pickN(oddRowIdx, Math.min(Trow, oddRowIdx.length));
+    rowCells.forEach(i=>cells[i].fill = "giallo");
+    specs.push({ text:`Conta gli elementi con sfondo giallo nelle righe dispari.`,
+      matches:c=>c.fill==="giallo" && c.row%2===1 });
+  }
+
+  // Tutte le mutazioni sono concluse: ora, e solo ora, calcolo i conteggi reali e tengo
+  // solo le regole il cui conteggio cade davvero tra 5 e 12.
+  const rules = specs
+    .map(s=>({ ...s, count: cells.filter(s.matches).length }))
+    .filter(r=>r.count>=5 && r.count<=12);
+  if(rules.length===0){
+    // rete di sicurezza (non dovrebbe quasi mai servire)
+    rules.push({ text:`Conta tutti gli elementi «${targetSym}».`, matches:c=>c.sym===targetSym,
+      count: cells.filter(c=>c.sym===targetSym).length });
+  }
+
   return {
     type:"griglie",
     rows:fam.rows, cols:fam.cols,
     cells,
-    rule:ruleText,
-    answer:`${answerCount} elementi`,
+    rules, ruleIndex:0,
+    rule: rules[0].text,
+    answer: `${rules[0].count} elementi`,
     slides:[{cells, rows:fam.rows, cols:fam.cols}]
   };
 }
@@ -683,30 +775,65 @@ const INTRUSO_FAMILIES = [
 ];
 
 function genIntruso(level){
-  const fam = INTRUSO_FAMILIES[level-1];
-  const arraySize = 15 + (level%2===0?3:0);
-  let common, odd;
+  let fam = INTRUSO_FAMILIES[level-1];
+  const ov = state.materialOverride.intruso;
+  if(ov && ov!=="auto"){
+    const opt = MATERIAL_OPTIONS.intruso.find(o=>o.id===ov);
+    fam = {...fam, pool:opt.pool};
+  }
+  // Come negli originali: k valori/permutazioni distinti, tutti ripetuti 2-3 volte
+  // tranne UNO (il "singolo") che compare una sola volta — è quello da trovare.
+  const kTarget = 6 + (level%3); // 6-8 tipi distinti -> ~13-19 elementi totali, come negli originali
+
+  let types;
   if(fam.mode==="value"){
-    common = randLettersFromPool(fam.len, fam.pool);
-    do{ odd = randLettersFromPool(fam.len, fam.pool);}while(odd===common);
+    types = distinctStrings(fam.pool, fam.len, kTarget);
   } else {
     const base = pickN(fam.pool, fam.len);
-    common = shuffle(base).join("");
-    do{ odd = shuffle(base).join(""); }while(odd===common);
+    types = distinctPerms(base, kTarget);
   }
-  const oddIndex = rnd(arraySize);
-  const items = [];
-  for(let i=0;i<arraySize;i++) items.push(i===oddIndex? odd: common);
+  const k = Math.max(3, types.length); // se il pool e' piccolo (es. dadi), usa quanti tipi distinti si riescono a fare
+
+  const counts = [];
+  for(let i=0;i<k-1;i++) counts.push(Math.random()<0.7?2:3);
+  counts.push(1);
+  shuffleInPlace(counts);
+
+  let objs = [];
+  types.forEach((t,i)=>{
+    for(let c=0;c<counts[i];c++) objs.push({value:t, isOdd:counts[i]===1});
+  });
+  objs = shuffle(objs);
+  const oddIndex = objs.findIndex(o=>o.isOdd);
+  const items = objs.map(o=>o.value);
+
   return {
     type:"intruso",
     items, oddIndex,
-    rule: fam.mode==="value" ? "Trova l'elemento diverso dagli altri." : "Trova l'elemento con l'ordine dei caratteri diverso dagli altri.",
-    answer: `Posizione ${oddIndex+1}: «${odd}»`,
+    rule: "Trova l'unico elemento che compare una sola volta (tutti gli altri sono ripetuti almeno 2 volte).",
+    answer: `Posizione ${oddIndex+1}: «${items[oddIndex]}»`,
     slides:[{items, oddIndex}]
   };
 }
 function randLettersFromPool(len,pool){
   let s=""; for(let i=0;i<len;i++) s+=pick(pool); return s;
+}
+function shuffleInPlace(a){
+  for(let i=a.length-1;i>0;i--){const j=rnd(i+1);[a[i],a[j]]=[a[j],a[i]];}
+  return a;
+}
+function distinctStrings(pool, len, k){
+  const set = new Set();
+  let tries=0;
+  while(set.size<k && tries<500){ set.add(randLettersFromPool(len,pool)); tries++; }
+  return [...set];
+}
+function distinctPerms(baseArr, k){
+  const set = new Set();
+  let tries=0;
+  while(set.size<k && tries<500){ set.add(shuffle(baseArr).join("")); tries++; }
+  // se il set di caratteri e' troppo corto per k permutazioni distinte, si accetta quel che c'e'
+  return [...set];
 }
 
 // ---------- INVERSIONE E RIORDINO ----------
@@ -727,33 +854,55 @@ function withMarks(text, level){
   return {text, marks: markChars(text, level)};
 }
 
+const IT_ONSETS = ["B","C","D","F","G","L","M","N","P","R","S","T","V","BR","CR","DR","FR","GR","PR","TR","BL","CL","FL","GL","PL","ST","SP","SC","GN"];
+const IT_VOWELS = ["A","E","I","O","U"];
+function pronounceableNonword(len){
+  let s = "";
+  while(s.length < len){ s += pick(IT_ONSETS) + pick(IT_VOWELS); }
+  return s.slice(0, len);
+}
+function nonwordFor(len, level){
+  // livelli bassi (non-parole "iniziali"): sempre pronunciabile.
+  // livelli alti: introduce gradualmente combinazioni meno pronunciabili (in linea col
+  // gradiente generale "riduzione del supporto fonologico"), ma mai al livello 1.
+  const pronounceProb = level<=9 ? 1 : level<=12 ? 0.6 : 0.35;
+  const w = Math.random()<pronounceProb ? pronounceableNonword(len) : randLetters(len);
+  return w;
+}
+
 function genInversione(level){
   const lexical = level<=4;
   const mixedCase = level>=11;
   const alnum = level>=11;
   const lens = level<10 ? [3,4] : [3,4,5];
   const itemsPer = level>=13 ? 5 : (level>=11 ? 3 : 5);
+  const ov = state.materialOverride.inversione;
 
   const blocks = [];
-  lens.forEach(len=>{
-    let raw;
-    if(lexical && REAL_WORDS[len]){
-      raw = pickN(REAL_WORDS[len], Math.min(itemsPer, REAL_WORDS[len].length));
-    } else {
-      raw = Array.from({length:itemsPer},()=>{
-        let w = randLetters(len);
-        return mixedCase ? randCase(w) : w;
-      });
-    }
-    const items = raw.map(t=>withMarks(t, level));
-    blocks.push({label:`Lettere — ${len} caratteri`, items, kind:"letters"});
-  });
-  lens.forEach(len=>{
-    const items = Array.from({length:itemsPer},()=>withMarks(randDigits(len), level));
-    blocks.push({label:`Numeri — ${len} cifre`, items, kind:"digits"});
-  });
-  if(alnum){
-    lens.filter(l=>l>=4).forEach(len=>{
+  if(!ov || ov==="auto" || ov==="letters"){
+    lens.forEach(len=>{
+      let raw;
+      if(lexical && REAL_WORDS[len]){
+        raw = pickN(REAL_WORDS[len], Math.min(itemsPer, REAL_WORDS[len].length));
+      } else {
+        raw = Array.from({length:itemsPer},()=>{
+          let w = nonwordFor(len, level);
+          return mixedCase ? randCase(w) : w;
+        });
+      }
+      const items = raw.map(t=>withMarks(t, level));
+      blocks.push({label:`Lettere — ${len} caratteri`, items, kind:"letters"});
+    });
+  }
+  if(!ov || ov==="auto" || ov==="digits"){
+    lens.forEach(len=>{
+      const items = Array.from({length:itemsPer},()=>withMarks(randDigits(len), level));
+      blocks.push({label:`Numeri — ${len} cifre`, items, kind:"digits"});
+    });
+  }
+  if(ov==="mixed" || (alnum && (!ov || ov==="auto"))){
+    const alnumLens = ov==="mixed" ? lens : lens.filter(l=>l>=4);
+    alnumLens.forEach(len=>{
       const items = Array.from({length:itemsPer},()=>withMarks(randAlnum(len), level));
       blocks.push({label:`Alfanumerico misto — ${len} caratteri`, items, kind:"alnum"});
     });
@@ -763,7 +912,7 @@ function genInversione(level){
 
 // ---------- SERIE ATTENTIVE ALTERNATE ----------
 function genSerie(level){
-  const length = 40;
+  const length = 154; // come negli originali (stessa lunghezza in tutte le sessioni)
   const pool = ["A","B","1","2"];
   let color = Math.random()<0.5 ? "black":"red";
   const seq = [];
@@ -792,35 +941,7 @@ function genAccesso(level){
 }
 
 // ---------- CATEGORIZZAZIONE ----------
-function genCategorizzazione(level){
-  const idx = (level-1) % CAT_DOMAINS.length;
-  const domain = CAT_DOMAINS[idx];
-  const advanced = level>=13;
-  let items, ruleText, oddIndex=-1;
-  if(advanced){
-    const other = CAT_DOMAINS[(idx+1)%CAT_DOMAINS.length];
-    const main5 = pickN(domain.items,5);
-    const intruder = pick(other.items);
-    oddIndex = rnd(6);
-    items = [];
-    let mi=0;
-    for(let i=0;i<6;i++){
-      if(i===oddIndex) items.push(intruder);
-      else items.push(main5[mi++]);
-    }
-    ruleText = `Trova l'intruso: 5 immagini appartengono alla categoria «${domain.name}», una no.`;
-  } else {
-    items = pickN(domain.items,6);
-    ruleText = `Categoria proposta: «${domain.name}». Raggruppare/nominare gli elementi.`;
-  }
-  return {
-    type:"categorizzazione",
-    items, oddIndex, domainName:domain.name,
-    rule: ruleText,
-    answer: advanced ? `Intruso in posizione ${oddIndex+1}` : `Categoria: ${domain.name}`,
-    slides:[{items, oddIndex}]
-  };
-}
+// (genCategorizzazione ridefinita sopra con la logica "due gruppi da 3")
 
 /* =========================================================
    RENDER
@@ -876,29 +997,38 @@ const LEVEL_NOTES = {
     "Astratto/tecnico raro o nome proprio.","Astratto/tecnico raro.","Astratto/tecnico raro.","Astratto/tecnico raro."
   ],
   categorizzazione:[
-    "Categoria concreta 1, raggruppamento semplice.","Categoria concreta 2.","Categoria concreta 3.",
-    "Categoria concreta 4.","Categoria concreta 5.","Categoria concreta 6 (il ciclo riparte).",
-    "Ciclo domini, raggruppamento.","Ciclo domini.","Ciclo domini.","Ciclo domini.","Ciclo domini.","Ciclo domini.",
-    "Intruso semantico tra 2 domini combinati.","Intruso semantico.","Intruso semantico.","Intruso semantico."
+    "Categorie tassonomiche molto distanti (es. animali vs utensili).","Categorie molto distanti.","Categorie molto distanti.","Categorie molto distanti.",
+    "Categorie tassonomiche più vicine (es. animali vs cibo, bevande vs cibi solidi).","Tassonomiche vicine.","Tassonomiche vicine.","Tassonomiche vicine.",
+    "Raggruppamento funzionale entro un dominio condiviso (es. ascesa con sforzo vs meccanica; suono che si produce vs si blocca).","Funzionale.","Funzionale.","Funzionale.",
+    "Categorie astratte per qualità/processo, non per tipo di oggetto (es. precisione fine vs forza grossolana).","Astratto per processo.","Astratto per processo.","Astratto per processo."
   ]
 };
 
 function colorHex(name){
+  if(!name) return null;
   const c = COLORS.find(x=>x.name===name);
-  return c? c.css : "#fff";
+  return c? c.css : null;
 }
 
 function renderGriglie(deck){
   const s = deck.slides[0];
+  const rule = deck.rules[deck.ruleIndex];
   const wrap = document.createElement("div");
   wrap.className = "grid-wrap";
   wrap.style.gridTemplateColumns = `repeat(${s.cols}, minmax(0,1fr))`;
   s.cells.forEach(c=>{
     const div = document.createElement("div");
-    div.className = "cell" + (state.reveal && c.isAnswer ? " answer":"");
-    div.style.background = colorHex(c.bg);
-    div.style.borderColor = state.reveal && c.isAnswer ? "" : colorHex(c.border);
-    div.style.color = (c.bg==="nero")? "#fff":"#1E2A26";
+    const isAns = state.reveal && rule.matches(c);
+    div.className = "cell circle-cell" + (isAns ? " answer":"");
+    const fillHex = colorHex(c.fill) || "#FFFFFF";
+    const borderHex = colorHex(c.border) || "#000000";
+    div.style.background = fillHex;
+    div.style.borderWidth = "3px";
+    div.style.borderStyle = "solid";
+    div.style.borderRadius = "50%";
+    div.style.borderColor = isAns ? "#2F6F63" : borderHex;
+    div.style.color = "#111";
+    div.style.fontWeight = "800";
     div.textContent = c.sym;
     wrap.appendChild(div);
   });
@@ -1002,7 +1132,11 @@ function renderCategorizzazione(deck){
   wrap.className = "cat-grid";
   s.items.forEach((it,i)=>{
     const tile = document.createElement("div");
-    tile.className = "cat-tile" + (state.reveal && i===s.oddIndex ? " answer":"");
+    tile.className = "cat-tile";
+    if(state.reveal){
+      tile.style.outline = "3px solid " + (s.groups[i]==="A" ? "#2F6F63" : "#A6503A");
+      tile.style.background = s.groups[i]==="A" ? "#E7F1EE" : "#F6E9E4";
+    }
     tile.textContent = it;
     wrap.appendChild(tile);
   });
@@ -1027,10 +1161,73 @@ const GENERATORS = {
   categorizzazione: genCategorizzazione
 };
 
+const MATERIAL_OPTIONS = {
+  griglie: [
+    {id:"auto", label:"Automatico (da livello)"},
+    {id:"digits", label:"Cifre", kind:"char", pool:["1","2","3","4","6","7"]},
+    {id:"letters", label:"Lettere", kind:"char", pool:["A","B","D","E","N","U"]},
+    {id:"mixed", label:"Alfanumerico misto", kind:"char", pool:["1","4","D","A","7","N"]},
+    {id:"shapes", label:"Forme geometriche", kind:"shape", pool:["●","▲","■"]},
+    {id:"arrows", label:"Frecce", kind:"arrow", pool:["↑","↓","←","→"]},
+    {id:"cyrillic", label:"Cirillico", kind:"unicode", base:0x0410, count:5},
+    {id:"cjk", label:"Ideogrammi cinesi", kind:"unicode", base:0x53E3, count:4},
+    {id:"geez", label:"Ge'ez (etiope)", kind:"unicode", base:0x1200, count:5}
+  ],
+  intruso: [
+    {id:"auto", label:"Automatico (da livello)"},
+    {id:"digits", label:"Cifre", pool:"0123456789".split("")},
+    {id:"letters", label:"Lettere", pool:"ABCDEFGHILMNOPQRSTUVZ".split("")},
+    {id:"cyrillic", label:"Cirillico", pool:Array.from({length:16},(_,i)=>String.fromCodePoint(0x0410+i))},
+    {id:"geez", label:"Ge'ez (etiope)", pool:Array.from({length:16},(_,i)=>String.fromCodePoint(0x1200+i))},
+    {id:"cjk", label:"Ideogrammi cinesi", pool:Array.from({length:16},(_,i)=>String.fromCodePoint(0x4E00+i))}
+  ],
+  inversione: [
+    {id:"auto", label:"Automatico (da livello)"},
+    {id:"letters", label:"Solo lettere"},
+    {id:"digits", label:"Solo numeri"},
+    {id:"mixed", label:"Solo alfanumerico misto"}
+  ]
+};
+
+function materialSelector(exId){
+  const wrap = document.createElement("div");
+  const label = document.createElement("label");
+  label.textContent = "Tipo di materiale";
+  wrap.appendChild(label);
+  const group = document.createElement("div");
+  group.className = "btn-group";
+  MATERIAL_OPTIONS[exId].forEach(o=>{
+    const chip = document.createElement("button");
+    chip.className = "chip" + (state.materialOverride[exId]===o.id ? " active":"");
+    chip.textContent = o.label;
+    chip.onclick = ()=>{ state.materialOverride[exId] = o.id; renderExControls(); generate(); };
+    group.appendChild(chip);
+  });
+  wrap.appendChild(group);
+  return wrap;
+}
+
 const EX_CONTROLS = {
+  griglie: ()=>{
+    const wrap = document.createElement("div");
+    wrap.appendChild(materialSelector("griglie"));
+    const btn = document.createElement("button");
+    btn.className = "action ghost";
+    btn.style.marginTop = "10px";
+    btn.textContent = "Prossima regola su questa griglia →";
+    btn.onclick = ()=>{
+      state.deck.ruleIndex = (state.deck.ruleIndex+1) % state.deck.rules.length;
+      render();
+    };
+    wrap.appendChild(btn);
+    return wrap;
+  },
+  intruso: ()=> materialSelector("intruso"),
   inversione: ()=>{
     const wrap = document.createElement("div");
+    wrap.appendChild(materialSelector("inversione"));
     const label = document.createElement("label");
+    label.style.marginTop = "12px";
     label.textContent = "Regola per il blocco numerico";
     wrap.appendChild(label);
     const group = document.createElement("div");
@@ -1049,7 +1246,7 @@ const EX_CONTROLS = {
     const wrap = document.createElement("div");
     const p = document.createElement("div");
     p.className = "level-note";
-    p.textContent = "Livelli 1-12: raggruppamento per categoria. Livelli 13-16: trova l'intruso semantico tra due domini. (Prototipo con icone: nella versione con foto reali qui comparirà la libreria immagini.)";
+    p.textContent = "Compito: dividere le 6 immagini in due gruppi da 3, in base a una categoria comune. Ai livelli bassi la categoria è tassonomica e ovvia (tipo di oggetto); dal livello 9 diventa funzionale/concettuale (es. ascesa con sforzo fisico vs meccanica, suono che si produce vs si blocca); dal livello 13 è una qualità astratta di processo (es. precisione fine vs forza grossolana), non più il tipo di oggetto in sé — come negli originali. Prototipo con icone: nella versione con foto reali qui comparirà la libreria immagini, adattata automaticamente alla dimensione della slide.";
     wrap.appendChild(p);
     return wrap;
   }
@@ -1113,7 +1310,12 @@ function render(){
   stage.appendChild(RENDERERS[state.exercise](state.deck));
 
   const ruleBox = document.getElementById("ruleBox");
-  if(state.deck.rule){
+  if(state.exercise==="griglie"){
+    const r = state.deck.rules[state.deck.ruleIndex];
+    ruleBox.style.display = "block";
+    ruleBox.innerHTML = `<b>Regola (${state.deck.ruleIndex+1}/${state.deck.rules.length}):</b> ${r.text}` +
+      (state.reveal ? `<br><b>Risposta:</b> ${r.count} elementi` : "");
+  } else if(state.deck.rule){
     ruleBox.style.display = "block";
     ruleBox.innerHTML = `<b>Regola:</b> ${state.deck.rule}` + (state.reveal && state.deck.answer ? `<br><b>Risposta:</b> ${state.deck.answer}` : "");
   } else {
@@ -1138,23 +1340,24 @@ function exportGriglie(deck, level){
   const p = new PptxGenJS();
   p.layout = "LAYOUT_WIDE";
   const s = deck.slides[0];
+  const r = deck.rules[deck.ruleIndex];
   const slide = p.addSlide();
   slide.background = {color:"FFFFFF"};
-  slide.addNotes(`Livello ${level}. Regola: ${deck.rule}. Risposta: ${deck.answer}.`);
+  slide.addNotes(`Livello ${level}. Regola: ${r.text} Risposta: ${r.count} elementi. Altre regole possibili su questa stessa griglia: ${deck.rules.map(x=>x.text).join(" | ")}`);
   const cols = s.cols, rows = s.rows;
   const cellW = 12.6/cols, cellH = 6.6/rows;
   s.cells.forEach(c=>{
-    const bgHex = hexNoHash(colorHex(c.bg));
-    const borderHex = hexNoHash(colorHex(c.border));
+    const bgHex = c.fill ? hexNoHash(colorHex(c.fill)) : "FFFFFF";
+    const borderHex = c.border ? hexNoHash(colorHex(c.border)) : "B7BEB8";
     slide.addText(c.sym, {
       x: 0.35 + c.col*cellW, y: 0.5 + c.row*cellH, w:cellW, h:cellH,
       align:"center", valign:"middle", fontSize:12, bold:true,
-      color: c.bg==="nero" ? "FFFFFF":"1E2A26",
-      fill:{color:bgHex}, line:{color:borderHex, width:1},
+      color: "1E2A26",
+      fill:{color:bgHex}, line:{color:borderHex, width:2},
       isTextBox:true
     });
   });
-  slide.addText(deck.rule, {x:0.35,y:7.15,w:12.6,h:0.3,fontSize:11,color:"4B5A55",isTextBox:true});
+  slide.addText(r.text, {x:0.35,y:7.15,w:12.6,h:0.3,fontSize:11,color:"4B5A55",isTextBox:true});
   return p.writeFile({fileName:`Griglie-Conteggio_L${level}.pptx`});
 }
 
@@ -1242,11 +1445,17 @@ function exportCategorizzazione(deck, level){
   p.layout = "LAYOUT_WIDE";
   const s = p.addSlide();
   s.background={color:"FFFFFF"};
-  s.addNotes(deck.rule);
+  s.addNotes(`${deck.rule} Risposta: ${deck.answer}`);
   const cols=3, rows=2, cellW=12.6/cols, cellH=6.6/rows;
+  // fontSize proporzionato alla cella, cosi' il "materiale" (qui emoji, in futuro foto reali)
+  // si adatta sempre alla grandezza della slide senza uscire dal riquadro.
+  const fitFontSize = Math.floor(Math.min(cellW, cellH) * 44);
   deck.items.forEach((it,i)=>{
     const r = Math.floor(i/cols), c = i%cols;
-    s.addText(it,{x:0.35+c*cellW,y:0.5+r*cellH,w:cellW,h:cellH,align:"center",valign:"middle",fontSize:60,isTextBox:true});
+    s.addText(it,{x:0.35+c*cellW,y:0.5+r*cellH,w:cellW,h:cellH,align:"center",valign:"middle",fontSize:fitFontSize,isTextBox:true});
+    // NOTA per evoluzione futura con foto reali al posto delle emoji:
+    // s.addImage({path:..., x:.., y:.., w:cellW-0.2, h:cellH-0.2, sizing:{type:"contain", w:cellW-0.2, h:cellH-0.2}})
+    // "contain" mantiene le proporzioni della foto senza deformarla dentro il riquadro.
   });
   s.addText(deck.rule,{x:0.35,y:7.15,w:12.6,h:0.3,fontSize:11,color:"4B5A55",isTextBox:true});
   return p.writeFile({fileName:`Categorizzazione_L${level}.pptx`});
