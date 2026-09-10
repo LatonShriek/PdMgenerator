@@ -1242,20 +1242,24 @@ function tierPairs(level){
 
 function genCategorizzazione(level){
   const pool = tierPairs(level);
-  const pair = pick(pool);
-  const tagged = [
-    ...pair.a.items.map(it=>({it, group:"A"})),
-    ...pair.b.items.map(it=>({it, group:"B"}))
-  ];
-  const shuffled = shuffle(tagged);
+  const chosenPairs = pickBalanced(pool, 10);
+  const slides = chosenPairs.map(pair=>{
+    const tagged = [
+      ...pair.a.items.map(it=>({it, group:"A"})),
+      ...pair.b.items.map(it=>({it, group:"B"}))
+    ];
+    const shuffled = shuffle(tagged);
+    return {
+      items: shuffled.map(t=>t.it),
+      groups: shuffled.map(t=>t.group),
+      labelA: pair.a.label, labelB: pair.b.label,
+      answer: `Gruppo 1 — ${pair.a.label}: ${pair.a.items.join(" ")} · Gruppo 2 — ${pair.b.label}: ${pair.b.items.join(" ")}`
+    };
+  });
   return {
     type:"categorizzazione",
-    items: shuffled.map(t=>t.it),
-    groups: shuffled.map(t=>t.group),
-    labelA: pair.a.label, labelB: pair.b.label,
-    rule: `Dividi le 6 immagini in due gruppi da 3, in base a una categoria comune (non è detto quale sia più immediata).`,
-    answer: `Gruppo 1 — ${pair.a.label}: ${pair.a.items.join(" ")} · Gruppo 2 — ${pair.b.label}: ${pair.b.items.join(" ")}`,
-    slides:[{items:shuffled.map(t=>t.it), groups:shuffled.map(t=>t.group)}]
+    slides,
+    rule: `Dividi le 6 immagini in due gruppi da 3, in base a una categoria comune (non è detto quale sia più immediata).`
   };
 }
 
@@ -1307,6 +1311,13 @@ function shuffle(arr){
   for(let i=a.length-1;i>0;i--){const j=rnd(i+1);[a[i],a[j]]=[a[j],a[i]];}
   return a;
 }
+function pickBalanced(pool, n){
+  // ripete il pool mescolato quante volte serve, cosi' su n prove ogni elemento del pool
+  // ricorre un numero di volte il piu' possibile uniforme (mai lunghe serie ripetute).
+  let out = [];
+  while(out.length < n) out = out.concat(shuffle(pool));
+  return out.slice(0, n);
+}
 function randCase(str){
   return str.split("").map(c=>Math.random()<0.5?c.toUpperCase():c.toLowerCase()).join("");
 }
@@ -1352,7 +1363,7 @@ function summarizeDeck(exId, level, deck){
     case "inversione": return `${deck.blocks.length} blocchi (${deck.blocks.map(b=>b.items.length).reduce((a,b)=>a+b,0)} item totali)`;
     case "serie": return `Sequenza di ${deck.seq.length} stimoli`;
     case "accesso": return `Parola: ${deck.word}`;
-    case "categorizzazione": return `${deck.domainName}${deck.oddIndexes && deck.oddIndexes.length ? ` (${deck.oddIndexes.length} intrusi)`:""}`;
+    case "categorizzazione": return `${deck.slides.length} schermate (es. ${deck.slides[0].labelA} vs ${deck.slides[0].labelB})`;
     case "fascicolo": return `Fascicolo ${deck.week} — ${deck.week}°settimana`;
     default: return "";
   }
@@ -1381,6 +1392,7 @@ const state = {
   digitRule:"inverti",
   catMode:"raggruppa",
   materialOverride:{griglie:"auto", intruso:"auto", inversione:"auto"},
+  inversioneItemsOverride:null,
   fascicoloWeek:1,
   deck:null,
   slideIndex:0,
@@ -1696,12 +1708,16 @@ function nonwordFor(len, level){
   return w;
 }
 
+function defaultItemsPerInversione(level){
+  return level>=13 ? 5 : (level>=11 ? 3 : 5);
+}
+
 function genInversione(level){
   const lexical = level<=4;
   const mixedCase = level>=11;
   const alnum = level>=11;
   const lens = level<10 ? [3,4] : [3,4,5];
-  const itemsPer = level>=13 ? 5 : (level>=11 ? 3 : 5);
+  const itemsPer = state.inversioneItemsOverride || defaultItemsPerInversione(level);
   const ov = state.materialOverride.inversione;
 
   const blocks = [];
@@ -1962,7 +1978,7 @@ function renderAccesso(deck){
 }
 
 function renderCategorizzazione(deck){
-  const s = deck.slides[0];
+  const s = deck.slides[state.slideIndex];
   const wrap = document.createElement("div");
   wrap.className = "cat-grid";
   s.items.forEach((it,i)=>{
@@ -2225,6 +2241,33 @@ const EX_CONTROLS = {
       group.appendChild(chip);
     });
     wrap.appendChild(group);
+
+    const countLabel = document.createElement("label");
+    countLabel.style.marginTop = "14px";
+    countLabel.textContent = "Numero di stimoli per blocco";
+    wrap.appendChild(countLabel);
+    const countRow = document.createElement("div");
+    countRow.className = "level-row";
+    const isAuto = state.inversioneItemsOverride==null;
+    const countInput = document.createElement("input");
+    countInput.type = "range"; countInput.min = "2"; countInput.max = "10";
+    countInput.value = state.inversioneItemsOverride || defaultItemsPerInversione(state.level);
+    const countBadge = document.createElement("div");
+    countBadge.className = "level-badge";
+    countBadge.textContent = isAuto ? "auto" : countInput.value;
+    countInput.addEventListener("input", e=>{
+      state.inversioneItemsOverride = Number(e.target.value);
+      countBadge.textContent = state.inversioneItemsOverride;
+      generate();
+    });
+    countRow.appendChild(countInput); countRow.appendChild(countBadge);
+    wrap.appendChild(countRow);
+    const resetBtn = document.createElement("button");
+    resetBtn.className = "chip" + (isAuto ? " active":"");
+    resetBtn.style.marginTop = "8px";
+    resetBtn.textContent = "Automatico (da livello)";
+    resetBtn.onclick = ()=>{ state.inversioneItemsOverride=null; renderExControls(); generate(); };
+    wrap.appendChild(resetBtn);
     return wrap;
   },
   categorizzazione: ()=>{
@@ -2338,6 +2381,10 @@ function render(){
     const s = state.deck.slides[state.slideIndex];
     ruleBox.style.display = "block";
     ruleBox.innerHTML = `<b>Regola:</b> ${s.rule}` + (state.reveal ? `<br><b>Risposta:</b> ${s.answer}` : "");
+  } else if(state.exercise==="categorizzazione"){
+    const s = state.deck.slides[state.slideIndex];
+    ruleBox.style.display = "block";
+    ruleBox.innerHTML = `<b>Regola:</b> ${state.deck.rule}` + (state.reveal ? `<br><b>Risposta:</b> ${s.answer}` : "");
   } else if(state.deck.rule){
     ruleBox.style.display = "block";
     ruleBox.innerHTML = `<b>Regola:</b> ${state.deck.rule}` + (state.reveal && state.deck.answer ? `<br><b>Risposta:</b> ${state.deck.answer}` : "");
@@ -2346,7 +2393,7 @@ function render(){
   }
 
   const foot = document.getElementById("stageFoot");
-  if(state.exercise==="serie" || state.exercise==="intruso"){
+  if(state.exercise==="serie" || state.exercise==="intruso" || state.exercise==="categorizzazione"){
     foot.style.display = "flex";
     document.getElementById("slideCounter").textContent = `${state.slideIndex+1} / ${state.deck.slides.length}`;
   } else {
@@ -2366,28 +2413,33 @@ function exportGriglie(deck, level){
   const r = deck.rules[deck.ruleIndex];
   const slide = p.addSlide();
   slide.background = {color:"FFFFFF"};
-  // Tutte le regole possibili su questa griglia vanno nel commento (nota), come negli originali —
-  // non solo quella attualmente attiva.
+  // Istruzione lineare e diretta: solo la regola attiva e le regole alternative applicabili
+  // alla stessa griglia — nessuna risposta nelle note (la conta la fa il paziente).
   const rulesList = deck.rules
     .map(x=>x.text.replace(/^Conta /,"").replace(/\.$/,""))
     .join(", ");
-  slide.addNotes(`Regola attiva: ${r.text} Risposta: ${r.count} elementi. Tutte le regole possibili su questa griglia: ${rulesList}.`);
+  slide.addNotes(`Regola: ${r.text} Altre regole applicabili su questa stessa griglia: ${rulesList}.`);
 
-  // Cerchi (non rettangoli) di dimensione fissa 1.10"x1.10", passo 1.45" — replica delle
-  // proporzioni misurate sui file originali, centrati sulla slide 10x7.5".
-  const CIRCLE = 1.10, PITCH = 1.45;
+  // Cerchi (non rettangoli) dimensionati per riempire la slide 10x7.5" il più possibile:
+  // il passo è il massimo che entra su entrambi gli assi (griglia GRID_ROWSxGRID_COLS),
+  // il diametro è il 92% del passo (margine minimo tra un cerchio e l'altro).
+  const SLIDE_W=10, SLIDE_H=7.5;
   const cols = s.cols, rows = s.rows;
+  const PITCH = Math.min(SLIDE_W/cols, SLIDE_H/rows);
+  const CIRCLE = PITCH*0.92;
   const gridW = (cols-1)*PITCH + CIRCLE, gridH = (rows-1)*PITCH + CIRCLE;
-  const marginX = (10 - gridW)/2, marginY = (7.5 - gridH)/2;
+  const marginX = (SLIDE_W - gridW)/2, marginY = (SLIDE_H - gridH)/2;
+  const fontSize = Math.round(CIRCLE*29);
+  const lineWidth = Math.max(4, Math.round(CIRCLE*5.45));
   s.cells.forEach(c=>{
     const bgHex = c.fill ? hexNoHash(colorHex(c.fill)) : "FFFFFF";
     const borderHex = c.border ? hexNoHash(colorHex(c.border)) : "000000";
     slide.addText(c.sym, {
       shape: "ellipse",
       x: marginX + c.col*PITCH, y: marginY + c.row*PITCH, w:CIRCLE, h:CIRCLE,
-      align:"center", valign:"middle", fontSize:32, bold:true,
+      align:"center", valign:"middle", fontSize, bold:true,
       color:"1E2A26",
-      fill:{color:bgHex}, line:{color:borderHex, width:6},
+      fill:{color:bgHex}, line:{color:borderHex, width:lineWidth},
       isTextBox:true
     });
   });
@@ -2398,20 +2450,31 @@ function exportIntruso(deck, level){
   // Esporta l'intera sessione (tutte le schermate del mazzo, non solo quella a video),
   // come nei file originali che contengono più slide per sessione.
   const p = new PptxGenJS();
-  p.layout = "LAYOUT_WIDE";
+  p.layout = "LAYOUT_WIDE"; // 13.33x7.5in
+  const SLIDE_W=13.33, SLIDE_H=7.5, MARGIN=0.3;
+  const areaW = SLIDE_W - MARGIN*2, areaH = SLIDE_H - MARGIN*2;
   deck.slides.forEach((s,si)=>{
     const slide = p.addSlide();
     slide.background = {color:"FFFFFF"};
     slide.addNotes(`Livello ${level}. Schermata ${si+1}/${deck.slides.length} (${s.familyLabel}). ${s.rule} Risposta: ${s.answer}.`);
     const n = s.items.length;
-    const cols = 6, rows = Math.ceil(n/cols);
-    const cellW = 12.6/cols, cellH = 6.6/rows;
+    // Cerca il numero di colonne che rende le celle più vicine possibile al quadrato,
+    // per massimizzare la dimensione del testo — nessun riquadro, solo gli elementi.
+    let cols = 1, bestMinSide = -1;
+    for(let c=1; c<=n; c++){
+      const rr = Math.ceil(n/c);
+      const minSide = Math.min(areaW/c, areaH/rr);
+      if(minSide > bestMinSide){ bestMinSide = minSide; cols = c; }
+    }
+    const rows = Math.ceil(n/cols);
+    const cellW = areaW/cols, cellH = areaH/rows;
+    const fontSize = Math.floor(Math.min(cellW, cellH) * 40);
     s.items.forEach((it,i)=>{
       const r = Math.floor(i/cols), c = i%cols;
       slide.addText(it, {
-        x:0.35+c*cellW, y:0.5+r*cellH, w:cellW, h:cellH,
-        align:"center", valign:"middle", fontSize:22, bold:true, color:"1E2A26",
-        line:{color:"D9DFD9", width:1}, isTextBox:true
+        x:MARGIN+c*cellW, y:MARGIN+r*cellH, w:cellW, h:cellH,
+        align:"center", valign:"middle", fontSize, bold:true, color:"1E2A26",
+        isTextBox:true
       });
     });
   });
@@ -2480,21 +2543,23 @@ function exportAccesso(deck, level){
 function exportCategorizzazione(deck, level){
   const p = new PptxGenJS();
   p.layout = "LAYOUT_WIDE";
-  const s = p.addSlide();
-  s.background={color:"FFFFFF"};
-  s.addNotes(`${deck.rule} Risposta: ${deck.answer}`);
-  const cols=3, rows=2, cellW=12.6/cols, cellH=6.6/rows;
-  // fontSize proporzionato alla cella, cosi' il "materiale" (qui emoji, in futuro foto reali)
-  // si adatta sempre alla grandezza della slide senza uscire dal riquadro.
-  const fitFontSize = Math.floor(Math.min(cellW, cellH) * 44);
-  deck.items.forEach((it,i)=>{
-    const r = Math.floor(i/cols), c = i%cols;
-    s.addText(it,{x:0.35+c*cellW,y:0.5+r*cellH,w:cellW,h:cellH,align:"center",valign:"middle",fontSize:fitFontSize,isTextBox:true});
-    // NOTA per evoluzione futura con foto reali al posto delle emoji:
-    // s.addImage({path:..., x:.., y:.., w:cellW-0.2, h:cellH-0.2, sizing:{type:"contain", w:cellW-0.2, h:cellH-0.2}})
-    // "contain" mantiene le proporzioni della foto senza deformarla dentro il riquadro.
+  deck.slides.forEach((s,si)=>{
+    const slide = p.addSlide();
+    slide.background={color:"FFFFFF"};
+    slide.addNotes(`Livello ${level}. Schermata ${si+1}/${deck.slides.length}. ${deck.rule} Risposta: ${s.answer}`);
+    const cols=3, rows=2, cellW=12.6/cols, cellH=6.6/rows;
+    // fontSize proporzionato alla cella, cosi' il "materiale" (qui emoji, in futuro foto reali)
+    // si adatta sempre alla grandezza della slide senza uscire dal riquadro.
+    const fitFontSize = Math.floor(Math.min(cellW, cellH) * 44);
+    s.items.forEach((it,i)=>{
+      const r = Math.floor(i/cols), c = i%cols;
+      slide.addText(it,{x:0.35+c*cellW,y:0.5+r*cellH,w:cellW,h:cellH,align:"center",valign:"middle",fontSize:fitFontSize,isTextBox:true});
+      // NOTA per evoluzione futura con foto reali al posto delle emoji:
+      // slide.addImage({path:..., x:.., y:.., w:cellW-0.2, h:cellH-0.2, sizing:{type:"contain", w:cellW-0.2, h:cellH-0.2}})
+      // "contain" mantiene le proporzioni della foto senza deformarla dentro il riquadro.
+    });
+    slide.addText(deck.rule,{x:0.35,y:7.15,w:12.6,h:0.3,fontSize:11,color:"4B5A55",isTextBox:true});
   });
-  s.addText(deck.rule,{x:0.35,y:7.15,w:12.6,h:0.3,fontSize:11,color:"4B5A55",isTextBox:true});
   return p.writeFile({fileName:`Categorizzazione_L${level}.pptx`});
 }
 
