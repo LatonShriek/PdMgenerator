@@ -347,6 +347,35 @@
   }
   .hist-row .hist-ex{font-weight:600;}
   .hist-row .hist-when{color:var(--ink-soft); white-space:nowrap;}
+
+  /* ---- Fascicolo esercizi a casa ---- */
+  #stage.stage-fascicolo{
+    align-items:flex-start;
+    justify-content:flex-start;
+    display:block;
+    padding:30px 34px;
+  }
+  .fasc-root{width:100%;text-align:left;}
+  .fasc-root h2{font-size:20px;margin-bottom:22px;}
+  .fasc-block{margin-bottom:32px;}
+  .fasc-block h3{font-size:14.5px;margin:0 0 4px;color:var(--ink);}
+  .fasc-block .fasc-sub{font-size:12px;color:var(--ink-soft);margin-bottom:8px;font-style:italic;}
+  table.fasc-grid{border-collapse:collapse;font-size:12.5px;background:#fff;}
+  table.fasc-grid td{border:1px solid var(--line);width:24px;height:24px;text-align:center;padding:0;
+    font-family:"DejaVu Sans","Noto Sans Symbols2",monospace;}
+  table.fasc-grid.fasc-cruci td{font-family:Georgia,serif;}
+  .fasc-legend-grid{display:flex;flex-wrap:wrap;gap:8px;margin-top:10px;}
+  .fasc-legend-item{border:1px solid var(--line);border-radius:6px;padding:5px 10px;font-size:12.5px;background:#fff;}
+  .fasc-legend-seq{font-weight:700;letter-spacing:2px;}
+  .fasc-legend-count{color:var(--accent);}
+  table.fasc-prompt{border-collapse:collapse;width:100%;max-width:520px;}
+  table.fasc-prompt td{border:1px solid var(--line);padding:5px 10px;font-size:13px;}
+  .fasc-prompt-cell{width:45%;background:#FAFBFA;}
+  .fasc-answer-cell{color:var(--accent);font-weight:600;}
+  .fasc-svg-wrap svg{max-width:100%;height:auto;display:block;background:#fff;border:1px solid var(--line);border-radius:8px;}
+  @media print{
+    .fasc-block{break-inside:avoid;}
+  }
 </style>
 </head>
 <body>
@@ -358,7 +387,7 @@
 
   <ul class="exlist" id="exList"></ul>
 
-  <div class="field">
+  <div class="field" id="levelField">
     <label for="levelRange">Livello di difficoltà (sessione di riferimento)</label>
     <div class="level-row">
       <input type="range" id="levelRange" min="1" max="16" value="1">
@@ -407,6 +436,752 @@
 </div>
 
 <script src="https://cdn.jsdelivr.net/npm/pptxgenjs@3.12.0/dist/pptxgen.bundle.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/docx@9.6.1/dist/index.umd.cjs"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/FileSaver.js/2.0.5/FileSaver.min.js"></script>
+<script>
+/* =========================================================
+   FASCICOLO ESERCIZI A CASA — motore di generazione (engine.js)
+   ========================================================= */
+// ============================================================================
+// FASCICOLO ESERCIZI A CASA — motore di generazione
+// Logica pura (nessun DOM), testabile in Node prima di essere integrata
+// nella pagina HTML con rendering e export .docx.
+// ============================================================================
+(function (root, factory) {
+  if (typeof module === 'object' && module.exports) module.exports = factory();
+  else root.Engine = factory();
+})(typeof self !== 'undefined' ? self : this, function () {
+
+// ---------------------------------------------------------------------------
+// 1. FAMIGLIE DI SIMBOLI per le griglie "cerchiare e contare"
+//    Ordinate per "rarità/opacità lessicale" crescente: cifre e lettere latine
+//    sono le più automatizzate (massimo supporto lessicale residuo), a seguire
+//    alfabeti sempre meno familiari, fino a scritture del tutto prive di
+//    supporto semantico per un parlante italiano.
+// ---------------------------------------------------------------------------
+const SYMBOL_FAMILIES = {
+  digits:      { label: 'cifre',              tier: 1, chars: '0123456789'.split('') },
+  latin:       { label: 'lettere latine',      tier: 1, chars: 'ABCDEFGHIL'.split('') },
+  cyrillic:    { label: 'lettere cirilliche',   tier: 2, chars: ['Б','Г','Д','Ж','З','И','Л','П','Ц','Щ'] },
+  shapes:      { label: 'forme geometriche',   tier: 2, chars: ['⚪','⬜','⚫','⬛','╳','┃'] },
+  linesMixed:  { label: 'segmenti/direzioni',  tier: 3, chars: ['╾','╱','╲','╇','⬛','╳'] },
+  arrows:      { label: 'frecce',              tier: 3, chars: ['↗','↔','↖','↙','↓','↕','↘','→','↑','←'] },
+  mathSymbols: { label: 'simboli matematici',  tier: 4, chars: ['⋁','⋃','⊃','⋂','⊂','⋀','<','>'] },
+  runes:       { label: 'rune (Futhark)',      tier: 5, chars: ['ᚠ','ᚢ','ᚩ','ᚴ','ᚹ','ᚱ','ᚲ','ᚷ','ᚺ','ᚾ'] },
+  syllabics:   { label: 'sillabario Inuktitut', tier: 6, chars: ['ᐳ','ᐸ','ᑎ','ᑐ','ᑕ','ᓇ','ᓂ','ᓄ','ᓀ','ᕙ','ᕚ','ᕜ','ᕝ','ᕛ','ᓃ','ᓁ','ᓅ'] },
+};
+
+// Combinazione "mista" (eterogenea) usata dalla 3a griglia dalla settimana 3
+// in poi, e via via anche dalle altre: toglie il supporto del "colpo d'occhio"
+// di una famiglia omogenea, perché il bersaglio unisce simboli di famiglie
+// visivamente diverse.
+function mixedAlphabet(...familyKeys) {
+  return familyKeys.flatMap(k => SYMBOL_FAMILIES[k].chars);
+}
+
+// Ordine dei "profili" settimanali per le griglie di ricerca-sequenza.
+// Ogni voce descrive, per quella settimana, le famiglie usate nei 2-3 slot
+// di conteggio singolo. Dalla settimana 6 gli slot passano da 3 a 2 (gli
+// alfabeti sono più radi/opachi e compensano la riduzione del numero di griglie).
+const GRID_WEEK_PROFILES = [
+  null, // indice 0 non usato (settimane 1-based)
+  { slots: ['digits', 'latin', 'cyrillic'] },
+  { slots: ['shapes', 'latin', 'cyrillic'] },
+  { slots: ['linesMixed', 'arrows', 'mathSymbols'] },
+  { slots: ['shapes', 'arrows', 'mathSymbols'] },
+  { slots: [mixKey('latinDigitMix', 'latin', 'digits'), 'arrows', mixKey('cyrMathMix', 'cyrillic', 'mathSymbols')] },
+  { slots: ['runes', 'syllabics'] },
+  { slots: [mixKey('lineCyrMix', 'linesMixed', 'cyrillic'), mixKey('shapeLatinMix', 'shapes', 'latin')] },
+  { slots: ['syllabics', mixKey('shapeLineMix', 'shapes', 'linesMixed')] },
+];
+
+// Registro dinamico delle famiglie "miste" create al volo da mixKey(), così
+// GRID_WEEK_PROFILES può referenziarle come fossero famiglie vere e proprie.
+function mixKey(name, ...familyKeys) {
+  if (!SYMBOL_FAMILIES[name]) {
+    const tier = Math.max(...familyKeys.map(k => SYMBOL_FAMILIES[k].tier)) + 1;
+    SYMBOL_FAMILIES[name] = { label: `misto (${familyKeys.map(k => SYMBOL_FAMILIES[k].label).join(' + ')})`, tier, chars: mixedAlphabet(...familyKeys) };
+  }
+  return name;
+}
+
+// Oltre la settimana 8: continuiamo a variare procedendo per combinazioni
+// sempre più eterogenee di 2-3 famiglie tra quelle di tier più alto, senza
+// mai ripetere l'identica combinazione della settimana precedente.
+// Famiglie "atomiche" (non già miste) di tier alto, da cui pescare le
+// combinazioni per le settimane oltre l'8ª — evita nidificazioni tipo
+// "misto (misto (misto (...)))" che diventerebbero illeggibili in stampa.
+const BASE_HARD_FAMILY_KEYS = ['linesMixed', 'arrows', 'mathSymbols', 'runes', 'syllabics', 'shapes', 'cyrillic'];
+
+function gridProfileForWeek(week) {
+  if (week < GRID_WEEK_PROFILES.length) return GRID_WEEK_PROFILES[week];
+  const rnd = mulberry32(week * 7919);
+  const nSlots = 2;
+  const slots = [];
+  const usedPairs = new Set();
+  for (let i = 0; i < nSlots; i++) {
+    let a, b, pairKey;
+    do {
+      a = pick(rnd, BASE_HARD_FAMILY_KEYS);
+      b = pick(rnd, BASE_HARD_FAMILY_KEYS);
+      pairKey = [a, b].sort().join('+');
+    } while (a === b || usedPairs.has(pairKey));
+    usedPairs.add(pairKey);
+    slots.push(mixKey(`w${week}mix${i}_${a}_${b}`, a, b));
+  }
+  return { slots };
+}
+
+// ---------------------------------------------------------------------------
+// RNG seedabile (per riproducibilità nei test; nell'app si userà un seed
+// casuale ogni volta che si preme "Genera nuovo fascicolo").
+// ---------------------------------------------------------------------------
+function mulberry32(seed) {
+  let t = seed >>> 0;
+  return function () {
+    t += 0x6D2B79F5;
+    let r = Math.imul(t ^ (t >>> 15), 1 | t);
+    r ^= r + Math.imul(r ^ (r >>> 7), 61 | r);
+    return ((r ^ (r >>> 14)) >>> 0) / 4294967296;
+  };
+}
+
+function pick(rnd, arr) { return arr[Math.floor(rnd() * arr.length)]; }
+function pickN(rnd, arr, n) {
+  const pool = arr.slice();
+  const out = [];
+  while (out.length < n && pool.length) {
+    out.push(pool.splice(Math.floor(rnd() * pool.length), 1)[0]);
+  }
+  return out;
+}
+
+// ---------------------------------------------------------------------------
+// 2. GRIGLIA "cerchiare e contare tutte le sequenze [X]" — bersaglio singolo
+// ---------------------------------------------------------------------------
+function plantOnce(grid, rows, cols, seqLen, target, rnd) {
+  const horizontal = rnd() < 0.5;
+  if (horizontal) {
+    const r = Math.floor(rnd() * rows);
+    const c = Math.floor(rnd() * (cols - seqLen + 1));
+    for (let i = 0; i < seqLen; i++) grid[r][c + i] = target[i];
+  } else {
+    const c = Math.floor(rnd() * cols);
+    const r = Math.floor(rnd() * (rows - seqLen + 1));
+    for (let i = 0; i < seqLen; i++) grid[r + i][c] = target[i];
+  }
+}
+
+function generateSequenceGrid(rows, cols, alphabet, rnd, opts = {}) {
+  const seqLen = opts.seqLen || 4;
+  const target = opts.target || pickN(rnd, alphabet, seqLen);
+  const grid = Array.from({ length: rows }, () => Array.from({ length: cols }, () => pick(rnd, alphabet)));
+
+  // pianta il bersaglio un numero di volte "ragionevole" (in orizzontale e
+  // verticale); dato che piantagioni successive possono sovrascriversi a
+  // vicenda, si continua finché il conteggio effettivo non raggiunge la
+  // soglia minima richiesta (non ci si accontenta del numero di tentativi).
+  const minOccurrences = opts.plantCount || (6 + Math.floor(rnd() * 5));
+  let count = 0;
+  let guard = 0;
+  while (count < minOccurrences && guard < minOccurrences * 8) {
+    plantOnce(grid, rows, cols, seqLen, target, rnd);
+    count = countSequenceOccurrences(grid, target);
+    guard++;
+  }
+
+  return { grid, target, count, seqLen };
+}
+
+function countSequenceOccurrences(grid, target) {
+  const rows = grid.length, cols = grid[0].length, len = target.length;
+  let count = 0;
+  // orizzontale (entrambi i versi)
+  for (let r = 0; r < rows; r++) {
+    for (let c = 0; c <= cols - len; c++) {
+      if (matchSeq(grid[r], c, target)) count++;
+    }
+  }
+  // verticale
+  for (let c = 0; c < cols; c++) {
+    const col = grid.map(row => row[c]);
+    for (let r = 0; r <= rows - len; r++) {
+      if (matchSeq(col, r, target)) count++;
+    }
+  }
+  return count;
+}
+function matchSeq(arr, start, target) {
+  for (let i = 0; i < target.length; i++) if (arr[start + i] !== target[i]) return false;
+  return true;
+}
+
+// ---------------------------------------------------------------------------
+// 3. GRIGLIA "cerchiare tutte le sequenze indicate" — bersagli multipli
+// ---------------------------------------------------------------------------
+function generateMultiTargetGrid(rows, cols, alphabet, rnd, nTargets, seqLen = 4) {
+  const targets = [];
+  const seen = new Set();
+  while (targets.length < nTargets) {
+    const t = pickN(rnd, alphabet, seqLen);
+    const key = t.join('');
+    if (!seen.has(key)) { seen.add(key); targets.push(t); }
+  }
+  const grid = Array.from({ length: rows }, () => Array.from({ length: cols }, () => pick(rnd, alphabet)));
+  targets.forEach(target => {
+    const plants = 1 + Math.floor(rnd() * 2);
+    for (let p = 0; p < plants; p++) plantOnce(grid, rows, cols, seqLen, target, rnd);
+  });
+
+  // riparazione: piantagioni successive possono cancellare occorrenze di
+  // bersagli piantati prima. Si ripete finché ogni bersaglio compare almeno
+  // una volta (i bersagli già soddisfatti non vengono ripiantati, per non
+  // innescare un rincorrersi infinito tra due sequenze che si sovrascrivono).
+  let round = 0;
+  let counts = targets.map(t => countSequenceOccurrences(grid, t));
+  while (counts.some(c => c === 0) && round < targets.length * 6) {
+    targets.forEach((target, i) => {
+      if (counts[i] === 0) plantOnce(grid, rows, cols, seqLen, target, rnd);
+    });
+    counts = targets.map(t => countSequenceOccurrences(grid, t));
+    round++;
+  }
+
+  return { grid, targets, counts };
+}
+
+// ---------------------------------------------------------------------------
+// 4. BANCA LESSICALE (italiano) — parole reali per anagrammi e crucipuzzle.
+//    Prima infarinatura curata a mano, pensata per essere ampliata: ogni
+//    parola è un sostantivo comune, maiuscolo, senza accenti/spazi.
+// ---------------------------------------------------------------------------
+const WORD_BANK = {
+  3: ['ORO', 'ZIO', 'SCI', 'GAS', 'RIO', 'DIO', 'ALA', 'UVA'],
+  4: ['CANE', 'LUNA', 'CASA', 'PANE', 'MARE', 'TORO', 'LUPO', 'ORSO', 'VELA', 'PALO', 'ALBA', 'NAVE', 'ROSA', 'FATO', 'LAGO', 'MELA', 'PERA', 'RANA', 'FOCA', 'GUFO'],
+  5: ['TIGRE', 'VOLPE', 'CIGNO', 'FIUME', 'MONTE', 'PONTE', 'CAMPO', 'FORNO', 'SEDIA', 'PORTA', 'FIORE', 'TRENO', 'AEREO', 'BARCA', 'LEONE', 'GATTO', 'CAVIA', 'OMBRA'],
+  6: ['TAVOLO', 'CHIESA', 'SCUOLA', 'STRADA', 'CUCINA', 'AQUILA', 'BALENA', 'CAMINO', 'GABBIA', 'PIATTO', 'MULINO'],
+  7: ['GIRAFFA', 'DELFINO', 'CAVALLO', 'FONTANA', 'ARANCIA', 'PANTERA', 'VULCANO'],
+  8: ['FARFALLA', 'MONTAGNA', 'OMBRELLO', 'LEOPARDO', 'COLTELLO', 'CASTELLO', 'ELEFANTE'],
+  9: ['GHIRLANDA', 'FORCHETTA', 'BICCHIERE'],
+  10: ['SCOIATTOLO'],
+};
+
+// ---------------------------------------------------------------------------
+// 5. ANAGRAMMI — mescola parole reali della lunghezza richiesta
+// ---------------------------------------------------------------------------
+function scramble(word, rnd) {
+  let letters = word.split('');
+  let attempts = 0;
+  let scrambled;
+  do {
+    scrambled = pickN(rnd, letters, letters.length).join('');
+    attempts++;
+  } while (scrambled === word && attempts < 10);
+  return scrambled;
+}
+
+function generateAnagrams(count, wordLen, rnd) {
+  const bank = WORD_BANK[wordLen] || WORD_BANK[Math.max(...Object.keys(WORD_BANK).map(Number))];
+  const words = pickN(rnd, bank, Math.min(count, bank.length));
+  while (words.length < count) words.push(pick(rnd, bank)); // ripesca se la banca è più piccola del richiesto
+  return words.map(w => ({ solution: w, scrambled: scramble(w, rnd) }));
+}
+
+// ---------------------------------------------------------------------------
+// 6. CALCOLO — catena di addizioni/sottrazioni
+// ---------------------------------------------------------------------------
+function generateCalcChain(count, nTerms, maxNum, rnd) {
+  const rows = [];
+  for (let i = 0; i < count; i++) {
+    let result = 1 + Math.floor(rnd() * maxNum);
+    let expr = String(result);
+    for (let t = 1; t < nTerms; t++) {
+      const op = rnd() < 0.5 ? '+' : '-';
+      let val = 1 + Math.floor(rnd() * maxNum);
+      if (op === '-' && val > result) val = 1 + Math.floor(rnd() * result);
+      result = op === '+' ? result + val : result - val;
+      expr += ` ${op} ${val}`;
+    }
+    rows.push({ expression: expr, result });
+  }
+  return rows;
+}
+
+// ---------------------------------------------------------------------------
+// 7. CRUCIPUZZLE (ricerca di parole di senso compiuto)
+// ---------------------------------------------------------------------------
+const DIRECTIONS = [
+  [0, 1], [0, -1], [1, 0], [-1, 0], [1, 1], [1, -1], [-1, 1], [-1, -1],
+];
+
+function generateCrucipuzzle(rows, cols, minWords, rnd) {
+  const grid = Array.from({ length: rows }, () => Array.from({ length: cols }, () => null));
+  const alphabet = 'ABCDEFGHILMNOPQRSTUVZ'.split('');
+  const allWords = Object.values(WORD_BANK).flat().filter(w => w.length <= Math.min(rows, cols));
+  const candidates = pickN(rnd, allWords, allWords.length);
+  const placed = [];
+
+  for (const word of candidates) {
+    if (placed.length >= minWords + 4) break; // qualche parola in più del minimo richiesto
+    const dir = pick(rnd, DIRECTIONS);
+    let ok = false;
+    for (let attempt = 0; attempt < 30 && !ok; attempt++) {
+      const r0 = Math.floor(rnd() * rows);
+      const c0 = Math.floor(rnd() * cols);
+      const rEnd = r0 + dir[0] * (word.length - 1);
+      const cEnd = c0 + dir[1] * (word.length - 1);
+      if (rEnd < 0 || rEnd >= rows || cEnd < 0 || cEnd >= cols) continue;
+      let fits = true;
+      for (let i = 0; i < word.length; i++) {
+        const r = r0 + dir[0] * i, c = c0 + dir[1] * i;
+        const existing = grid[r][c];
+        if (existing !== null && existing !== word[i]) { fits = false; break; }
+      }
+      if (!fits) continue;
+      for (let i = 0; i < word.length; i++) {
+        const r = r0 + dir[0] * i, c = c0 + dir[1] * i;
+        grid[r][c] = word[i];
+      }
+      placed.push(word);
+      ok = true;
+    }
+  }
+
+  for (let r = 0; r < rows; r++) for (let c = 0; c < cols; c++) {
+    if (grid[r][c] === null) grid[r][c] = pick(rnd, alphabet);
+  }
+  return { grid, placed, minWords };
+}
+
+// ---------------------------------------------------------------------------
+// 8. SEQUENZIAMENTO — "unire i numeri in ordine crescente" (settimane 1-4)
+//    e "unire le lettere in ordine alfabetico" (settimane 5+)
+// ---------------------------------------------------------------------------
+function scatterPositions(n, rnd, width = 700, height = 950, minDist = 70) {
+  const pts = [];
+  let tries = 0;
+  while (pts.length < n && tries < n * 200) {
+    tries++;
+    const x = 40 + rnd() * (width - 80);
+    const y = 40 + rnd() * (height - 80);
+    if (pts.every(p => Math.hypot(p.x - x, p.y - y) >= minDist)) pts.push({ x, y });
+  }
+  while (pts.length < n) pts.push({ x: 40 + rnd() * (width - 80), y: 40 + rnd() * (height - 80) }); // fallback se lo spazio è saturo
+  return pts;
+}
+
+function generateNumericSequencing(count, maxVal, rnd) {
+  const values = new Set();
+  while (values.size < count) values.add(1 + Math.floor(rnd() * maxVal));
+  const sorted = [...values].sort((a, b) => a - b);
+  const positions = scatterPositions(count, rnd);
+  const shuffled = pickN(rnd, sorted.map((v, i) => ({ value: v, ...positions[i] })), count);
+  return { order: sorted, points: shuffled };
+}
+
+const CONSONANTS = 'BCDFGLMNPRSTV'.split('');
+const VOWELS = 'AEIOU'.split('');
+function pseudoCode(rnd) {
+  // codice di 3 lettere pronunciabile (consonante-vocale-consonante o simile)
+  const pattern = rnd() < 0.5 ? 'CVC' : 'CVV';
+  return pattern.split('').map(p => p === 'C' ? pick(rnd, CONSONANTS) : pick(rnd, VOWELS)).join('');
+}
+function generateAlphabeticSequencing(count, rnd) {
+  const codes = new Set();
+  while (codes.size < count) codes.add(pseudoCode(rnd));
+  const sorted = [...codes].sort();
+  const positions = scatterPositions(count, rnd);
+  const shuffled = pickN(rnd, sorted.map((v, i) => ({ value: v, ...positions[i] })), count);
+  return { order: sorted, points: shuffled };
+}
+
+// ---------------------------------------------------------------------------
+// 9. LABIRINTO — recursive backtracker su griglia rettangolare
+// ---------------------------------------------------------------------------
+function generateMaze(cols, rows, rnd) {
+  // ogni cella ha 4 pareti: N,E,S,W (true = muro presente)
+  const cells = Array.from({ length: rows }, () =>
+    Array.from({ length: cols }, () => ({ N: true, E: true, S: true, W: true, visited: false })));
+
+  const stack = [[0, 0]];
+  cells[0][0].visited = true;
+  const DIRS = [
+    { dx: 0, dy: -1, from: 'N', to: 'S' },
+    { dx: 1, dy: 0, from: 'E', to: 'W' },
+    { dx: 0, dy: 1, from: 'S', to: 'N' },
+    { dx: -1, dy: 0, from: 'W', to: 'E' },
+  ];
+  while (stack.length) {
+    const [x, y] = stack[stack.length - 1];
+    const neighbors = DIRS
+      .map(d => ({ ...d, nx: x + d.dx, ny: y + d.dy }))
+      .filter(d => d.nx >= 0 && d.nx < cols && d.ny >= 0 && d.ny < rows && !cells[d.ny][d.nx].visited);
+    if (!neighbors.length) { stack.pop(); continue; }
+    const d = pick(rnd, neighbors);
+    cells[y][x][d.from] = false;
+    cells[d.ny][d.nx][d.to] = false;
+    cells[d.ny][d.nx].visited = true;
+    stack.push([d.nx, d.ny]);
+  }
+  return { cells, cols, rows, start: [0, 0], end: [cols - 1, rows - 1] };
+}
+
+// ---------------------------------------------------------------------------
+// 10. CATEGORIE e LETTERE per gli esercizi di accesso lessicale (a risposta
+//     aperta: qui servono solo i PROMPT, non una banca di parole-risposta)
+// ---------------------------------------------------------------------------
+const CATEGORY_POOL = {
+  1: ['Alimenti', 'Bevande', 'Frutta', 'Verdura', 'Animali', 'Colori', 'Mobili', 'Indumenti', 'Mezzi di trasporto', 'Giochi', 'Utensili', 'Edifici', 'Parti del corpo', 'Strumenti musicali', 'Sport'],
+  2: ['Pesci', 'Frutta secca', 'Combustibili', 'Contenitori per liquidi', 'Edifici pubblici', 'Attrezzi in officina', 'Oggetti per scrivere', 'Attrezzi in campagna', 'Materiale da costruzione', 'Organi', 'Animali esotici', 'Province italiane'],
+  3: ['Oggetti che richiedono precisione nell\u2019uso', 'Cose che si trovano in cucina ma non si mangiano', 'Strumenti che tagliano', 'Mestieri artigianali', 'Oggetti che producono luce', 'Strumenti di misura'],
+};
+const LETTER_POOL = 'A B C D E F G I L M N O P R S T U V'.split(' ');
+
+// Prompt per i blocchi di accesso lessicale vincolato per posizione/adiacenza
+// (schemi 1-4, settimane 1-4), fedeli ai modelli osservati negli originali:
+// posizione2  -> "-X-Y-"      (5 caselle, 2a e penultima lettera fissate)
+// posizione3  -> "--X\u2026Y-"    (6 caselle, 3a e penultima lettera fissate)
+// congiunte   -> "..XY.."     (2 lettere adiacenti in mezzo alla parola)
+// disgiunte   -> "X ; Y"      (2 lettere, posizione libera, non adiacenti)
+function buildPositionalPrompts(kind, rnd, count = 10) {
+  const used = new Set();
+  const rows = [];
+  while (rows.length < count) {
+    const l1 = pick(rnd, LETTER_POOL), l2 = pick(rnd, LETTER_POOL);
+    const key = l1 + l2;
+    if (l1 === l2 || used.has(key)) continue;
+    used.add(key);
+    if (kind === 'position2') rows.push(`-${l1}-${l2}-`);
+    else if (kind === 'position3') rows.push(`--${l1}\u2026${l2}-`);
+    else if (kind === 'joined') rows.push(`..${l1}${l2}..`);
+    else if (kind === 'disjoint') rows.push(`${l1} ; ${l2}`);
+  }
+  return rows;
+}
+
+// ---------------------------------------------------------------------------
+// 11. PARAMETRI DI SETTIMANA — assembla tutti i blocchi secondo il gradiente
+//     osservato nei 15 fascicoli originali, ed estende la stessa logica oltre
+//     la settimana 8.
+// ---------------------------------------------------------------------------
+function clamp(v, min, max) { return Math.max(min, Math.min(max, v)); }
+
+function weekParams(week) {
+  const w = week;
+  const profile = gridProfileForWeek(w);
+  const nGrids = profile.slots.length; // 3 fino a w5, 2 da w6 in poi
+
+  const hasCrucipuzzle = w >= 3;
+  const crucipuzzleMinWords = hasCrucipuzzle ? clamp(10 + 2 * Math.ceil((w - 2) / 2), 12, 20) : 0;
+
+  const sequencingType = w >= 5 ? 'alphabetic' : 'numeric';
+  const sequencingCount = sequencingType === 'numeric' ? clamp(24 + w, 24, 32) : clamp(24 + (w - 4), 26, 40);
+
+  const mazeCols = clamp(9 + w, 10, 26);
+  const mazeRows = clamp(11 + w, 12, 30);
+
+  // vincolo di accesso lessicale posizionale: 5 schemi osservati, poi si
+  // continua a variare la posizione richiesta mantenendo la stessa logica
+  const positionalSchemes = [
+    { kind: 'position2', desc: () => `seconda e penultima lettera`, minWords: 3 },
+    { kind: 'position3', desc: () => `terza e penultima lettera`, minWords: 3 },
+    { kind: 'joined', desc: () => `lettere congiunte`, minWords: 4 },
+    { kind: 'disjoint', desc: () => `lettere disgiunte`, minWords: 4 },
+  ];
+  const positionalScheme = w <= 4 ? positionalSchemes[w - 1] : null; // da w5 si passa allo schema "libero" sotto
+
+  const freeInitialLength = w >= 5 ? clamp(5 + Math.floor((w - 5) / 2), 5, 9) : null;
+  const freeInitialCount = clamp(6 + Math.floor(w / 3), 6, 10);
+
+  const categoryTier = w <= 2 ? 1 : (w <= 5 ? 2 : 3);
+  const categoryMinWords = clamp(5 + Math.floor(w / 4), 5, 8);
+  const categoryCount = 6;
+
+  const hasLengthCategoryBlock = w >= 4;
+  const lengthCategoryLen = hasLengthCategoryBlock ? clamp(3 + (w - 4), 3, 9) : null;
+
+  const anagramLen = clamp(5 + Math.floor((w - 1) / 3), 5, 9);
+  const calcTerms = clamp(4 + Math.floor((w - 1) / 2), 4, 7);
+  const calcMax = w <= 4 ? 99 : (w <= 6 ? 199 : 299);
+
+  return {
+    week: w,
+    grids: profile.slots.map(key => ({ familyKey: key, family: SYMBOL_FAMILIES[key] })),
+    multiTargetCount: clamp(5 + Math.floor(w / 2), 5, 10),
+    hasCrucipuzzle, crucipuzzleMinWords,
+    sequencingType, sequencingCount,
+    mazeCols, mazeRows,
+    positionalScheme,
+    freeInitialLength, freeInitialCount,
+    categoryTier, categoryMinWords, categoryCount,
+    hasLengthCategoryBlock, lengthCategoryLen,
+    anagramLen, calcTerms, calcMax,
+  };
+}
+
+// ---------------------------------------------------------------------------
+// 12. RENDER SVG — usate sia per l'anteprima a schermo sia (rasterizzate in
+//     PNG) per l'inserimento nel .docx. Stessa funzione in Node e browser.
+// ---------------------------------------------------------------------------
+function escapeXml(s) { return String(s).replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;'); }
+
+function renderMazeSVG(maze, cellSize = 24) {
+  const { cols, rows, cells } = maze;
+  const pad = 40;
+  const w = cols * cellSize + pad * 2;
+  const h = rows * cellSize + pad * 2 + 60;
+  let lines = '';
+  const stroke = (x1, y1, x2, y2) => { lines += `<line x1="${x1}" y1="${y1}" x2="${x2}" y2="${y2}" stroke="black" stroke-width="3" stroke-linecap="square"/>`; };
+  for (let y = 0; y < rows; y++) {
+    for (let x = 0; x < cols; x++) {
+      const c = cells[y][x];
+      const x0 = pad + x * cellSize, y0 = pad + 60 + y * cellSize;
+      const x1 = x0 + cellSize, y1 = y0 + cellSize;
+      if (c.N) stroke(x0, y0, x1, y0);
+      if (c.W) stroke(x0, y0, x0, y1);
+      // disegna sempre il bordo esterno destro/inferiore per chiudere il labirinto
+      if (c.E || x === cols - 1) stroke(x1, y0, x1, y1);
+      if (c.S || y === rows - 1) stroke(x0, y1, x1, y1);
+    }
+  }
+  const startX = pad, startY = pad + 60 + 0.5 * cellSize;
+  const endX = pad + cols * cellSize, endY = pad + 60 + (rows - 0.5) * cellSize;
+  return `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 ${w} ${h}" width="${w}" height="${h}">
+    <rect width="100%" height="100%" fill="white"/>
+    <text x="${w/2}" y="30" font-size="26" font-weight="bold" text-anchor="middle" font-family="Arial">Risolvere il labirinto</text>
+    ${lines}
+    <text x="${pad-6}" y="${startY-10}" font-size="14" font-weight="bold" text-anchor="start" font-family="Arial">INIZIO</text>
+    <text x="${endX-6}" y="${endY+24}" font-size="14" font-weight="bold" text-anchor="end" font-family="Arial">FINE</text>
+  </svg>`;
+}
+
+function renderSequencingSVG(seq, width = 700, height = 950) {
+  let circles = '';
+  seq.points.forEach(p => {
+    circles += `<circle cx="${p.x}" cy="${p.y}" r="26" fill="white" stroke="black" stroke-width="2"/>`;
+    circles += `<text x="${p.x}" y="${p.y+7}" font-size="20" text-anchor="middle" font-family="Arial">${escapeXml(p.value)}</text>`;
+  });
+  return `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 ${width} ${height}" width="${width}" height="${height}">
+    <rect width="100%" height="100%" fill="white"/>
+    ${circles}
+  </svg>`;
+}
+
+// ---------------------------------------------------------------------------
+// 13. ORCHESTRATORE — genera il contenuto completo di un fascicolo per una
+//     data settimana. Usato sia dall'anteprima HTML sia dall'export .docx,
+//     così le due viste sono sempre coerenti tra loro.
+// ---------------------------------------------------------------------------
+function buildFascicolo(week, seed) {
+  const rnd = mulberry32(seed >>> 0);
+  const p = weekParams(week);
+
+  const grids = p.grids.map(g => generateSequenceGrid(16, 12, g.family.chars, rnd));
+  const multi = generateMultiTargetGrid(16, 12, p.grids[0].family.chars, rnd, p.multiTargetCount);
+  const crucipuzzle = p.hasCrucipuzzle ? generateCrucipuzzle(16, 12, p.crucipuzzleMinWords, rnd) : null;
+  const sequencing = p.sequencingType === 'numeric'
+    ? generateNumericSequencing(p.sequencingCount, 99, rnd)
+    : generateAlphabeticSequencing(p.sequencingCount, rnd);
+  const maze = generateMaze(p.mazeCols, p.mazeRows, rnd);
+  const anagrams = generateAnagrams(10, p.anagramLen, rnd);
+  const calc = generateCalcChain(10, p.calcTerms, p.calcMax, rnd);
+
+  const categories = pickN(rnd, CATEGORY_POOL[p.categoryTier], p.categoryCount);
+  const letters = p.positionalScheme ? null : pickN(rnd, LETTER_POOL, p.freeInitialCount);
+  const positionalPrompts = p.positionalScheme ? buildPositionalPrompts(p.positionalScheme.kind, rnd, 10) : null;
+  const lengthCategoryList = p.hasLengthCategoryBlock ? pickN(rnd, ['Frutta', 'Ortaggio', 'Animale', 'Colore', 'Mobile', 'Mezzo di trasporto', 'Sport', 'Indumento'], 6) : null;
+
+  return { week, params: p, grids, multi, crucipuzzle, sequencing, maze, anagrams, calc, categories, letters, positionalPrompts, lengthCategoryList };
+}
+
+return {
+  buildFascicolo,
+  SYMBOL_FAMILIES, gridProfileForWeek, weekParams, mulberry32,
+  generateSequenceGrid, generateMultiTargetGrid, countSequenceOccurrences,
+  generateAnagrams, generateCalcChain, generateCrucipuzzle,
+  generateNumericSequencing, generateAlphabeticSequencing, generateMaze,
+  CATEGORY_POOL, LETTER_POOL, WORD_BANK, buildPositionalPrompts,
+  renderMazeSVG, renderSequencingSVG,
+};
+});
+
+
+</script>
+<script>
+/* =========================================================
+   FASCICOLO ESERCIZI A CASA — costruttore documento .docx (docbuilder.js)
+   ========================================================= */
+// ============================================================================
+// Costruisce il Document (libreria "docx") a partire dai dati generati da
+// engine.js. Isomorfo: buildFascicoloDocument(docx, data, rasterize) — dove
+// `docx` è la libreria (require('docx') in Node, window.docx nel browser) e
+// `rasterize` è una funzione async (svgString) => Uint8Array PNG.
+// ============================================================================
+(function (root, factory) {
+  if (typeof module === 'object' && module.exports) module.exports = factory();
+  else root.DocBuilder = factory();
+})(typeof self !== 'undefined' ? self : this, function () {
+
+  function symbolGridTable(docx, grid) {
+    const { Table, TableRow, TableCell, Paragraph, TextRun, WidthType, BorderStyle, VerticalAlign, AlignmentType } = docx;
+    const cellW = 380; // DXA
+    const rows = grid.map(rowArr => new TableRow({
+      children: rowArr.map(sym => new TableCell({
+        width: { size: cellW, type: WidthType.DXA },
+        verticalAlign: VerticalAlign.CENTER,
+        margins: { top: 20, bottom: 20, left: 20, right: 20 },
+        children: [new Paragraph({ alignment: AlignmentType.CENTER, children: [new TextRun({ text: sym, size: 20, font: 'DejaVu Sans' })] })],
+      })),
+    }));
+    const borders = thinBorders(docx);
+    return new Table({
+      rows,
+      width: { size: cellW * grid[0].length, type: WidthType.DXA },
+      columnWidths: grid[0].map(() => cellW),
+      borders,
+    });
+  }
+
+  function thinBorders(docx) {
+    const { BorderStyle } = docx;
+    const edge = { style: BorderStyle.SINGLE, size: 2, color: '999999' };
+    return { top: edge, bottom: edge, left: edge, right: edge, insideHorizontal: edge, insideVertical: edge };
+  }
+
+  function legendTable(docx, sequences) {
+    const { Table, TableRow, TableCell, Paragraph, TextRun, WidthType, AlignmentType } = docx;
+    const perRow = 5;
+    const rowsData = [];
+    for (let i = 0; i < sequences.length; i += perRow) rowsData.push(sequences.slice(i, i + perRow));
+    const cellW = 1750;
+    const rows = rowsData.map(rowArr => {
+      const cells = rowArr.map(seq => new TableCell({
+        width: { size: cellW, type: WidthType.DXA },
+        margins: { top: 100, bottom: 100, left: 80, right: 80 },
+        children: [new Paragraph({ alignment: AlignmentType.CENTER, children: [new TextRun({ text: seq.join(' '), bold: true, size: 22, font: 'DejaVu Sans' })] })],
+      }));
+      while (cells.length < perRow) cells.push(new TableCell({ width: { size: cellW, type: WidthType.DXA }, children: [new Paragraph({ children: [] })] }));
+      return new TableRow({ children: cells });
+    });
+    return new Table({ rows, width: { size: cellW * perRow, type: WidthType.DXA }, columnWidths: Array(perRow).fill(cellW), borders: thinBorders(docx) });
+  }
+
+  function promptAnswerTable(docx, prompts, opts = {}) {
+    const { Table, TableRow, TableCell, Paragraph, TextRun, WidthType } = docx;
+    const labelW = opts.labelW || 3000;
+    const answerW = opts.answerW || 5000;
+    const rows = prompts.map(p => new TableRow({
+      children: [
+        new TableCell({ width: { size: labelW, type: WidthType.DXA }, children: [new Paragraph({ children: [new TextRun({ text: String(p) })] })] }),
+        new TableCell({ width: { size: answerW, type: WidthType.DXA }, children: [new Paragraph({ children: [new TextRun({ text: '' })] })] }),
+      ],
+    }));
+    return new Table({ rows, width: { size: labelW + answerW, type: WidthType.DXA }, columnWidths: [labelW, answerW], borders: thinBorders(docx) });
+  }
+
+  function heading(docx, text, opts = {}) {
+    const { Paragraph, TextRun } = docx;
+    return new Paragraph({ spacing: { before: 240, after: 80 }, children: [new TextRun({ text, bold: true, size: opts.size || 24, font: 'DejaVu Sans' })] });
+  }
+  function subtext(docx, text) {
+    const { Paragraph, TextRun } = docx;
+    return new Paragraph({ spacing: { after: 80 }, children: [new TextRun({ text, italics: true, size: 20 })] });
+  }
+  function pageBreak(docx) {
+    const { Paragraph, PageBreak } = docx;
+    return new Paragraph({ children: [new PageBreak()] });
+  }
+
+  async function imageParagraph(docx, rasterize, svgString, widthPx, heightPx) {
+    const { Paragraph, ImageRun, AlignmentType } = docx;
+    const png = await rasterize(svgString);
+    return new Paragraph({
+      alignment: AlignmentType.CENTER,
+      children: [new ImageRun({ data: png, type: 'png', transformation: { width: widthPx, height: heightPx } })],
+    });
+  }
+
+  async function buildFascicoloDocument(docx, data, rasterize, engine) {
+    const { Document, Paragraph, TextRun, AlignmentType, HeadingLevel } = docx;
+    const children = [];
+    const p = data.params;
+
+    children.push(new Paragraph({ children: [new TextRun({ text: `Fascicolo ${data.week}`, bold: true, size: 32 })] }));
+    children.push(new Paragraph({ spacing: { after: 200 }, children: [new TextRun({ text: `${data.week}°settimana`, size: 24 })] }));
+
+    // 1-3: griglie ricerca-sequenza singola
+    data.grids.forEach((g, i) => {
+      children.push(heading(docx, `Cerchiare e contare tutte le sequenze ${g.target.join('')} (orizzontale e verticale)`));
+      children.push(symbolGridTable(docx, g.grid));
+    });
+
+    // 4: griglia multi-bersaglio
+    children.push(heading(docx, 'Cerchiare tutte le sequenze indicate'));
+    children.push(symbolGridTable(docx, data.multi.grid));
+    children.push(new Paragraph({ spacing: { before: 160 }, children: [] }));
+    children.push(legendTable(docx, data.multi.targets));
+
+    // 5: crucipuzzle
+    if (data.crucipuzzle) {
+      children.push(heading(docx, 'Cerchiare le parole dotate di senso'));
+      children.push(subtext(docx, `(in tutte le direzioni, almeno ${p.crucipuzzleMinWords}, di almeno 4 lettere)`));
+      children.push(symbolGridTable(docx, data.crucipuzzle.grid));
+    }
+
+    // 6: sequenziamento + immagine
+    const seqTitle = p.sequencingType === 'numeric' ? 'Unire i numeri in ordine crescente' : 'Unire le lettere in ordine alfabetico';
+    children.push(heading(docx, seqTitle));
+    const seqSvg = engine.renderSequencingSVG(data.sequencing);
+    children.push(await imageParagraph(docx, rasterize, seqSvg, 420, 570));
+
+    // 7: labirinto + immagine
+    children.push(heading(docx, 'Risolvere il labirinto'));
+    const mazeSvg = engine.renderMazeSVG(data.maze);
+    const mazeAspect = (data.maze.cols * 24 + 80) / (data.maze.rows * 24 + 140);
+    const mazeWidth = 480;
+    children.push(await imageParagraph(docx, rasterize, mazeSvg, mazeWidth, Math.round(mazeWidth / mazeAspect)));
+
+    // 8: accesso lessicale vincolato per posizione OPPURE libero per iniziale
+    if (p.positionalScheme) {
+      const kind = p.positionalScheme.kind;
+      const label = kind.startsWith('position')
+        ? `Scrivere parole che abbiano come ${p.positionalScheme.desc()} (almeno ${p.positionalScheme.minWords})`
+        : `Scrivere parole che abbiano le seguenti lettere ${kind === 'joined' ? 'congiunte' : 'disgiunte'} (almeno ${p.positionalScheme.minWords})`;
+      children.push(heading(docx, label));
+      children.push(promptAnswerTable(docx, data.positionalPrompts));
+    } else {
+      children.push(heading(docx, `Scrivere parole di ${p.freeInitialLength} lettere con la iniziale indicata (almeno 3 per schema)`));
+      children.push(promptAnswerTable(docx, data.letters));
+    }
+
+    // 9: accesso lessicale per categoria
+    children.push(heading(docx, `Scrivere parole che appartengano alle categorie (almeno ${p.categoryMinWords})`));
+    children.push(promptAnswerTable(docx, data.categories));
+
+    // 10: blocco lunghezza (+ categoria) — da settimana 4
+    if (p.hasLengthCategoryBlock) {
+      children.push(heading(docx, `Scrivere parole che rispettino le istruzioni (almeno 2-3)`));
+      const prompts = [`Parole di ${p.lengthCategoryLen} lettere:`, ...data.lengthCategoryList];
+      children.push(promptAnswerTable(docx, prompts));
+    }
+
+    // 11: anagrammi
+    children.push(heading(docx, 'Risolvere i seguenti anagrammi'));
+    children.push(promptAnswerTable(docx, data.anagrams.map(a => a.scrambled)));
+
+    // 12: calcolo
+    children.push(heading(docx, 'Calcolare il risultato'));
+    children.push(promptAnswerTable(docx, data.calc.map(c => c.expression)));
+
+    return new Document({
+      sections: [{ properties: {}, children }],
+    });
+  }
+
+  return { buildFascicoloDocument };
+});
+
+</script>
 <script>
 /* =========================================================
    DATI DI BASE
@@ -578,6 +1353,7 @@ function summarizeDeck(exId, level, deck){
     case "serie": return `Sequenza di ${deck.seq.length} stimoli`;
     case "accesso": return `Parola: ${deck.word}`;
     case "categorizzazione": return `${deck.domainName}${deck.oddIndexes && deck.oddIndexes.length ? ` (${deck.oddIndexes.length} intrusi)`:""}`;
+    case "fascicolo": return `Fascicolo ${deck.week} — ${deck.week}°settimana`;
     default: return "";
   }
 }
@@ -590,7 +1366,8 @@ function renderHistoryList(){
     const row = document.createElement("div");
     row.className = "hist-row";
     const d = new Date(e.when);
-    row.innerHTML = `<div><span class="hist-ex">${e.exName}</span> — liv. ${e.level}<br><span style="color:var(--ink-soft)">${e.summary}</span></div><div class="hist-when">${d.toLocaleDateString("it-IT")} ${d.toLocaleTimeString("it-IT",{hour:'2-digit',minute:'2-digit'})}</div>`;
+    const levelLabel = e.exId==="fascicolo" ? `sett. ${e.level}` : `liv. ${e.level}`;
+    row.innerHTML = `<div><span class="hist-ex">${e.exName}</span> — ${levelLabel}<br><span style="color:var(--ink-soft)">${e.summary}</span></div><div class="hist-when">${d.toLocaleDateString("it-IT")} ${d.toLocaleTimeString("it-IT",{hour:'2-digit',minute:'2-digit'})}</div>`;
     host.appendChild(row);
   });
 }
@@ -604,6 +1381,7 @@ const state = {
   digitRule:"inverti",
   catMode:"raggruppa",
   materialOverride:{griglie:"auto", intruso:"auto", inversione:"auto"},
+  fascicoloWeek:1,
   deck:null,
   slideIndex:0,
   reveal:false
@@ -615,7 +1393,8 @@ const EXERCISES = [
   {id:"inversione", name:"Inversione e riordino", desc:"Span e manipolazione di sequenze"},
   {id:"serie", name:"Serie attentive alternate", desc:"Attenzione alternata, task-switching, n-back"},
   {id:"accesso", name:"Accesso lessicale online", desc:"Denominazione con cueing graduato"},
-  {id:"categorizzazione", name:"Categorizzazione", desc:"Dividi 6 immagini in 2 gruppi da 3 (prototipo con icone)"}
+  {id:"categorizzazione", name:"Categorizzazione", desc:"Dividi 6 immagini in 2 gruppi da 3 (prototipo con icone)"},
+  {id:"fascicolo", name:"Fascicolo esercizi a casa", desc:"Fascicolo stampabile per gli esercizi a domicilio, progressione settimanale"}
 ];
 
 /* =========================================================
@@ -1199,13 +1978,160 @@ function renderCategorizzazione(deck){
   return wrap;
 }
 
+/* ---------- FASCICOLO ESERCIZI A CASA ---------- */
+function genFascicolo(){
+  return window.Engine.buildFascicolo(state.fascicoloWeek, Math.floor(Math.random()*1e9));
+}
+
+function fEl(tag, attrs, children){
+  const e = document.createElement(tag);
+  Object.entries(attrs||{}).forEach(([k,v])=>{
+    if(k==="class") e.className=v; else if(k==="html") e.innerHTML=v; else e.setAttribute(k,v);
+  });
+  (Array.isArray(children)?children:[children]).forEach(c=>{
+    if(c==null) return;
+    e.appendChild(typeof c==="string" ? document.createTextNode(c) : c);
+  });
+  return e;
+}
+function fGridTable(grid, cls){
+  const table = fEl("table", {class:"fasc-grid " + (cls||"")});
+  grid.forEach(row=>{
+    const tr = fEl("tr");
+    row.forEach(sym=>tr.appendChild(fEl("td",{},sym)));
+    table.appendChild(tr);
+  });
+  return table;
+}
+function fLegend(targets, counts, showSolutions){
+  const wrap = fEl("div",{class:"fasc-legend-grid"});
+  targets.forEach((t,i)=>{
+    wrap.appendChild(fEl("div",{class:"fasc-legend-item"},[
+      fEl("span",{class:"fasc-legend-seq"}, t.join(" ")),
+      showSolutions ? fEl("span",{class:"fasc-legend-count"}, ` → ${counts[i]}`) : null
+    ]));
+  });
+  return wrap;
+}
+function fPromptTable(prompts, solutions, showSolutions){
+  const table = fEl("table",{class:"fasc-prompt"});
+  prompts.forEach((p,i)=>{
+    const tr = fEl("tr");
+    tr.appendChild(fEl("td",{class:"fasc-prompt-cell"}, String(p)));
+    tr.appendChild(fEl("td",{class:"fasc-answer-cell"}, showSolutions && solutions ? String(solutions[i] ?? "") : ""));
+    table.appendChild(tr);
+  });
+  return table;
+}
+function fSection(title, sub, content){
+  const wrap = fEl("div",{class:"fasc-block"});
+  wrap.appendChild(fEl("h3",{},title));
+  if(sub) wrap.appendChild(fEl("div",{class:"fasc-sub"}, sub));
+  wrap.appendChild(content);
+  return wrap;
+}
+function renderFascicolo(deck){
+  const root = fEl("div",{class:"fasc-root"});
+  const p = deck.params;
+  const showSolutions = state.reveal;
+  const E = window.Engine;
+
+  root.appendChild(fEl("h2",{}, `Fascicolo ${deck.week} — ${deck.week}°settimana`));
+
+  deck.grids.forEach(g=>{
+    root.appendChild(fSection(
+      `Cerchiare e contare tutte le sequenze ${g.target.join("")} (orizzontale e verticale)`,
+      showSolutions ? `Occorrenze presenti nella griglia: ${g.count}` : null,
+      fGridTable(g.grid)
+    ));
+  });
+
+  const multiWrap = fEl("div");
+  multiWrap.appendChild(fGridTable(deck.multi.grid));
+  multiWrap.appendChild(fLegend(deck.multi.targets, deck.multi.counts, showSolutions));
+  root.appendChild(fSection("Cerchiare tutte le sequenze indicate", null, multiWrap));
+
+  if(deck.crucipuzzle){
+    root.appendChild(fSection(
+      "Cerchiare le parole dotate di senso",
+      `(in tutte le direzioni, almeno ${p.crucipuzzleMinWords}, di almeno 4 lettere)` +
+      (showSolutions ? ` — parole inserite: ${deck.crucipuzzle.placed.join(", ")}` : ""),
+      fGridTable(deck.crucipuzzle.grid, "fasc-cruci")
+    ));
+  }
+
+  const seqTitle = p.sequencingType==="numeric" ? "Unire i numeri in ordine crescente" : "Unire le lettere in ordine alfabetico";
+  const seqDiv = fEl("div",{class:"fasc-svg-wrap", html: E.renderSequencingSVG(deck.sequencing)});
+  root.appendChild(fSection(seqTitle, showSolutions ? `Ordine corretto: ${deck.sequencing.order.join(" → ")}` : null, seqDiv));
+
+  const mazeDiv = fEl("div",{class:"fasc-svg-wrap", html: E.renderMazeSVG(deck.maze, 18)});
+  root.appendChild(fSection("Risolvere il labirinto", null, mazeDiv));
+
+  if(p.positionalScheme){
+    const kind = p.positionalScheme.kind;
+    const label = kind.startsWith("position")
+      ? `Scrivere parole che abbiano come ${p.positionalScheme.desc()} (almeno ${p.positionalScheme.minWords})`
+      : `Scrivere parole che abbiano le seguenti lettere ${kind==="joined"?"congiunte":"disgiunte"} (almeno ${p.positionalScheme.minWords})`;
+    root.appendChild(fSection(label, null, fPromptTable(deck.positionalPrompts, null, false)));
+  } else {
+    root.appendChild(fSection(
+      `Scrivere parole di ${p.freeInitialLength} lettere con la iniziale indicata (almeno 3 per schema)`,
+      null, fPromptTable(deck.letters, null, false)
+    ));
+  }
+
+  root.appendChild(fSection(`Scrivere parole che appartengano alle categorie (almeno ${p.categoryMinWords})`, null, fPromptTable(deck.categories, null, false)));
+
+  if(p.hasLengthCategoryBlock){
+    root.appendChild(fSection("Scrivere parole che rispettino le istruzioni (almeno 2-3)", null,
+      fPromptTable([`Parole di ${p.lengthCategoryLen} lettere:`, ...deck.lengthCategoryList], null, false)));
+  }
+
+  root.appendChild(fSection("Risolvere i seguenti anagrammi", null,
+    fPromptTable(deck.anagrams.map(a=>a.scrambled), deck.anagrams.map(a=>a.solution), showSolutions)));
+
+  root.appendChild(fSection("Calcolare il risultato", null,
+    fPromptTable(deck.calc.map(c=>c.expression), deck.calc.map(c=>c.result), showSolutions)));
+
+  return root;
+}
+
+async function rasterizeSVGBrowser(svgString){
+  const m = svgString.match(/width="(\d+)"\s+height="(\d+)"/);
+  const w = m ? parseInt(m[1],10) : 800, h = m ? parseInt(m[2],10) : 600;
+  const scale = 2;
+  return new Promise((resolve, reject)=>{
+    const blob = new Blob([svgString], {type:"image/svg+xml;charset=utf-8"});
+    const url = URL.createObjectURL(blob);
+    const img = new Image();
+    img.onload = () => {
+      const canvas = document.createElement("canvas");
+      canvas.width = w*scale; canvas.height = h*scale;
+      const ctx = canvas.getContext("2d");
+      ctx.fillStyle = "#fff"; ctx.fillRect(0,0,canvas.width,canvas.height);
+      ctx.drawImage(img, 0, 0, canvas.width, canvas.height);
+      URL.revokeObjectURL(url);
+      canvas.toBlob(async (b)=>resolve(new Uint8Array(await b.arrayBuffer())), "image/png");
+    };
+    img.onerror = reject;
+    img.src = url;
+  });
+}
+
+async function exportFascicolo(deck){
+  const doc = await window.DocBuilder.buildFascicoloDocument(window.docx, deck, rasterizeSVGBrowser, window.Engine);
+  const blob = await window.docx.Packer.toBlob(doc);
+  saveAs(blob, `Fascicolo_${deck.week}.docx`);
+}
+
 const RENDERERS = {
   griglie: renderGriglie,
   intruso: renderIntruso,
   inversione: renderInversione,
   serie: renderSerie,
   accesso: renderAccesso,
-  categorizzazione: renderCategorizzazione
+  categorizzazione: renderCategorizzazione,
+  fascicolo: renderFascicolo
 };
 
 const GENERATORS = {
@@ -1214,7 +2140,8 @@ const GENERATORS = {
   inversione: genInversione,
   serie: genSerie,
   accesso: genAccesso,
-  categorizzazione: genCategorizzazione
+  categorizzazione: genCategorizzazione,
+  fascicolo: genFascicolo
 };
 
 const MATERIAL_OPTIONS = {
@@ -1307,6 +2234,31 @@ const EX_CONTROLS = {
     p.textContent = "Compito: dividere le 6 immagini in due gruppi da 3, in base a una categoria comune. Ai livelli bassi la categoria è tassonomica e ovvia (tipo di oggetto); dal livello 9 diventa funzionale/concettuale (es. ascesa con sforzo fisico vs meccanica, suono che si produce vs si blocca); dal livello 13 è una qualità astratta di processo (es. precisione fine vs forza grossolana), non più il tipo di oggetto in sé — come negli originali. Prototipo con icone: nella versione con foto reali qui comparirà la libreria immagini, adattata automaticamente alla dimensione della slide.";
     wrap.appendChild(p);
     return wrap;
+  },
+  fascicolo: ()=>{
+    const wrap = document.createElement("div");
+    const label = document.createElement("label");
+    label.setAttribute("for","weekRange");
+    label.textContent = "Settimana";
+    wrap.appendChild(label);
+    const row = document.createElement("div");
+    row.className = "level-row";
+    const input = document.createElement("input");
+    input.type = "range"; input.id = "weekRange"; input.min = "1"; input.max = "24"; input.value = state.fascicoloWeek;
+    const badge = document.createElement("div");
+    badge.className = "level-badge"; badge.id = "weekBadge"; badge.textContent = state.fascicoloWeek;
+    input.addEventListener("input", e=>{
+      state.fascicoloWeek = Number(e.target.value);
+      badge.textContent = state.fascicoloWeek;
+      generate();
+    });
+    row.appendChild(input); row.appendChild(badge);
+    wrap.appendChild(row);
+    const note = document.createElement("div");
+    note.className = "level-note";
+    note.textContent = "Ogni settimana fa avanzare in modo coordinato tutti i 12 blocchi del fascicolo (alfabeti delle griglie, soglie minime, vincoli lessicali, lunghezza di anagrammi/labirinto/calcolo), riproducendo la stessa progressione osservata nei fascicoli originali. Oltre la settimana 8 la stessa logica continua ad aumentare la difficoltà. \"Mostra risposta / regola\" mostra qui le soluzioni di ogni blocco (mai incluse nel file .docx esportato).";
+    wrap.appendChild(note);
+    return wrap;
   }
 };
 
@@ -1346,24 +2298,33 @@ function generate(){
   state.deck = GENERATORS[state.exercise](state.level);
   document.getElementById("ruleBox").style.display = "none";
   const ex = EXERCISES.find(e=>e.id===state.exercise);
+  const historyLevel = state.exercise==="fascicolo" ? state.fascicoloWeek : state.level;
   saveHistoryEntry({
     when: Date.now(),
     exId: state.exercise,
     exName: ex.name,
-    level: state.level,
-    summary: summarizeDeck(state.exercise, state.level, state.deck)
+    level: historyLevel,
+    summary: summarizeDeck(state.exercise, historyLevel, state.deck)
   });
   render();
 }
 
 function render(){
   const ex = EXERCISES.find(e=>e.id===state.exercise);
+  const isFascicolo = state.exercise==="fascicolo";
   document.getElementById("exTitle").textContent = ex.name;
-  document.getElementById("exMeta").textContent = `Livello ${state.level} di 16`;
-  document.getElementById("levelBadge").textContent = state.level;
-  document.getElementById("levelNote").textContent = LEVEL_NOTES[state.exercise][state.level-1];
+  document.getElementById("levelField").style.display = isFascicolo ? "none" : "block";
+  document.getElementById("btnExport").textContent = isFascicolo ? "Esporta in Word (.docx)" : "Esporta in PowerPoint";
+  if(isFascicolo){
+    document.getElementById("exMeta").textContent = `Settimana ${state.fascicoloWeek}`;
+  } else {
+    document.getElementById("exMeta").textContent = `Livello ${state.level} di 16`;
+    document.getElementById("levelBadge").textContent = state.level;
+    document.getElementById("levelNote").textContent = LEVEL_NOTES[state.exercise][state.level-1];
+  }
 
   const stage = document.getElementById("stage");
+  stage.classList.toggle("stage-fascicolo", isFascicolo);
   stage.innerHTML = "";
   stage.appendChild(RENDERERS[state.exercise](state.deck));
 
@@ -1543,11 +2504,24 @@ const EXPORTERS = {
   inversione: exportInversione,
   serie: exportSerie,
   accesso: exportAccesso,
-  categorizzazione: exportCategorizzazione
+  categorizzazione: exportCategorizzazione,
+  fascicolo: (deck)=>exportFascicolo(deck)
 };
 
-function exportCurrent(){
-  EXPORTERS[state.exercise](state.deck, state.level);
+async function exportCurrent(){
+  const btn = document.getElementById("btnExport");
+  const original = btn.textContent;
+  btn.disabled = true;
+  if(state.exercise==="fascicolo") btn.textContent = "Generazione in corso…";
+  try{
+    await EXPORTERS[state.exercise](state.deck, state.level);
+  } catch(e){
+    console.error(e);
+    alert("Errore nella generazione del documento: " + e.message);
+  } finally {
+    btn.disabled = false;
+    btn.textContent = original;
+  }
 }
 
 document.getElementById("levelRange").addEventListener("input", e=>{
