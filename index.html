@@ -1400,26 +1400,36 @@ function hexNoHash(h){ return h.replace("#",""); }
 
 function exportGriglie(deck, level){
   const p = new PptxGenJS();
-  p.layout = "LAYOUT_WIDE";
+  p.layout = "LAYOUT_4x3"; // 10x7.5in — come gli originali, non widescreen (causa della distorsione)
   const s = deck.slides[0];
   const r = deck.rules[deck.ruleIndex];
   const slide = p.addSlide();
   slide.background = {color:"FFFFFF"};
-  slide.addNotes(`Livello ${level}. Regola: ${r.text} Risposta: ${r.count} elementi. Altre regole possibili su questa stessa griglia: ${deck.rules.map(x=>x.text).join(" | ")}`);
+  // Tutte le regole possibili su questa griglia vanno nel commento (nota), come negli originali —
+  // non solo quella attualmente attiva.
+  const rulesList = deck.rules
+    .map(x=>x.text.replace(/^Conta /,"").replace(/\.$/,""))
+    .join(", ");
+  slide.addNotes(`Regola attiva: ${r.text} Risposta: ${r.count} elementi. Tutte le regole possibili su questa griglia: ${rulesList}.`);
+
+  // Cerchi (non rettangoli) di dimensione fissa 1.10"x1.10", passo 1.45" — replica delle
+  // proporzioni misurate sui file originali, centrati sulla slide 10x7.5".
+  const CIRCLE = 1.10, PITCH = 1.45;
   const cols = s.cols, rows = s.rows;
-  const cellW = 12.6/cols, cellH = 6.6/rows;
+  const gridW = (cols-1)*PITCH + CIRCLE, gridH = (rows-1)*PITCH + CIRCLE;
+  const marginX = (10 - gridW)/2, marginY = (7.5 - gridH)/2;
   s.cells.forEach(c=>{
     const bgHex = c.fill ? hexNoHash(colorHex(c.fill)) : "FFFFFF";
-    const borderHex = c.border ? hexNoHash(colorHex(c.border)) : "B7BEB8";
+    const borderHex = c.border ? hexNoHash(colorHex(c.border)) : "000000";
     slide.addText(c.sym, {
-      x: 0.35 + c.col*cellW, y: 0.5 + c.row*cellH, w:cellW, h:cellH,
-      align:"center", valign:"middle", fontSize:12, bold:true,
-      color: "1E2A26",
-      fill:{color:bgHex}, line:{color:borderHex, width:2},
+      shape: "ellipse",
+      x: marginX + c.col*PITCH, y: marginY + c.row*PITCH, w:CIRCLE, h:CIRCLE,
+      align:"center", valign:"middle", fontSize:32, bold:true,
+      color:"1E2A26",
+      fill:{color:bgHex}, line:{color:borderHex, width:6},
       isTextBox:true
     });
   });
-  slide.addText(r.text, {x:0.35,y:7.15,w:12.6,h:0.3,fontSize:11,color:"4B5A55",isTextBox:true});
   return p.writeFile({fileName:`Griglie-Conteggio_L${level}.pptx`});
 }
 
