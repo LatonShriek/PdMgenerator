@@ -721,14 +721,14 @@ function generateMultiTargetGrid(rows, cols, alphabet, rnd, nTargets, seqLen = 4
 //    parola è un sostantivo comune, maiuscolo, senza accenti/spazi.
 // ---------------------------------------------------------------------------
 const WORD_BANK = {
-  3: ['ORO', 'ZIO', 'SCI', 'GAS', 'RIO', 'DIO', 'ALA', 'UVA'],
-  4: ['CANE', 'LUNA', 'CASA', 'PANE', 'MARE', 'TORO', 'LUPO', 'ORSO', 'VELA', 'PALO', 'ALBA', 'NAVE', 'ROSA', 'FATO', 'LAGO', 'MELA', 'PERA', 'RANA', 'FOCA', 'GUFO'],
-  5: ['TIGRE', 'VOLPE', 'CIGNO', 'FIUME', 'MONTE', 'PONTE', 'CAMPO', 'FORNO', 'SEDIA', 'PORTA', 'FIORE', 'TRENO', 'AEREO', 'BARCA', 'LEONE', 'GATTO', 'CAVIA', 'OMBRA'],
-  6: ['TAVOLO', 'CHIESA', 'SCUOLA', 'STRADA', 'CUCINA', 'AQUILA', 'BALENA', 'CAMINO', 'GABBIA', 'PIATTO', 'MULINO'],
-  7: ['GIRAFFA', 'DELFINO', 'CAVALLO', 'FONTANA', 'ARANCIA', 'PANTERA', 'VULCANO'],
-  8: ['FARFALLA', 'MONTAGNA', 'OMBRELLO', 'LEOPARDO', 'COLTELLO', 'CASTELLO', 'ELEFANTE'],
-  9: ['GHIRLANDA', 'FORCHETTA', 'BICCHIERE'],
-  10: ['SCOIATTOLO'],
+  3: ['ORO', 'ZIO', 'SCI', 'GAS', 'RIO', 'DIO', 'ALA', 'UVA', 'USO', 'ORA', 'ERA', 'ARA', 'OCA', 'EGO', 'ODA'],
+  4: ['CANE', 'LUNA', 'CASA', 'PANE', 'MARE', 'TORO', 'LUPO', 'ORSO', 'VELA', 'PALO', 'ALBA', 'NAVE', 'ROSA', 'FATO', 'LAGO', 'MELA', 'PERA', 'RANA', 'FOCA', 'GUFO', 'IDEA', 'ONDA', 'NIDO', 'SOLE', 'LUCE', 'VITA', 'PACE', 'VOCE', 'DOTE', 'NOME', 'BASE', 'DUNA'],
+  5: ['TIGRE', 'VOLPE', 'CIGNO', 'FIUME', 'MONTE', 'PONTE', 'CAMPO', 'FORNO', 'SEDIA', 'PORTA', 'FIORE', 'TRENO', 'AEREO', 'BARCA', 'LEONE', 'GATTO', 'CAVIA', 'OMBRA', 'CIELO', 'VERME', 'TRAVE', 'PRATO', 'LADRO', 'GHIRO', 'COLPO', 'FIATO', 'SALTO', 'VETRO', 'SASSO'],
+  6: ['TAVOLO', 'CHIESA', 'SCUOLA', 'STRADA', 'CUCINA', 'AQUILA', 'BALENA', 'CAMINO', 'GABBIA', 'PIATTO', 'MULINO', 'SEDANO', 'LIMONE', 'PIRATA', 'CORONA', 'BANANA', 'PATATA', 'OCEANO', 'FIGURA', 'NUVOLA', 'FRUTTO', 'GIACCA', 'CAMERA', 'VELENO', 'FINALE', 'FARINA', 'MARINA'],
+  7: ['GIRAFFA', 'DELFINO', 'CAVALLO', 'FONTANA', 'ARANCIA', 'PANTERA', 'VULCANO', 'PATTINO', 'CUSCINO', 'BALCONE', 'ARMADIO', 'SALOTTO', 'STIVALE', 'BOTTONE', 'SCIARPA', 'CORNICE'],
+  8: ['FARFALLA', 'MONTAGNA', 'OMBRELLO', 'LEOPARDO', 'COLTELLO', 'CASTELLO', 'ELEFANTE', 'GABBIANO', 'PINGUINO', 'GIARDINO', 'MARTELLO', 'SPECCHIO', 'CAMMELLO', 'SERPENTE', 'FINESTRA', 'OSPEDALE', 'CAPPELLO', 'OROLOGIO'],
+  9: ['GHIRLANDA', 'FORCHETTA', 'BICCHIERE', 'CAVALIERE', 'PANTOFOLA', 'BURATTINO', 'FALEGNAME'],
+  10: ['SCOIATTOLO', 'PETTIROSSO', 'ARCOBALENO', 'CIOCCOLATO'],
 };
 
 // ---------------------------------------------------------------------------
@@ -745,10 +745,16 @@ function scramble(word, rnd) {
   return scrambled;
 }
 
-function generateAnagrams(count, wordLen, rnd) {
+function generateAnagrams(count, wordLen, rnd, excludeWords) {
   const bank = WORD_BANK[wordLen] || WORD_BANK[Math.max(...Object.keys(WORD_BANK).map(Number))];
-  const words = pickN(rnd, bank, Math.min(count, bank.length));
-  while (words.length < count) words.push(pick(rnd, bank)); // ripesca se la banca è più piccola del richiesto
+  const excl = excludeWords ? new Set(excludeWords) : null;
+  let effectiveBank = bank;
+  if (excl && excl.size) {
+    const fresh = bank.filter(w => !excl.has(w));
+    if (fresh.length >= Math.min(count, bank.length)) effectiveBank = fresh; // solo se restano abbastanza parole "fresche"
+  }
+  const words = pickN(rnd, effectiveBank, Math.min(count, effectiveBank.length));
+  while (words.length < count) words.push(pick(rnd, effectiveBank)); // ripesca se la banca è più piccola del richiesto
   return words.map(w => ({ solution: w, scrambled: scramble(w, rnd) }));
 }
 
@@ -758,12 +764,19 @@ function generateAnagrams(count, wordLen, rnd) {
 function generateCalcChain(count, nTerms, maxNum, rnd) {
   const rows = [];
   for (let i = 0; i < count; i++) {
+    const used = new Set();
     let result = 1 + Math.floor(rnd() * maxNum);
+    used.add(result);
     let expr = String(result);
     for (let t = 1; t < nTerms; t++) {
       const op = rnd() < 0.5 ? '+' : '-';
-      let val = 1 + Math.floor(rnd() * maxNum);
-      if (op === '-' && val > result) val = 1 + Math.floor(rnd() * result);
+      let val, guard = 0;
+      do {
+        val = 1 + Math.floor(rnd() * maxNum);
+        if (op === '-' && val > result) val = 1 + Math.floor(rnd() * result || 1);
+        guard++;
+      } while (used.has(val) && guard < 30); // mai lo stesso numero due volte nella stessa riga
+      used.add(val);
       result = op === '+' ? result + val : result - val;
       expr += ` ${op} ${val}`;
     }
@@ -896,11 +909,75 @@ function generateMaze(cols, rows, rnd) {
 //     aperta: qui servono solo i PROMPT, non una banca di parole-risposta)
 // ---------------------------------------------------------------------------
 const CATEGORY_POOL = {
-  1: ['Alimenti', 'Bevande', 'Frutta', 'Verdura', 'Animali', 'Colori', 'Mobili', 'Indumenti', 'Mezzi di trasporto', 'Giochi', 'Utensili', 'Edifici', 'Parti del corpo', 'Strumenti musicali', 'Sport'],
-  2: ['Pesci', 'Frutta secca', 'Combustibili', 'Contenitori per liquidi', 'Edifici pubblici', 'Attrezzi in officina', 'Oggetti per scrivere', 'Attrezzi in campagna', 'Materiale da costruzione', 'Organi', 'Animali esotici', 'Province italiane'],
-  3: ['Oggetti che richiedono precisione nell\u2019uso', 'Cose che si trovano in cucina ma non si mangiano', 'Strumenti che tagliano', 'Mestieri artigianali', 'Oggetti che producono luce', 'Strumenti di misura'],
+  1: ['Alimenti', 'Bevande', 'Frutta', 'Verdura', 'Animali', 'Colori', 'Mobili', 'Indumenti', 'Mezzi di trasporto', 'Giochi', 'Utensili', 'Edifici', 'Parti del corpo', 'Strumenti musicali', 'Sport', 'Frutti di mare', 'Dolci', 'Fiori', 'Alberi', 'Uccelli', 'Insetti', 'Elettrodomestici', 'Metalli', 'Pianeti'],
+  2: ['Pesci', 'Frutta secca', 'Combustibili', 'Contenitori per liquidi', 'Edifici pubblici', 'Attrezzi in officina', 'Oggetti per scrivere', 'Attrezzi in campagna', 'Materiale da costruzione', 'Organi', 'Animali esotici', 'Province italiane', 'Strumenti da cucina', 'Materiali tessili', 'Capitali europee', 'Fiumi italiani', 'Razze di cani', 'Pietre preziose', 'Professioni sanitarie'],
+  3: ['Oggetti che richiedono precisione nell\u2019uso', 'Cose che si trovano in cucina ma non si mangiano', 'Strumenti che tagliano', 'Mestieri artigianali', 'Oggetti che producono luce', 'Strumenti di misura', 'Cose che si trovano in un ufficio ma non su una scrivania', 'Oggetti che emettono un suono', 'Strumenti usati in giardinaggio', 'Oggetti che si trovano in una valigia da viaggio', 'Cose che si indossano solo in inverno', 'Mestieri che richiedono una divisa', 'Oggetti che contengono un liquido', 'Strumenti musicali a corda', 'Attrezzi da disegno tecnico', 'Oggetti che si usano per pulire'],
 };
-const LETTER_POOL = 'A B C D E F G I L M N O P R S T U V'.split(' ');
+// Database di prompt fonemici VERIFICATI (non generati a caso): ogni voce è stata
+// controllata a mano contro parole italiane reali e di uso comune, non rare.
+const LETTER_POOL = 'A B C D E F G I L M N O P R S T U V'.split(' '); // usata per l'iniziale libera (schema 5+): già esclude lettere rare come inizio (H,Q,X,Y,W,J,K,Z)
+// Prima queste due lettere venivano scelte a caso dall'alfabeto, senza nessuna
+// garanzia che una parola reale le rispettasse davvero (causa più probabile di
+// "sembra non avere soluzione" — lo stesso problema segnalato per gli anagrammi,
+// ma qui strutturale, non occasionale).
+const PHONEMIC_DB = {
+  // 2a e 4a lettera di una parola di 5 lettere. 10 coppie verificate, ciascuna con
+  // almeno 2 parole reali e comuni (fino a 5).
+  position2: [
+    { l1:'A', l2:'L', words:['PALLA','GALLO','VALLE','BALLO','CALLO'] },
+    { l1:'A', l2:'T', words:['PARTE','CARTE','MATTO','PATTO','GATTO'] },
+    { l1:'A', l2:'N', words:['CARNE','PANNO','CANNE'] },
+    { l1:'A', l2:'S', words:['CASSA','MASSA','TASSO'] },
+    { l1:'O', l2:'T', words:['PONTE','CONTE','PORTA'] },
+    { l1:'A', l2:'C', words:['BARCA','PARCO'] },
+    { l1:'A', l2:'R', words:['BARRA','FARRO'] },
+    { l1:'E', l2:'N', words:['LEONE','PENNE'] },
+    { l1:'I', l2:'R', words:['TIGRE','FIORE'] },
+    { l1:'O', l2:'N', words:['FORNO','SOGNO'] },
+  ],
+  // 3a e 5a lettera di una parola di 6 lettere. Solo 4 coppie verificate con
+  // sicurezza: il vincolo doppio su parole di 6 lettere è molto più raro in
+  // italiano — meglio 4 coppie sicure che 10 inventate. Segnalalo se serve più
+  // varietà: si può sostituire con un vincolo singolo (solo 3a lettera), molto
+  // più facile da popolare riccamente.
+  position3: [
+    { l1:'U', l2:'L', words:['SCUOLA','AQUILA'] },
+    { l1:'L', l2:'N', words:['BALENA','MULINO'] },
+    { l1:'M', l2:'N', words:['CAMINO','LIMONE'] },
+    { l1:'R', l2:'N', words:['FARINA','MARINA'] },
+  ],
+  // due lettere adiacenti (digramma) in un punto qualsiasi della parola — i digrammi
+  // più comuni dell'italiano, ciascuno con decine di parole reali possibili (qui solo
+  // 5 esempi per voce, a scopo di verifica).
+  joined: [
+    { l1:'A', l2:'N', words:['CANE','PANE','ANNO','MANO','PIANO'] },
+    { l1:'A', l2:'R', words:['CARTA','BARCA','MARE','PARCO','ARANCIA'] },
+    { l1:'O', l2:'R', words:['PORTA','TORRE','FORNO','ORSO','COLORE'] },
+    { l1:'E', l2:'R', words:['VERDE','FERRO','PERA','CERA','TERRA'] },
+    { l1:'A', l2:'L', words:['PALLA','SALE','ALBERO','GIALLO','BALCONE'] },
+    { l1:'I', l2:'N', words:['VINO','PINO','FINE','CANTINA','MATTINO'] },
+    { l1:'O', l2:'N', words:['SONNO','LEONE','PONTE','MONTE','CANZONE'] },
+    { l1:'R', l2:'A', words:['STRADA','CAMERA','BARCA','GRANDE','ORARIO'] },
+    { l1:'E', l2:'S', words:['PESCE','MESE','VESPA','FINESTRA','ESTATE'] },
+    { l1:'I', l2:'A', words:['PIAZZA','FIABA','BIANCO','DIAMANTE','MAGIA'] },
+    { l1:'U', l2:'R', words:['DURO','PURO','SICURO','MISURA','FUTURO'] },
+    { l1:'O', l2:'L', words:['SOLE','VOLPE','SCUOLA','ISOLA','FOLLA'] },
+  ],
+  // due lettere presenti in un punto qualsiasi, non necessariamente vicine — vincolo
+  // più debole del precedente, quindi coppie di consonanti comuni bastano e avanzano.
+  disjoint: [
+    { l1:'C', l2:'R', words:['CARTA','CORPO','BARCA','PARCO'] },
+    { l1:'S', l2:'T', words:['STELLA','STRADA','STATO','TESTA'] },
+    { l1:'N', l2:'R', words:['FARINA','FORNO','CARNE'] },
+    { l1:'L', l2:'T', words:['LATTE','LETTO','TAVOLO','LITRO'] },
+    { l1:'M', l2:'R', words:['MARE','ARMONIA','MARTE','MARMO'] },
+    { l1:'P', l2:'R', words:['PORTA','PRATO','PROVA','CAPRA'] },
+    { l1:'D', l2:'R', words:['DRAGO','QUADRO','VERDE','RADIO'] },
+    { l1:'B', l2:'R', words:['BARCA','LIBRO','BRACCIO','FEBBRE'] },
+    { l1:'G', l2:'R', words:['GRANDE','GRANO','GRIGIO'] },
+    { l1:'F', l2:'R', words:['FRUTTA','FIORE','FREDDO','FERRO'] },
+  ],
+};
 
 // Prompt per i blocchi di accesso lessicale vincolato per posizione/adiacenza
 // (schemi 1-4, settimane 1-4), fedeli ai modelli osservati negli originali:
@@ -908,20 +985,30 @@ const LETTER_POOL = 'A B C D E F G I L M N O P R S T U V'.split(' ');
 // posizione3  -> "--X\u2026Y-"    (6 caselle, 3a e penultima lettera fissate)
 // congiunte   -> "..XY.."     (2 lettere adiacenti in mezzo alla parola)
 // disgiunte   -> "X ; Y"      (2 lettere, posizione libera, non adiacenti)
-function buildPositionalPrompts(kind, rnd, count = 10) {
-  const used = new Set();
-  const rows = [];
-  while (rows.length < count) {
-    const l1 = pick(rnd, LETTER_POOL), l2 = pick(rnd, LETTER_POOL);
-    const key = l1 + l2;
-    if (l1 === l2 || used.has(key)) continue;
-    used.add(key);
-    if (kind === 'position2') rows.push(`-${l1}-${l2}-`);
-    else if (kind === 'position3') rows.push(`--${l1}\u2026${l2}-`);
-    else if (kind === 'joined') rows.push(`..${l1}${l2}..`);
-    else if (kind === 'disjoint') rows.push(`${l1} ; ${l2}`);
+// Le coppie di lettere vengono SEMPRE dal database verificato sopra, mai generate a
+// caso: ogni prompt che il paziente vede ha almeno una parola reale e comune dietro.
+function buildPositionalPrompts(kind, rnd, count = 10, excludeKeys) {
+  const bank = PHONEMIC_DB[kind];
+  const excl = excludeKeys ? new Set(excludeKeys) : null;
+  let effectiveBank = bank;
+  if (excl && excl.size) {
+    const fresh = bank.filter(e => !excl.has(e.l1 + e.l2));
+    if (fresh.length) effectiveBank = fresh; // il DB è piccolo (specie position3): si riammette solo se serve
   }
-  return rows;
+  const order = [];
+  while (order.length < count) order.push(...shuffleArr(rnd, effectiveBank));
+  const chosen = order.slice(0, count);
+  return chosen.map(({l1,l2}) => {
+    if (kind === 'position2') return `-${l1}-${l2}-`;
+    if (kind === 'position3') return `--${l1}\u2026${l2}-`;
+    if (kind === 'joined') return `..${l1}${l2}..`;
+    if (kind === 'disjoint') return `${l1} ; ${l2}`;
+  });
+}
+function shuffleArr(rnd, arr){
+  const a = [...arr];
+  for(let i=a.length-1;i>0;i--){ const j = Math.floor(rnd()*(i+1)); [a[i],a[j]]=[a[j],a[i]]; }
+  return a;
 }
 
 // ---------------------------------------------------------------------------
@@ -942,8 +1029,10 @@ function weekParams(week) {
   const sequencingType = w >= 5 ? 'alphabetic' : 'numeric';
   const sequencingCount = sequencingType === 'numeric' ? clamp(24 + w, 24, 32) : clamp(24 + (w - 4), 26, 40);
 
-  const mazeCols = clamp(9 + w, 10, 26);
-  const mazeRows = clamp(11 + w, 12, 30);
+  // Difficoltà quadruplicata su richiesta di Rodrigo (erano troppo facili): a parità di
+  // settimana, circa il doppio delle celle per lato = 4 volte l'area/il numero di celle.
+  const mazeCols = clamp(18 + 2*w, 20, 50);
+  const mazeRows = clamp(22 + 2*w, 24, 55);
 
   // vincolo di accesso lessicale posizionale: 5 schemi osservati, poi si
   // continua a variare la posizione richiesta mantenendo la stessa logica
@@ -994,13 +1083,13 @@ function renderMazeSVG(maze, cellSize = 24) {
   const { cols, rows, cells } = maze;
   const pad = 40;
   const w = cols * cellSize + pad * 2;
-  const h = rows * cellSize + pad * 2 + 60;
+  const h = rows * cellSize + pad * 2 + 20;
   let lines = '';
   const stroke = (x1, y1, x2, y2) => { lines += `<line x1="${x1}" y1="${y1}" x2="${x2}" y2="${y2}" stroke="black" stroke-width="3" stroke-linecap="square"/>`; };
   for (let y = 0; y < rows; y++) {
     for (let x = 0; x < cols; x++) {
       const c = cells[y][x];
-      const x0 = pad + x * cellSize, y0 = pad + 60 + y * cellSize;
+      const x0 = pad + x * cellSize, y0 = pad + 20 + y * cellSize;
       const x1 = x0 + cellSize, y1 = y0 + cellSize;
       if (c.N) stroke(x0, y0, x1, y0);
       if (c.W) stroke(x0, y0, x0, y1);
@@ -1009,11 +1098,13 @@ function renderMazeSVG(maze, cellSize = 24) {
       if (c.S || y === rows - 1) stroke(x0, y1, x1, y1);
     }
   }
-  const startX = pad, startY = pad + 60 + 0.5 * cellSize;
-  const endX = pad + cols * cellSize, endY = pad + 60 + (rows - 0.5) * cellSize;
+  const startX = pad, startY = pad + 20 + 0.5 * cellSize;
+  const endX = pad + cols * cellSize, endY = pad + 20 + (rows - 0.5) * cellSize;
+  // Niente titolo dentro l'SVG: sia l'app (section/fSection) sia il documento
+  // esportato (heading() in docbuilder) aggiungono già il proprio titolo fuori
+  // dall'immagine — prima comparivano entrambi, uno duplicato dell'altro.
   return `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 ${w} ${h}" width="${w}" height="${h}">
     <rect width="100%" height="100%" fill="white"/>
-    <text x="${w/2}" y="30" font-size="26" font-weight="bold" text-anchor="middle" font-family="Arial">Risolvere il labirinto</text>
     ${lines}
     <text x="${pad-6}" y="${startY-10}" font-size="14" font-weight="bold" text-anchor="start" font-family="Arial">INIZIO</text>
     <text x="${endX-6}" y="${endY+24}" font-size="14" font-weight="bold" text-anchor="end" font-family="Arial">FINE</text>
@@ -1037,9 +1128,10 @@ function renderSequencingSVG(seq, width = 700, height = 950) {
 //     data settimana. Usato sia dall'anteprima HTML sia dall'export .docx,
 //     così le due viste sono sempre coerenti tra loro.
 // ---------------------------------------------------------------------------
-function buildFascicolo(week, seed) {
+function buildFascicolo(week, seed, exclusions) {
   const rnd = mulberry32(seed >>> 0);
   const p = weekParams(week);
+  const excl = exclusions || {};
 
   const grids = p.grids.map(g => generateSequenceGrid(16, 12, g.family.chars, rnd));
   const multi = generateMultiTargetGrid(16, 12, p.grids[0].family.chars, rnd, p.multiTargetCount);
@@ -1048,15 +1140,33 @@ function buildFascicolo(week, seed) {
     ? generateNumericSequencing(p.sequencingCount, 99, rnd)
     : generateAlphabeticSequencing(p.sequencingCount, rnd);
   const maze = generateMaze(p.mazeCols, p.mazeRows, rnd);
-  const anagrams = generateAnagrams(10, p.anagramLen, rnd);
+  const anagrams = generateAnagrams(10, p.anagramLen, rnd, excl.anagramWords);
   const calc = generateCalcChain(10, p.calcTerms, p.calcMax, rnd);
 
-  const categories = pickN(rnd, CATEGORY_POOL[p.categoryTier], p.categoryCount);
+  const catPool = CATEGORY_POOL[p.categoryTier];
+  const catExcl = exclusions && exclusions.categories ? new Set(exclusions.categories) : null;
+  let catEffective = catPool;
+  if (catExcl && catExcl.size) {
+    const fresh = catPool.filter(c => !catExcl.has(c));
+    if (fresh.length >= p.categoryCount) catEffective = fresh;
+  }
+  const categories = pickN(rnd, catEffective, p.categoryCount);
   const letters = p.positionalScheme ? null : pickN(rnd, LETTER_POOL, p.freeInitialCount);
-  const positionalPrompts = p.positionalScheme ? buildPositionalPrompts(p.positionalScheme.kind, rnd, 10) : null;
+  const positionalPrompts = p.positionalScheme ? buildPositionalPrompts(p.positionalScheme.kind, rnd, 10, excl.phonemicKeys) : null;
   const lengthCategoryList = p.hasLengthCategoryBlock ? pickN(rnd, ['Frutta', 'Ortaggio', 'Animale', 'Colore', 'Mobile', 'Mezzo di trasporto', 'Sport', 'Indumento'], 6) : null;
 
   return { week, params: p, grids, multi, crucipuzzle, sequencing, maze, anagrams, calc, categories, letters, positionalPrompts, lengthCategoryList };
+}
+
+// Estrae la coppia di lettere (l1,l2) da un prompt fonemico già formattato, per poter
+// registrare nello storico condiviso QUALE coppia è stata usata (buildPositionalPrompts
+// restituisce solo la stringa visualizzata, non la coppia grezza).
+function phonemicKeyFromPrompt(kind, promptStr) {
+  if (kind === 'position2') return promptStr[1] + promptStr[3];       // "-X-Y-"
+  if (kind === 'position3') return promptStr[2] + promptStr[4];       // "--X…Y-"
+  if (kind === 'joined') return promptStr[2] + promptStr[3];          // "..XY.."
+  if (kind === 'disjoint') return promptStr[0] + promptStr[4];        // "X ; Y"
+  return promptStr;
 }
 
 return {
@@ -1065,7 +1175,7 @@ return {
   generateSequenceGrid, generateMultiTargetGrid, countSequenceOccurrences,
   generateAnagrams, generateCalcChain, generateCrucipuzzle,
   generateNumericSequencing, generateAlphabeticSequencing, generateMaze,
-  CATEGORY_POOL, LETTER_POOL, WORD_BANK, buildPositionalPrompts,
+  CATEGORY_POOL, LETTER_POOL, WORD_BANK, buildPositionalPrompts, phonemicKeyFromPrompt,
   renderMazeSVG, renderSequencingSVG,
 };
 });
@@ -1081,77 +1191,97 @@ return {
 // engine.js. Isomorfo: buildFascicoloDocument(docx, data, rasterize) — dove
 // `docx` è la libreria (require('docx') in Node, window.docx nel browser) e
 // `rasterize` è una funzione async (svgString) => Uint8Array PNG.
+//
+// Ogni misura qui sotto (font, dimensioni cella, larghezza tabella, immagini)
+// è stata estratta byte per byte da un fascicolo originale reale di Rodrigo
+// (non stimata): pagina A4, margini 1440 twips, titolo Times New Roman 90pt,
+// intestazioni Calibri 25pt/15pt, celle griglia Arial 12pt grassetto centrate,
+// tabelle prompt/risposta Arial 25pt con righe alte almeno 0.83".
 // ============================================================================
 (function (root, factory) {
   if (typeof module === 'object' && module.exports) module.exports = factory();
   else root.DocBuilder = factory();
 })(typeof self !== 'undefined' ? self : this, function () {
 
-  function symbolGridTable(docx, grid) {
-    const { Table, TableRow, TableCell, Paragraph, TextRun, WidthType, BorderStyle, VerticalAlign, AlignmentType } = docx;
-    const cellW = 380; // DXA
-    const rows = grid.map(rowArr => new TableRow({
-      children: rowArr.map(sym => new TableCell({
-        width: { size: cellW, type: WidthType.DXA },
-        verticalAlign: VerticalAlign.CENTER,
-        margins: { top: 20, bottom: 20, left: 20, right: 20 },
-        children: [new Paragraph({ alignment: AlignmentType.CENTER, children: [new TextRun({ text: sym, size: 20, font: 'DejaVu Sans' })] })],
-      })),
-    }));
-    const borders = thinBorders(docx);
-    return new Table({
-      rows,
-      width: { size: cellW * grid[0].length, type: WidthType.DXA },
-      columnWidths: grid[0].map(() => cellW),
-      borders,
-    });
-  }
+  const GRID_CELL_W = 752;      // DXA — una colonna della matrice di simboli (originale)
+  const LEGEND_CELL_W = 1500;   // DXA — una colonna della legenda sequenze (6 per riga)
+  const PROMPT_LABEL_W = 4350;  // DXA — colonna prompt (originale)
+  const PROMPT_ANSWER_W = 4125; // DXA — colonna risposta (originale)
+  const PROMPT_ROW_H = 1190;    // DXA — altezza minima riga tabella prompt (originale, ~0.83")
 
   function thinBorders(docx) {
     const { BorderStyle } = docx;
-    const edge = { style: BorderStyle.SINGLE, size: 2, color: '999999' };
+    const edge = { style: BorderStyle.SINGLE, size: 8, color: '000000' };
     return { top: edge, bottom: edge, left: edge, right: edge, insideHorizontal: edge, insideVertical: edge };
+  }
+
+  function symbolGridTable(docx, grid) {
+    const { Table, TableRow, TableCell, Paragraph, TextRun, WidthType, VerticalAlign, AlignmentType } = docx;
+    const rows = grid.map(rowArr => new TableRow({
+      children: rowArr.map(sym => new TableCell({
+        width: { size: GRID_CELL_W, type: WidthType.DXA },
+        verticalAlign: VerticalAlign.TOP,
+        margins: { top: 100, bottom: 100, left: 100, right: 100 },
+        children: [new Paragraph({ alignment: AlignmentType.CENTER, children: [new TextRun({ text: sym, size: 24, bold: true, font: 'Arial' })] })],
+      })),
+    }));
+    return new Table({
+      rows,
+      width: { size: GRID_CELL_W * grid[0].length, type: WidthType.DXA },
+      columnWidths: grid[0].map(() => GRID_CELL_W),
+      borders: thinBorders(docx),
+    });
   }
 
   function legendTable(docx, sequences) {
     const { Table, TableRow, TableCell, Paragraph, TextRun, WidthType, AlignmentType } = docx;
-    const perRow = 5;
+    const perRow = 6; // come nell'originale: sequenze disposte 6 per riga
     const rowsData = [];
     for (let i = 0; i < sequences.length; i += perRow) rowsData.push(sequences.slice(i, i + perRow));
-    const cellW = 1750;
     const rows = rowsData.map(rowArr => {
       const cells = rowArr.map(seq => new TableCell({
-        width: { size: cellW, type: WidthType.DXA },
+        width: { size: LEGEND_CELL_W, type: WidthType.DXA },
         margins: { top: 100, bottom: 100, left: 80, right: 80 },
-        children: [new Paragraph({ alignment: AlignmentType.CENTER, children: [new TextRun({ text: seq.join(' '), bold: true, size: 22, font: 'DejaVu Sans' })] })],
+        children: [new Paragraph({ alignment: AlignmentType.CENTER, children: [new TextRun({ text: seq.join(' '), bold: true, size: 30, font: 'Arial' })] })],
       }));
-      while (cells.length < perRow) cells.push(new TableCell({ width: { size: cellW, type: WidthType.DXA }, children: [new Paragraph({ children: [] })] }));
+      while (cells.length < perRow) cells.push(new TableCell({ width: { size: LEGEND_CELL_W, type: WidthType.DXA }, children: [new Paragraph({ children: [] })] }));
       return new TableRow({ children: cells });
     });
-    return new Table({ rows, width: { size: cellW * perRow, type: WidthType.DXA }, columnWidths: Array(perRow).fill(cellW), borders: thinBorders(docx) });
+    return new Table({ rows, width: { size: LEGEND_CELL_W * perRow, type: WidthType.DXA }, columnWidths: Array(perRow).fill(LEGEND_CELL_W), borders: thinBorders(docx) });
   }
 
-  function promptAnswerTable(docx, prompts, opts = {}) {
-    const { Table, TableRow, TableCell, Paragraph, TextRun, WidthType } = docx;
-    const labelW = opts.labelW || 3000;
-    const answerW = opts.answerW || 5000;
+  function promptAnswerTable(docx, prompts) {
+    const { Table, TableRow, TableCell, Paragraph, TextRun, WidthType, AlignmentType, VerticalAlign } = docx;
     const rows = prompts.map(p => new TableRow({
+      height: { value: PROMPT_ROW_H, rule: 'atLeast' },
       children: [
-        new TableCell({ width: { size: labelW, type: WidthType.DXA }, children: [new Paragraph({ children: [new TextRun({ text: String(p) })] })] }),
-        new TableCell({ width: { size: answerW, type: WidthType.DXA }, children: [new Paragraph({ children: [new TextRun({ text: '' })] })] }),
+        new TableCell({
+          width: { size: PROMPT_LABEL_W, type: WidthType.DXA }, verticalAlign: VerticalAlign.CENTER,
+          children: [new Paragraph({ alignment: AlignmentType.CENTER, children: [new TextRun({ text: String(p), bold: true, size: 50, font: 'Arial' })] })],
+        }),
+        new TableCell({
+          width: { size: PROMPT_ANSWER_W, type: WidthType.DXA },
+          children: [new Paragraph({ children: [new TextRun({ text: '' })] })],
+        }),
       ],
     }));
-    return new Table({ rows, width: { size: labelW + answerW, type: WidthType.DXA }, columnWidths: [labelW, answerW], borders: thinBorders(docx) });
+    return new Table({ rows, width: { size: PROMPT_LABEL_W + PROMPT_ANSWER_W, type: WidthType.DXA }, columnWidths: [PROMPT_LABEL_W, PROMPT_ANSWER_W], borders: thinBorders(docx) });
   }
 
-  function heading(docx, text, opts = {}) {
-    const { Paragraph, TextRun } = docx;
-    return new Paragraph({ spacing: { before: 240, after: 80 }, children: [new TextRun({ text, bold: true, size: opts.size || 24, font: 'DejaVu Sans' })] });
+  // Intestazione di sezione: un solo paragrafo centrato, titolo in Calibri 25pt
+  // grassetto + un a-capo naturale (spazio finale forza il wrap) + eventuale
+  // sottotitolo Calibri 15pt grassetto — fedele all'originale (due dimensioni
+  // di font nello stesso paragrafo, non due paragrafi separati).
+  function heading(docx, text, subtitle) {
+    const { Paragraph, TextRun, AlignmentType } = docx;
+    const runs = [new TextRun({ text: text + ' ', bold: true, size: 50, font: 'Calibri' })];
+    if (subtitle) runs.push(new TextRun({ text: subtitle, bold: true, size: 30, font: 'Calibri', break: 1 }));
+    // pageBreakBefore: true su OGNI intestazione — un esercizio per pagina, come
+    // nell'originale (dove il titolo occupa la prima pagina da solo e ogni
+    // "Cerchiare...", "Risolvere...", ecc. comincia sempre su una pagina nuova).
+    return new Paragraph({ alignment: AlignmentType.CENTER, spacing: { before: 240, after: 160 }, pageBreakBefore: true, children: runs });
   }
-  function subtext(docx, text) {
-    const { Paragraph, TextRun } = docx;
-    return new Paragraph({ spacing: { after: 80 }, children: [new TextRun({ text, italics: true, size: 20 })] });
-  }
+
   function pageBreak(docx) {
     const { Paragraph, PageBreak } = docx;
     return new Paragraph({ children: [new PageBreak()] });
@@ -1167,20 +1297,22 @@ return {
   }
 
   async function buildFascicoloDocument(docx, data, rasterize, engine) {
-    const { Document, Paragraph, TextRun, AlignmentType, HeadingLevel } = docx;
+    const { Document, Paragraph, TextRun, AlignmentType } = docx;
     const children = [];
     const p = data.params;
 
-    children.push(new Paragraph({ children: [new TextRun({ text: `Fascicolo ${data.week}`, bold: true, size: 32 })] }));
-    children.push(new Paragraph({ spacing: { after: 200 }, children: [new TextRun({ text: `${data.week}°settimana`, size: 24 })] }));
+    // Titolo: Times New Roman 90pt centrato, come nell'originale — occupa la
+    // prima pagina quasi per intero, il primo esercizio comincia da solo.
+    children.push(new Paragraph({ alignment: AlignmentType.CENTER, children: [new TextRun({ text: `Fascicolo ${data.week}`, size: 180, font: 'Times New Roman' })] }));
+    children.push(new Paragraph({ alignment: AlignmentType.CENTER, spacing: { after: 160 }, children: [new TextRun({ text: `${data.week}°settimana`, size: 180, font: 'Times New Roman' })] }));
 
-    // 1-3: griglie ricerca-sequenza singola
-    data.grids.forEach((g, i) => {
-      children.push(heading(docx, `Cerchiare e contare tutte le sequenze ${g.target.join('')} (orizzontale e verticale)`));
+    // 1-3: griglie ricerca-sequenza singola — 25 righe × 12 colonne come l'originale
+    data.grids.forEach((g) => {
+      children.push(heading(docx, `Cerchiare e contare tutte le sequenze ${g.target.join('')}`, '(orizzontale e verticale)'));
       children.push(symbolGridTable(docx, g.grid));
     });
 
-    // 4: griglia multi-bersaglio
+    // 4: griglia multi-bersaglio (16 righe) + legenda
     children.push(heading(docx, 'Cerchiare tutte le sequenze indicate'));
     children.push(symbolGridTable(docx, data.multi.grid));
     children.push(new Paragraph({ spacing: { before: 160 }, children: [] }));
@@ -1188,22 +1320,22 @@ return {
 
     // 5: crucipuzzle
     if (data.crucipuzzle) {
-      children.push(heading(docx, 'Cerchiare le parole dotate di senso'));
-      children.push(subtext(docx, `(in tutte le direzioni, almeno ${p.crucipuzzleMinWords}, di almeno 4 lettere)`));
+      children.push(heading(docx, 'Cerchiare le parole dotate di senso', `(in tutte le direzioni, almeno ${p.crucipuzzleMinWords}, di almeno 4 lettere)`));
       children.push(symbolGridTable(docx, data.crucipuzzle.grid));
     }
 
-    // 6: sequenziamento + immagine
+    // 6: sequenziamento + immagine (quasi a piena pagina, come l'originale)
     const seqTitle = p.sequencingType === 'numeric' ? 'Unire i numeri in ordine crescente' : 'Unire le lettere in ordine alfabetico';
     children.push(heading(docx, seqTitle));
     const seqSvg = engine.renderSequencingSVG(data.sequencing);
-    children.push(await imageParagraph(docx, rasterize, seqSvg, 420, 570));
+    children.push(await imageParagraph(docx, rasterize, seqSvg, 586, 845));
 
-    // 7: labirinto + immagine
+    // 7: labirinto + immagine (dimensione di stampa come l'originale; la
+    // difficoltà reale è nel numero di celle, deciso da weekParams)
     children.push(heading(docx, 'Risolvere il labirinto'));
     const mazeSvg = engine.renderMazeSVG(data.maze);
     const mazeAspect = (data.maze.cols * 24 + 80) / (data.maze.rows * 24 + 140);
-    const mazeWidth = 480;
+    const mazeWidth = 602;
     children.push(await imageParagraph(docx, rasterize, mazeSvg, mazeWidth, Math.round(mazeWidth / mazeAspect)));
 
     // 8: accesso lessicale vincolato per posizione OPPURE libero per iniziale
@@ -1230,7 +1362,8 @@ return {
       children.push(promptAnswerTable(docx, prompts));
     }
 
-    // 11: anagrammi
+    // 11: anagrammi — SOLO la parola mescolata va nel documento, mai la soluzione
+    // (la soluzione si vede solo nell'anteprima dell'app con "Mostra risposta").
     children.push(heading(docx, 'Risolvere i seguenti anagrammi'));
     children.push(promptAnswerTable(docx, data.anagrams.map(a => a.scrambled)));
 
@@ -1239,7 +1372,10 @@ return {
     children.push(promptAnswerTable(docx, data.calc.map(c => c.expression)));
 
     return new Document({
-      sections: [{ properties: {}, children }],
+      sections: [{
+        properties: { page: { size: { width: 11906, height: 16838 }, margin: { top: 1440, bottom: 1440, left: 1440, right: 1440 } } },
+        children,
+      }],
     });
   }
 
@@ -10412,44 +10548,26 @@ const CATEGORIZZAZIONE_LIBRARY = {
    ========================================================= */
 /* ============================================================================
    CATEGORIZZAZIONE v2 — pool di item per criterio (non più 1 coppia fissa per
-   livello) + immagini reali via Openverse (e, se configurata, Pixabay come
-   seconda fonte) con fallback se entrambe falliscono (rete assente, CORS, rate
-   limit) così la schermata non si rompe mai.
+   livello) + immagini reali via Pixabay, con fallback testuale se la chiamata
+   fallisce (rete assente, CORS, rate limit, chiave non configurata) così la
+   schermata non si rompe mai. Openverse è stato tolto su richiesta di Rodrigo
+   (risultati troppo spesso poco pertinenti).
    ============================================================================ */
 
-// Chiave Pixabay (opzionale): incollala qui per usarla come SECONDA fonte di
-// immagini quando Openverse non trova nulla di pertinente. Si ottiene gratis
-// su pixabay.com/api/docs (compare in pagina appena si è loggati, nessuna
-// approvazione richiesta). Finché resta vuota, questa sezione non fa nulla —
-// si usa solo Openverse, come già ora.
-const PIXABAY_API_KEY = "";
+// Chiave Pixabay: incollala qui (gratis su pixabay.com/api/docs, compare in
+// pagina appena si è loggati, nessuna approvazione richiesta). Finché resta
+// vuota, ogni cella mostra l'etichetta testuale dell'oggetto invece della foto
+// — non è un errore, è il comportamento previsto senza chiave.
+const PIXABAY_API_KEY = "57568618-1e3cd5a99d08d0ba88fa6ec6e";
 
 // Cache in-memoria (per sessione) delle immagini già risolte, per non rifare la
 // stessa richiesta due volte nella stessa sessione di lavoro.
 const _imgCache = new Map();
 
-async function fetchOpenverseImage(enQuery) {
+async function fetchCategorizationImage(enQuery) {
   if (_imgCache.has(enQuery)) return _imgCache.get(enQuery);
-  // Niente più filtro "solo licenza commerciale" (restringeva troppo la scelta, spesso
-  // lasciando solo foto poco pertinenti) e si prende il risultato più rilevante secondo
-  // il ranking di Openverse (prima si pescava a caso tra i primi 4, il che portava dentro
-  // anche match meno calzanti).
-  const url = `https://api.openverse.org/v1/images/?q=${encodeURIComponent(enQuery)}&page_size=10`;
-  let info = null;
-  try {
-    const res = await fetch(url, { mode: "cors" });
-    if (!res.ok) throw new Error("HTTP " + res.status);
-    const data = await res.json();
-    const results = (data.results || []).filter(r => r.thumbnail || r.url);
-    if (!results.length) throw new Error("nessun risultato");
-    const pick = results[0];
-    info = { src: pick.thumbnail || pick.url, credit: pick.creator || "", source: pick.source || "", foreignUrl: pick.foreign_landing_url || "" };
-  } catch (e) {
-    info = null; // si prova Pixabay sotto, se configurato
-  }
-  if (!info && PIXABAY_API_KEY) {
-    info = await fetchPixabayImage(enQuery);
-  }
+  if (!PIXABAY_API_KEY) { _imgCache.set(enQuery, null); return null; }
+  const info = await fetchPixabayImage(enQuery);
   _imgCache.set(enQuery, info); // null incluso: chi chiama userà il fallback testuale
   return info;
 }
@@ -10537,7 +10655,7 @@ function genCategorizzazioneV2(level, nTrials, excludeLabels) {
 // aggiornarli non appena le foto arrivano).
 async function resolveTrialImages(trial) {
   const resolved = await Promise.all(trial.items.map(async it => {
-    const img = await fetchOpenverseImage(it.en);
+    const img = await fetchCategorizationImage(it.en);
     return { ...it, image: img };
   }));
   return { ...trial, items: resolved };
@@ -10560,16 +10678,12 @@ async function resolveTrialImages(trial) {
    4. Imposta le regole Firestore così (solo utenti autenticati, anche anonimi):
         match /catHistory/{doc} { allow read, write: if request.auth != null; }
         match /accessoHistory/{doc} { allow read, write: if request.auth != null; }
+        match /fascicoloHistory/{doc} { allow read, write: if request.auth != null; }
    Finché firebaseConfig resta vuoto, questa sezione non fa nulla: l'app
    funziona esattamente come prima, solo senza memoria tra un dispositivo e l'altro.
    ========================================================= */
 const firebaseConfig = {
- apiKey: "AIzaSyCEFMdVHdANv1PsVlb-Wo65JHe4IKMtk3o",
-    authDomain: "pdmgenerator.firebaseapp.com",
-    projectId: "pdmgenerator",
-    storageBucket: "pdmgenerator.firebasestorage.app",
-    messagingSenderId: "203067967755",
-    appId: "1:203067967755:web:6ec8266c59798c852e3a0e"
+  // apiKey: "...", authDomain: "...", projectId: "...", ...
 };
 
 let sharedHistoryReady = false;
@@ -10973,9 +11087,47 @@ function buildGridAttempt(symbols){
     specs.push({ text:`Conta gli elementi «${sym}» con sfondo giallo.`, matches:c=>c.sym===sym&&c.fill==="giallo" });
   });
 
+  // 5) CARATTERISTICHE PROPRIE DELLA FAMIGLIA DI SIMBOLI — non tutti gli alfabeti hanno le
+  // stesse proprietà: qui si sfrutta quello che il tipo di simbolo USATO permette davvero
+  // (pari/dispari solo se sono cifre, vocale/consonante solo se sono lettere, direzione solo
+  // per le frecce, forma curva/angolare solo per le figure geometriche) invece di applicare
+  // sempre lo stesso schema universale a prescindere dai simboli disponibili.
+  const isAllDigits = symbols.every(s => /^[0-9]$/.test(s));
+  const isAllLetters = symbols.every(s => /^[A-Za-z]$/.test(s));
+  const VOWELS = ["A","E","I","O","U"];
+  const isAllArrows = symbols.every(s => ["↑","↓","←","→","↖","↗","↘","↙"].includes(s));
+  const roundAll = ["●","○","◆","◇","★","☆"], angularAll = ["■","□","▲","△","▼","▽"];
+  const hasRound = symbols.some(s=>roundAll.includes(s)), hasAngular = symbols.some(s=>angularAll.includes(s));
+
+  if (isAllDigits) {
+    specs.push(
+      { text:"Conta tutti gli elementi con cifra pari.", matches:c=>Number(c.sym)%2===0 },
+      { text:"Conta tutti gli elementi con cifra dispari.", matches:c=>Number(c.sym)%2===1 }
+    );
+  }
+  if (isAllLetters && symbols.some(s=>VOWELS.includes(s.toUpperCase())) && symbols.some(s=>!VOWELS.includes(s.toUpperCase()))) {
+    specs.push(
+      { text:"Conta tutte le vocali.", matches:c=>VOWELS.includes(c.sym.toUpperCase()) },
+      { text:"Conta tutte le consonanti.", matches:c=>!VOWELS.includes(c.sym.toUpperCase()) }
+    );
+  }
+  if (isAllArrows) {
+    const upSet = ["↑","↖","↗"], downSet = ["↓","↙","↘"];
+    specs.push(
+      { text:"Conta le frecce che puntano verso l'alto (↑ ↖ ↗).", matches:c=>upSet.includes(c.sym) },
+      { text:"Conta le frecce che puntano verso il basso (↓ ↙ ↘).", matches:c=>downSet.includes(c.sym) }
+    );
+  }
+  if (hasRound && hasAngular) {
+    specs.push({ text:"Conta le forme con contorno curvo (non ad angoli).", matches:c=>roundAll.includes(c.sym) });
+    specs.push({ text:"Conta le forme con angoli (non curve).", matches:c=>angularAll.includes(c.sym) });
+  }
+
   const rules = specs
     .map(s=>({ ...s, count: cells.filter(s.matches).length }))
-    .filter(r=>r.count>=5 && r.count<=12);
+    .filter(r=>r.count>=5 && r.count<=20); // 20 non 12: le regole "raggruppate" (vocali/consonanti,
+    // frecce su/giù, forme curve/angolari) contano tipicamente il doppio di una regola a
+    // simbolo singolo — un tetto a 12 le avrebbe escluse quasi sempre.
   return { cells, rules };
 }
 
@@ -11058,6 +11210,8 @@ const INTRUSO_ATOMIC_FAMILIES = [
   {id:"geometric", label:"forme", pool:["●","○","■","□","▲","△","▼","▽","◆","◇","★","☆"], unlockLevel:1},
   {id:"suits", label:"semi delle carte", pool:["♠","♥","♦","♣"], unlockLevel:1},
   {id:"music", label:"note musicali", pool:["♩","♪","♫","♬"], unlockLevel:1},
+  {id:"punct", label:"punteggiatura", pool:["!","?","#","%","&","@","§","*"], unlockLevel:1},
+  {id:"zodiac", label:"simboli zodiacali", pool:["♈","♉","♊","♋","♌","♍","♎","♏","♐","♑","♒","♓"], unlockLevel:1},
   {id:"dice", label:"dadi", pool: codeRange(0x2680,6), unlockLevel:1},
   {id:"domino", label:"domino", pool: codeRange(0x1F030,32), unlockLevel:6},
   {id:"mahjong", label:"mahjong", pool: codeRange(0x1F007,20), unlockLevel:10},
@@ -11611,7 +11765,7 @@ function renderOneCatSlide(deck, s, idx){
   if(!s._imagesResolved){
     s._imagesResolved = true;
     s.items.forEach(async (it, i)=>{
-      const img = await fetchOpenverseImage(it.en);
+      const img = await fetchCategorizationImage(it.en);
       it.image = img;
       if(state.exercise==="categorizzazione" && state.deck===deck){
         renderCatTileContent(tiles[i], it);
@@ -11831,6 +11985,8 @@ const MATERIAL_OPTIONS = {
     {id:"letter", label:"Solo lettere"},
     {id:"suits", label:"Solo semi delle carte"},
     {id:"music", label:"Solo note musicali"},
+    {id:"punct", label:"Solo punteggiatura"},
+    {id:"zodiac", label:"Solo simboli zodiacali"},
     {id:"cyrillic", label:"Solo cirillico"},
     {id:"geez", label:"Solo Ge'ez (etiope)"},
     {id:"dice", label:"Solo dadi"},
@@ -11960,7 +12116,7 @@ const EX_CONTROLS = {
     const wrap = document.createElement("div");
     const p = document.createElement("div");
     p.className = "level-note";
-    p.textContent = "Compito: dividere le 6 immagini in due gruppi da 3, in base a un criterio comune (142 criteri reali, verificati da Rodrigo). Ogni volta che generi materiale, l'app pesca un criterio a caso tra quelli disponibili per il livello e sceglie 3+3 oggetti da pool più ampi dei 3 mostrati negli originali — così la combinazione non è mai identica anche restando sullo stesso livello. Le foto sono cercate dal vivo su Openverse (CC, senza chiave API); se la richiesta non va a buon fine per qualsiasi motivo, il riquadro mostra il nome dell'oggetto invece della foto — non è un errore, è il comportamento previsto.";
+    p.textContent = "Compito: dividere le 6 immagini in due gruppi da 3, in base a un criterio comune (142 criteri reali, verificati da Rodrigo). Ogni volta che generi materiale, l'app pesca un criterio a caso tra quelli disponibili per il livello e sceglie 3+3 oggetti da pool più ampi dei 3 mostrati negli originali — così la combinazione non è mai identica anche restando sullo stesso livello. Le foto sono cercate dal vivo su Pixabay (serve una chiave gratuita, vedi README); senza chiave, o se la richiesta non va a buon fine, il riquadro mostra il nome dell'oggetto invece della foto — non è un errore, è il comportamento previsto.";
     wrap.appendChild(p);
     wrap.appendChild(numerosityControl("Numero di prove per sessione", "categorizzazioneTrialsOverride", 4, 16, 9));
     return wrap;
@@ -12048,6 +12204,27 @@ async function generate(){
     if(gen !== state._generationToken) return;
     state.deck = genAccesso(state.level, excludeWords);
     appendUsed("accessoHistory", "usedWords", state.deck.words, 80);
+  } else if(state.exercise==="fascicolo"){
+    // Stessa logica anti-ripetizione già usata per Categorizzazione e Accesso lessicale,
+    // estesa alle tre parti del fascicolo con un pool finito: anagrammi, categorie
+    // semantiche, coppie fonemiche. Le altre parti (griglie, labirinto, calcolo,
+    // sequenziamento) restano procedurali e non ne hanno bisogno.
+    const [excludeAnagrams, excludeCategories, excludePhonemic] = await Promise.all([
+      fetchRecentUsed("fascicoloHistory", "usedAnagramWords"),
+      fetchRecentUsed("fascicoloHistory", "usedCategories"),
+      fetchRecentUsed("fascicoloHistory", "usedPhonemicKeys"),
+    ]);
+    if(gen !== state._generationToken) return;
+    state.deck = window.Engine.buildFascicolo(state.fascicoloWeek, Math.floor(Math.random()*1e9), {
+      anagramWords: excludeAnagrams, categories: excludeCategories, phonemicKeys: excludePhonemic,
+    });
+    appendUsed("fascicoloHistory", "usedAnagramWords", state.deck.anagrams.map(a=>a.solution), 60);
+    appendUsed("fascicoloHistory", "usedCategories", state.deck.categories, 60);
+    if(state.deck.positionalPrompts && state.deck.params.positionalScheme){
+      const kind = state.deck.params.positionalScheme.kind;
+      const keys = state.deck.positionalPrompts.map(pr => window.Engine.phonemicKeyFromPrompt(kind, pr));
+      appendUsed("fascicoloHistory", "usedPhonemicKeys", keys, 40);
+    }
   } else {
     state.deck = GENERATORS[state.exercise](state.level);
   }
@@ -12247,12 +12424,17 @@ function exportSerie(deck, level){
   const title = p.addSlide();
   title.background={color:"FFFFFF"};
   title.addText(`Serie attentive alternate — Livello ${level}`, {x:0.5,y:2.8,w:12.3,h:1.2,align:"center",fontSize:32,bold:true,color:"1E2A26",isTextBox:true});
-  title.addNotes(`Regola: ${deck.rule}` + (deck.nextRule ? `\n\nAl livello successivo (${level+1}): ${deck.nextRule}` : "\n\nUltimo livello disponibile."));
+  const noteText = `Regola: ${deck.rule}` + (deck.nextRule ? `\n\nAl livello successivo (${level+1}): ${deck.nextRule}` : "\n\nUltimo livello disponibile.");
+  title.addNotes(noteText);
+  // La regola (e l'anteprima di quella del livello successivo) va ripetuta nel commento
+  // di OGNI schermata, non solo della prima — altrimenti si perde di vista scorrendo
+  // le 154 slide una alla volta durante la somministrazione.
   deck.seq.forEach(st=>{
     const s = p.addSlide();
     s.background={color:"FFFFFF"};
     s.addText(st.char,{x:0,y:0,w:13.33,h:7.5,align:"center",valign:"middle",fontSize:220,bold:true,
       color: st.color==="black" ? "000000":"FF0000", isTextBox:true});
+    s.addNotes(noteText);
   });
   return p.writeFile({fileName:`Serie-attentive-alternate_L${level}.pptx`});
 }
