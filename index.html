@@ -10524,16 +10524,13 @@ async function resolveTrialImages(trial) {
    funziona esattamente come prima, solo senza memoria tra un dispositivo e l'altro.
    ========================================================= */
 const firebaseConfig = {
-    apiKey: "AIzaSyCEFMdVHdANv1PsVlb-Wo65JHe4IKMtk3o",
-    authDomain: "pdmgenerator.firebaseapp.com",
-    projectId: "pdmgenerator",
-    storageBucket: "pdmgenerator.firebasestorage.app",
-    messagingSenderId: "203067967755",
-    appId: "1:203067967755:web:6ec8266c59798c852e3a0e"
-  };
+  // apiKey: "...", authDomain: "...", projectId: "...", ...
+};
 
 let sharedHistoryReady = false;
 let firestoreDb = null;
+
+let lastSharedHistoryError = null;
 
 function initSharedHistory(){
   if(!firebaseConfig.apiKey) return; // non configurato: nessun errore, si resta in locale
@@ -10541,10 +10538,17 @@ function initSharedHistory(){
     firebase.initializeApp(firebaseConfig);
     firestoreDb = firebase.firestore();
     firebase.auth().signInAnonymously()
-      .then(()=>{ sharedHistoryReady = true; updateHistoryStatus(); })
-      .catch(()=>{ sharedHistoryReady = false; updateHistoryStatus(); });
+      .then(()=>{ sharedHistoryReady = true; lastSharedHistoryError = null; updateHistoryStatus(); })
+      .catch((e)=>{
+        sharedHistoryReady = false;
+        lastSharedHistoryError = e && e.code ? e.code : String(e);
+        console.error("Cronologia condivisa — accesso anonimo fallito:", e);
+        updateHistoryStatus();
+      });
   } catch(e){
     sharedHistoryReady = false;
+    lastSharedHistoryError = e && e.code ? e.code : String(e);
+    console.error("Cronologia condivisa — inizializzazione fallita:", e);
   }
 }
 
@@ -10588,7 +10592,7 @@ function updateHistoryStatus(){
       ? `Connesso — cronologia condivisa attiva per "${currentGroupName()}".`
       : "Connesso — inserisci un nome gruppo/paziente per attivarla.";
   } else {
-    el.textContent = "Configurato ma non connesso (controlla la rete o la config).";
+    el.textContent = "Configurato ma non connesso" + (lastSharedHistoryError ? ` — errore: ${lastSharedHistoryError}` : " (controlla la rete o la config)") + ". Controlla che in Authentication → Sign-in method il metodo \"Anonimo\" sia abilitato.";
   }
 }
 </script>
