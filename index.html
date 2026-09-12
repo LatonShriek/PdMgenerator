@@ -10412,9 +10412,17 @@ const CATEGORIZZAZIONE_LIBRARY = {
    ========================================================= */
 /* ============================================================================
    CATEGORIZZAZIONE v2 — pool di item per criterio (non più 1 coppia fissa per
-   livello) + immagini reali via Openverse API, con fallback se la chiamata
-   fallisce (rete assente, CORS, rate limit) così la schermata non si rompe mai.
+   livello) + immagini reali via Openverse (e, se configurata, Pixabay come
+   seconda fonte) con fallback se entrambe falliscono (rete assente, CORS, rate
+   limit) così la schermata non si rompe mai.
    ============================================================================ */
+
+// Chiave Pixabay (opzionale): incollala qui per usarla come SECONDA fonte di
+// immagini quando Openverse non trova nulla di pertinente. Si ottiene gratis
+// su pixabay.com/api/docs (compare in pagina appena si è loggati, nessuna
+// approvazione richiesta). Finché resta vuota, questa sezione non fa nulla —
+// si usa solo Openverse, come già ora.
+const PIXABAY_API_KEY = "";
 
 // Cache in-memoria (per sessione) delle immagini già risolte, per non rifare la
 // stessa richiesta due volte nella stessa sessione di lavoro.
@@ -10427,6 +10435,7 @@ async function fetchOpenverseImage(enQuery) {
   // il ranking di Openverse (prima si pescava a caso tra i primi 4, il che portava dentro
   // anche match meno calzanti).
   const url = `https://api.openverse.org/v1/images/?q=${encodeURIComponent(enQuery)}&page_size=10`;
+  let info = null;
   try {
     const res = await fetch(url, { mode: "cors" });
     if (!res.ok) throw new Error("HTTP " + res.status);
@@ -10434,11 +10443,28 @@ async function fetchOpenverseImage(enQuery) {
     const results = (data.results || []).filter(r => r.thumbnail || r.url);
     if (!results.length) throw new Error("nessun risultato");
     const pick = results[0];
-    const info = { src: pick.thumbnail || pick.url, credit: pick.creator || "", source: pick.source || "", foreignUrl: pick.foreign_landing_url || "" };
-    _imgCache.set(enQuery, info);
-    return info;
+    info = { src: pick.thumbnail || pick.url, credit: pick.creator || "", source: pick.source || "", foreignUrl: pick.foreign_landing_url || "" };
   } catch (e) {
-    _imgCache.set(enQuery, null); // niente immagine: chi chiama userà il fallback testuale
+    info = null; // si prova Pixabay sotto, se configurato
+  }
+  if (!info && PIXABAY_API_KEY) {
+    info = await fetchPixabayImage(enQuery);
+  }
+  _imgCache.set(enQuery, info); // null incluso: chi chiama userà il fallback testuale
+  return info;
+}
+
+async function fetchPixabayImage(enQuery) {
+  const url = `https://pixabay.com/api/?key=${encodeURIComponent(PIXABAY_API_KEY)}&q=${encodeURIComponent(enQuery)}&image_type=photo&safesearch=true&per_page=10`;
+  try {
+    const res = await fetch(url);
+    if (!res.ok) throw new Error("HTTP " + res.status);
+    const data = await res.json();
+    const hits = data.hits || [];
+    if (!hits.length) throw new Error("nessun risultato");
+    const pick = hits[0];
+    return { src: pick.webformatURL || pick.previewURL, credit: pick.user || "", source: "Pixabay", foreignUrl: pick.pageURL || "" };
+  } catch (e) {
     return null;
   }
 }
@@ -11458,14 +11484,15 @@ function renderInversione(deck){
       const span = document.createElement("span");
       span.appendChild(renderMarkedText(it));
       if(state.reveal){
-        // Se la regola scelta non si applica a questo tipo di blocco (es. "Somma le
-        // cifre" su un blocco di lettere), si mostra "Inverti" — l'unica regola
-        // valida per qualunque tipo — invece di una regola che non avrebbe senso qui.
-        let rule = SEQUENCE_RULES.find(r=>r.key===state.digitRule);
-        if(!rule || !rule.kinds.includes(b.kind)) rule = SEQUENCE_RULES.find(r=>r.key==="inverti");
-        const small = document.createElement("small");
-        small.textContent = `${rule.label}: ${rule.apply(it.text)}`;
-        span.appendChild(small);
+        // Tutte le regole applicabili a QUESTO tipo di blocco, mostrate insieme (non una
+        // sola selezionata) — così ogni stimolo porta già pronte tutte le trasformazioni
+        // valide, da usare liberamente durante la seduta.
+        const applicable = SEQUENCE_RULES.filter(r=>r.kinds.includes(b.kind));
+        applicable.forEach(rule=>{
+          const small = document.createElement("small");
+          small.textContent = `${rule.label}: ${rule.apply(it.text)}`;
+          span.appendChild(small);
+        });
       }
       row.appendChild(span);
     });
@@ -11896,19 +11923,17 @@ const EX_CONTROLS = {
     wrap.appendChild(materialSelector("inversione"));
     const label = document.createElement("label");
     label.style.marginTop = "12px";
-    label.textContent = "Regola da applicare (dove valida per il tipo di blocco)";
+    label.textContent = "Regole disponibili";
     wrap.appendChild(label);
-    const group = document.createElement("div");
-    group.className = "btn-group";
-    SEQUENCE_RULES.forEach(r=>{
-      const chip = document.createElement("button");
-      chip.className = "chip" + (state.digitRule===r.key ? " active":"");
-      chip.textContent = r.label;
-      chip.title = `Si applica a: ${r.kinds.join(", ")}`;
-      chip.onclick = ()=>{ state.digitRule=r.key; renderExControls(); render(); };
-      group.appendChild(chip);
-    });
-    wrap.appendChild(group);
+    const list = document.createElement("div");
+    list.className = "level-note";
+    list.innerHTML = SEQUENCE_RULES.map(r=>`<b>${r.label}</b> (${r.kinds.join(", ")})`).join("<br>");
+    wrap.appendChild(list);
+    const howNote = document.createElement("div");
+    howNote.className = "level-note";
+    howNote.style.marginTop = "8px";
+    howNote.textContent = "Con \"Mostra risposta / regola\" attivo, sotto ogni stimolo compaiono TUTTE le trasformazioni valide per quel tipo di blocco insieme, non una sola da scegliere — puoi usarle liberamente durante la seduta.";
+    wrap.appendChild(howNote);
     wrap.appendChild(numerosityControl("Numero di stimoli per blocco", "inversioneItemsOverride", 2, 10, defaultItemsPerInversione(state.level)));
 
     const alnumRow = document.createElement("label");
@@ -12180,14 +12205,14 @@ function exportInversione(deck, level){
   const title = p.addSlide();
   title.background={color:"FFFFFF"};
   title.addText(`Inversione e riordino — Livello ${level}`, {x:0.5,y:2.8,w:12.3,h:1.2,align:"center",fontSize:32,bold:true,color:"1E2A26",isTextBox:true});
-  const rule = SEQUENCE_RULES.find(r=>r.key===state.digitRule);
   title.addNotes(
-    `Regola attiva: ${rule.label} (si applica ai blocchi di tipo: ${rule.kinds.join(", ")}). `+
-    `Per i blocchi di tipo diverso da quelli elencati, usare "Inverti" (si applica sempre). `+
-    `Ogni stimolo ha 1-2 caratteri colorati (rosso, dal livello 13 anche verde): la consegna clinica `+
+    `Tutte le regole disponibili (si applicano secondo il tipo di blocco, vedi sotto ogni stimolo):\n`+
+    SEQUENCE_RULES.map(r=>`- ${r.label} (${r.kinds.join(", ")})`).join("\n")+
+    `\n\nOgni stimolo ha 1-2 caratteri colorati (rosso, dal livello 13 anche verde): la consegna clinica `+
     `esatta legata a questi caratteri non è confermata nel materiale originale — verificare con Rodrigo.`
   );
   deck.blocks.forEach(b=>{
+    const applicable = SEQUENCE_RULES.filter(r=>r.kinds.includes(b.kind));
     b.items.forEach((item, idx)=>{
       const blank = p.addSlide();
       blank.background={color:"FFFFFF"};
@@ -12203,6 +12228,9 @@ function exportInversione(deck, level){
         else { cur = {text:ch, options:{fontSize:110,bold:true,color:col}}; runs.push(cur); }
       });
       stim.addText(runs, {x:0,y:0,w:13.33,h:7.5,align:"center",valign:"middle",isTextBox:true});
+      // Tutte le trasformazioni valide per QUESTO stimolo, pronte nel commento —
+      // non serve più scegliere una regola sola prima di esportare.
+      stim.addNotes(applicable.map(r=>`${r.label}: ${r.apply(item.text)}`).join("\n"));
     });
   });
   return p.writeFile({fileName:`Inversione-e-riordino_L${level}.pptx`});
