@@ -206,13 +206,13 @@
   }
 
   .single-item{
-    font-size:96px;
+    font-size:min(28vw, 320px);
     font-weight:700;
     letter-spacing:2px;
     text-align:center;
   }
   .single-word{
-    font-size:60px;
+    font-size:min(11vw, 130px);
     font-weight:700;
     letter-spacing:3px;
   }
@@ -224,6 +224,18 @@
     color:var(--ink-soft);
   }
 
+  .multi-block{
+    margin-bottom:28px;
+    padding-bottom:22px;
+    border-bottom:1px solid var(--line);
+  }
+  .multi-block:last-child{ border-bottom:none; }
+  .multi-block-head{
+    font-size:13px;
+    color:var(--ink-soft);
+    margin-bottom:10px;
+  }
+  .answer-inline{ color:var(--accent, #2F6F63); font-weight:600; }
   .grid-wrap{
     display:grid;
     gap:6px;
@@ -427,6 +439,12 @@
   <button class="action ghost" id="btnPrint">Stampa questa schermata</button>
 
   <div class="hint">Il materiale è generato casualmente ad ogni clic: stessa struttura e stesso livello di difficoltà dell'esercizio originale, contenuto sempre diverso.</div>
+
+  <div class="field" style="margin-top:18px;">
+    <label for="groupNameInput">Nome gruppo/paziente (cronologia condivisa)</label>
+    <input type="text" id="groupNameInput" placeholder="es. Gruppo martedì mattina" style="width:100%; padding:8px; border-radius:8px; border:1px solid var(--line); font-size:13px;">
+    <div class="level-note" id="historyStatus" style="margin-top:6px;">Cronologia condivisa non configurata (solo locale a questo browser).</div>
+  </div>
 </div>
 
 <div id="historyPanel" style="display:none;">
@@ -460,6 +478,9 @@
 <script src="https://cdn.jsdelivr.net/npm/pptxgenjs@3.12.0/dist/pptxgen.bundle.js"></script>
 <script src="https://cdn.jsdelivr.net/npm/docx@9.6.1/dist/index.umd.cjs"></script>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/FileSaver.js/2.0.5/FileSaver.min.js"></script>
+<script src="https://www.gstatic.com/firebasejs/10.14.1/firebase-app-compat.js"></script>
+<script src="https://www.gstatic.com/firebasejs/10.14.1/firebase-auth-compat.js"></script>
+<script src="https://www.gstatic.com/firebasejs/10.14.1/firebase-firestore-compat.js"></script>
 <script>
 /* =========================================================
    FASCICOLO ESERCIZI A CASA — motore di generazione (engine.js)
@@ -1759,7 +1780,7 @@ const CATEGORIZZAZIONE_LIBRARY = {
     },
     {
      "it": "tappeto",
-     "en": "carpet rug"
+     "en": "area rug"
     }
    ],
    "b": [
@@ -10425,24 +10446,37 @@ function sampleCategorizzazioneTrial(level) {
   return { label, items: tagged, proposal: !!entry.proposal };
 }
 
-// Genera N prove per una sessione (default 9, come negli originali), evitando
-// di ripetere lo stesso criterio due volte consecutive quando il livello ne ha
-// più di uno disponibile.
-function genCategorizzazioneV2(level, nTrials) {
+// Genera N prove per una sessione (default 9, come negli originali). Pesca SENZA
+// ripetizione dal pool del livello finche' non lo esaurisce (fondamentale: prima
+// c'era solo un controllo "non uguale alla precedente", che lasciava passare lo
+// stesso criterio piu' volte non consecutive nella stessa sessione — bug reale
+// segnalato da Rodrigo). Solo se il pool e' piu' piccolo di nTrials si ricomincia
+// un secondo giro, di nuovo mescolato.
+function genCategorizzazioneV2(level, nTrials, excludeLabels) {
   nTrials = nTrials || 9;
   const pool = CATEGORIZZAZIONE_LIBRARY[String(level)] || CATEGORIZZAZIONE_LIBRARY[level] || [];
-  const trials = [];
-  let lastLabel = null;
-  for (let i = 0; i < nTrials; i++) {
-    let t = sampleCategorizzazioneTrial(level);
-    let guard = 0;
-    while (pool.length > 1 && t.label === lastLabel && guard < 5) {
-      t = sampleCategorizzazioneTrial(level);
-      guard++;
-    }
-    lastLabel = t.label;
-    trials.push(t);
+  // Se c'è una cronologia condivisa (criteri già visti di recente da questo gruppo),
+  // si pesca preferibilmente dal resto del pool — solo se il pool "pulito" è troppo
+  // piccolo per riempire la sessione si riammettono anche i criteri già visti.
+  const excl = excludeLabels ? new Set(excludeLabels) : null;
+  let effectivePool = pool;
+  if(excl && excl.size){
+    const fresh = pool.filter(e=>!excl.has(e.label));
+    if(fresh.length >= Math.min(nTrials, pool.length)) effectivePool = fresh;
   }
+  const order = [];
+  while (order.length < nTrials) order.push(...shuffleArr(effectivePool));
+  const chosenEntries = order.slice(0, nTrials);
+  const trials = chosenEntries.map(entry => {
+    const chosenA = sampleN(entry.a, Math.min(3, entry.a.length));
+    const chosenB = sampleN(entry.b, Math.min(3, entry.b.length));
+    const tagged = shuffleArr([
+      ...chosenA.map(it => ({ ...it, group: "A" })),
+      ...chosenB.map(it => ({ ...it, group: "B" })),
+    ]);
+    const label = entry.proposal ? `${entry.label}  (proposta — da verificare)` : entry.label;
+    return { label, rawLabel: entry.label, items: tagged, proposal: !!entry.proposal };
+  });
   return { type: "categorizzazione", level, slides: trials, rule: "Dividi le 6 immagini in due gruppi da 3, in base a un criterio comune." };
 }
 
@@ -10460,6 +10494,89 @@ async function resolveTrialImages(trial) {
 </script>
 <script>
 /* =========================================================
+   CRONOLOGIA CONDIVISA (opzionale) — Firebase/Firestore, stesso schema di
+   Borgo Planner e Progress Tracker. Serve a NON riproporre lo stesso criterio
+   di Categorizzazione o la stessa parola di Accesso lessicale allo stesso
+   gruppo/paziente quando un ciclo si ripete a distanza di mesi o anni, anche
+   da un altro dispositivo/browser — cosa che la sola cronologia locale (salvata
+   nel browser) non può garantire.
+
+   SETUP (una tantum, come per gli altri tuoi progetti):
+   1. Crea un progetto Firebase (o riusa uno esistente) su console.firebase.google.com
+   2. Abilita Firestore Database e Authentication -> Anonimo
+   3. Incolla qui sotto la tua config (Impostazioni progetto -> Le tue app -> Config)
+   4. Imposta le regole Firestore così (solo utenti autenticati, anche anonimi):
+        match /catHistory/{doc} { allow read, write: if request.auth != null; }
+        match /accessoHistory/{doc} { allow read, write: if request.auth != null; }
+   Finché firebaseConfig resta vuoto, questa sezione non fa nulla: l'app
+   funziona esattamente come prima, solo senza memoria tra un dispositivo e l'altro.
+   ========================================================= */
+const firebaseConfig = {
+  // apiKey: "...", authDomain: "...", projectId: "...", ...
+};
+
+let sharedHistoryReady = false;
+let firestoreDb = null;
+
+function initSharedHistory(){
+  if(!firebaseConfig.apiKey) return; // non configurato: nessun errore, si resta in locale
+  try{
+    firebase.initializeApp(firebaseConfig);
+    firestoreDb = firebase.firestore();
+    firebase.auth().signInAnonymously()
+      .then(()=>{ sharedHistoryReady = true; updateHistoryStatus(); })
+      .catch(()=>{ sharedHistoryReady = false; updateHistoryStatus(); });
+  } catch(e){
+    sharedHistoryReady = false;
+  }
+}
+
+function currentGroupName(){
+  return (localStorage.getItem("pdm_group_name") || "").trim();
+}
+
+async function fetchRecentUsed(collection, field){
+  const group = currentGroupName();
+  if(!sharedHistoryReady || !group) return [];
+  try{
+    const doc = await firestoreDb.collection(collection).doc(group).get();
+    if(!doc.exists) return [];
+    return doc.data()[field] || [];
+  } catch(e){
+    return []; // rete assente o permessi non pronti: si procede come se non ci fosse cronologia
+  }
+}
+
+async function appendUsed(collection, field, newItems, cap){
+  const group = currentGroupName();
+  if(!sharedHistoryReady || !group || !newItems.length) return;
+  try{
+    const ref = firestoreDb.collection(collection).doc(group);
+    const doc = await ref.get();
+    const prev = doc.exists ? (doc.data()[field] || []) : [];
+    const merged = [...prev, ...newItems].slice(-cap);
+    await ref.set({ [field]: merged, updatedAt: Date.now() }, {merge:true});
+  } catch(e){
+    // mai bloccare la generazione per un errore di rete/permessi qui
+  }
+}
+
+function updateHistoryStatus(){
+  const el = document.getElementById("historyStatus");
+  if(!el) return;
+  if(!firebaseConfig.apiKey){
+    el.textContent = "Cronologia condivisa non configurata (solo locale a questo browser).";
+  } else if(sharedHistoryReady){
+    el.textContent = currentGroupName()
+      ? `Connesso — cronologia condivisa attiva per "${currentGroupName()}".`
+      : "Connesso — inserisci un nome gruppo/paziente per attivarla.";
+  } else {
+    el.textContent = "Configurato ma non connesso (controlla la rete o la config).";
+  }
+}
+</script>
+<script>
+/* =========================================================
    DATI DI BASE
    ========================================================= */
 const ALPHABET = "ABCDEFGHILMNOPQRSTUVZ".split("");
@@ -10473,16 +10590,27 @@ const REAL_WORDS = {
 
 const LEXICAL_TIERS = [
   { // 1 - concreto, alta frequenza
-    words:["Pomodoro","Cane","Martello","Sedia","Finestra","Bicicletta","Cucchiaio","Gatto","Scarpa","Ombrello","Chiave","Bottiglia","Orologio","Zaino","Lampada"]
+    words:["Pomodoro","Cane","Martello","Sedia","Finestra","Bicicletta","Cucchiaio","Gatto","Scarpa","Ombrello","Chiave","Bottiglia","Orologio","Zaino","Lampada",
+      "Tavolo","Letto","Porta","Libro","Penna","Forchetta","Piatto","Tazza","Specchio","Armadio","Scala","Cappello","Guanto","Calzino","Cintura",
+      "Borsa","Matita","Quaderno","Sapone","Pettine","Cuscino","Coperta","Tenda","Vaso","Candela","Secchio","Scopa","Padella","Pentola","Bilancia",
+      "Termometro","Cassetto","Divano","Tappeto","Asciugamano"]
   },
   { // 2 - concreto specifico / categorie meno immediate
-    words:["Quercia","Delfino","Treno","Falegname","Vulcano","Cascata","Ghiacciaio","Farfalla","Girasole","Chitarra","Elicottero","Bussola","Ventaglio","Telaio","Lanterna"]
+    words:["Quercia","Delfino","Treno","Falegname","Vulcano","Cascata","Ghiacciaio","Farfalla","Girasole","Chitarra","Elicottero","Bussola","Ventaglio","Telaio","Lanterna",
+      "Renna","Scoiattolo","Libellula","Tartaruga","Cammello","Geyser","Altopiano","Fiordo","Mulino","Faro","Acquedotto","Anfiteatro","Sarcofago","Meridiana",
+      "Telescopio","Microscopio","Sestante","Astrolabio","Clessidra","Liuto","Mandolino","Cornamusa","Xilofono","Airone","Fenicottero","Alce","Bisonte",
+      "Foca","Otaria","Pellicano","Colibrì","Mangrovia","Savana","Tundra","Estuario"]
   },
   { // 3 - astratto / semi-tecnico
-    words:["Tristezza","Varietà","Conservazione","Equilibrio","Pazienza","Coraggio","競争","Abitudine","Rassegnazione","Nostalgia","Percezione","Esitazione","Armonia","Delusione","Serenità"]
+    words:["Tristezza","Varietà","Conservazione","Equilibrio","Pazienza","Coraggio","Abitudine","Rassegnazione","Nostalgia","Percezione","Esitazione","Armonia","Delusione","Serenità",
+      "Malinconia","Gratitudine","Ambizione","Diffidenza","Empatia","Solidarietà","Resilienza","Curiosità","Indifferenza","Speranza","Rimpianto","Entusiasmo",
+      "Scetticismo","Umiltà","Arroganza","Tenacia","Ironia","Ambiguità","Coerenza","Autonomia","Consapevolezza","Introspezione","Vulnerabilità",
+      "Autenticità","Determinazione","Apprensione","Sollievo","Riluttanza","Rimorso","Ostinazione"]
   },
   { // 4 - astratto/tecnico raro, proprio
-    words:["Pacciamatura","Timbratura","Marte","Futuro","Fato","Sussidiarietà","Circospezione","Reticenza","Empirismo","Ossimoro","Meridiana","Alambicco","Estemporaneo","Palinsesto","Sincretismo"]
+    words:["Pacciamatura","Timbratura","Marte","Futuro","Fato","Sussidiarietà","Circospezione","Reticenza","Empirismo","Ossimoro","Meridiana","Alambicco","Estemporaneo","Palinsesto","Sincretismo",
+      "Epifania","Anacronismo","Paradigma","Euristica","Dicotomia","Endemismo","Metonimia","Sinestesia","Solipsismo","Egemonia","Apoteosi","Catarsi",
+      "Dialettica","Epistemologia","Fenomenologia","Ermeneutica","Teleologia","Aporia","Palindromo","Neologismo","Antitesi","Sofisma","Eristica"]
   }
 ];
 // piccola correzione: rimuove un carattere non italiano rimasto per errore
@@ -10595,7 +10723,7 @@ function saveHistoryEntry(entry){
 }
 function summarizeDeck(exId, level, deck){
   switch(exId){
-    case "griglie": return `Griglia ${deck.slides[0].rows}×${deck.slides[0].cols}, regola: ${deck.rule}`;
+    case "griglie": return `${deck.slides.length} griglie ${deck.slides[0].rows}×${deck.slides[0].cols}`;
     case "intruso": return `${deck.slides.length} schermate (famiglie: ${deck.slides.map(s=>s.familyLabel).join(", ")})`;
     case "inversione": return `${deck.blocks.length} blocchi (${deck.blocks.map(b=>b.items.length).reduce((a,b)=>a+b,0)} item totali)`;
     case "serie": return `Sequenza di ${deck.seq.length} stimoli`;
@@ -10633,7 +10761,8 @@ const state = {
   fascicoloWeek:1,
   deck:null,
   slideIndex:0,
-  reveal:false
+  reveal:false,
+  _generationToken:0
 };
 
 const EXERCISES = [
@@ -10723,18 +10852,23 @@ function buildGridAttempt(symbols){
   idxB.forEach(i=>{cells[i].fill="giallo"; cells[i].border="nero";});
   idxC.forEach(i=>{cells[i].fill="bianco"; cells[i].border="rosso";});
   idxD.forEach(i=>{cells[i].fill="bianco"; cells[i].border="nero";});
+  // 2a) attributo singolo (più semplice: un solo aspetto da guardare)
   specs.push(
-    { text:"Conta gli elementi con sfondo giallo E bordo rosso.", matches:c=>c.fill==="giallo"&&c.border==="rosso" },
-    { text:"Conta gli elementi con sfondo giallo E bordo nero.", matches:c=>c.fill==="giallo"&&c.border==="nero" },
-    { text:"Conta gli elementi con sfondo bianco E bordo rosso.", matches:c=>c.fill==="bianco"&&c.border==="rosso" },
-    { text:"Conta gli elementi con sfondo bianco E bordo nero.", matches:c=>c.fill==="bianco"&&c.border==="nero" },
     { text:"Conta tutti gli elementi con sfondo giallo.", matches:c=>c.fill==="giallo" },
     { text:"Conta tutti gli elementi con bordo rosso.", matches:c=>c.border==="rosso" },
     { text:"Conta tutti gli elementi con sfondo bianco.", matches:c=>c.fill==="bianco" },
     { text:"Conta tutti gli elementi con bordo nero.", matches:c=>c.border==="nero" }
   );
+  // 2b) due attributi incrociati (più complesso: sfondo E bordo insieme)
+  specs.push(
+    { text:"Conta gli elementi con sfondo giallo E bordo rosso.", matches:c=>c.fill==="giallo"&&c.border==="rosso" },
+    { text:"Conta gli elementi con sfondo giallo E bordo nero.", matches:c=>c.fill==="giallo"&&c.border==="nero" },
+    { text:"Conta gli elementi con sfondo bianco E bordo rosso.", matches:c=>c.fill==="bianco"&&c.border==="rosso" },
+    { text:"Conta gli elementi con sfondo bianco E bordo nero.", matches:c=>c.fill==="bianco"&&c.border==="nero" }
+  );
 
-  // 3) POSIZIONALE — sfondo giallo incrociato con parità di riga/colonna.
+  // 3) POSIZIONALE — sfondo giallo incrociato con parità di riga/colonna (aggiunge il
+  //    ragionamento spaziale sopra l'attributo colore: più complesso del blocco 2).
   specs.push(
     { text:"Conta gli elementi con sfondo giallo nelle righe dispari.", matches:c=>c.fill==="giallo"&&c.row%2===1 },
     { text:"Conta gli elementi con sfondo giallo nelle righe pari.", matches:c=>c.fill==="giallo"&&c.row%2===0 },
@@ -10742,7 +10876,8 @@ function buildGridAttempt(symbols){
     { text:"Conta gli elementi con sfondo giallo nelle colonne pari.", matches:c=>c.fill==="giallo"&&c.col%2===0 }
   );
 
-  // 4) SIMBOLO + COLORE — un simbolo specifico incrociato con lo sfondo giallo.
+  // 4) SIMBOLO + COLORE — un simbolo specifico incrociato con lo sfondo giallo (il più
+  //    complesso: bisogna tenere insieme identità E colore).
   symbols.forEach(sym=>{
     specs.push({ text:`Conta gli elementi «${sym}» con sfondo giallo.`, matches:c=>c.sym===sym&&c.fill==="giallo" });
   });
@@ -10751,6 +10886,19 @@ function buildGridAttempt(symbols){
     .map(s=>({ ...s, count: cells.filter(s.matches).length }))
     .filter(r=>r.count>=5 && r.count<=12);
   return { cells, rules };
+}
+
+function genOneGrid(symbols){
+  // Genera più tentativi e tiene il migliore (più regole valide), puntando ad almeno 10 —
+  // come nell'originale. Con 35 celle e 3-7 simboli il target si raggiunge quasi sempre
+  // entro pochi tentativi.
+  let best = null;
+  for(let attempt=0; attempt<150; attempt++){
+    const res = buildGridAttempt(symbols);
+    if(!best || res.rules.length > best.rules.length) best = res;
+    if(best.rules.length >= 10) break;
+  }
+  return best;
 }
 
 function genGriglie(level){
@@ -10767,25 +10915,18 @@ function genGriglie(level){
     symbols = fam.pool;
   }
 
-  // Genera più tentativi e tiene il migliore (più regole valide), puntando ad almeno 10 —
-  // come nell'originale. Con 35 celle e 3-7 simboli il target si raggiunge quasi sempre
-  // entro pochi tentativi.
-  let best = null;
-  for(let attempt=0; attempt<150; attempt++){
-    const res = buildGridAttempt(symbols);
-    if(!best || res.rules.length > best.rules.length) best = res;
-    if(best.rules.length >= 10) break;
-  }
-  const { cells, rules } = best;
+  // Una sessione = più griglie (prima era una sola): coerente con Intruso e
+  // Categorizzazione, che producono più schermate per sessione.
+  const N_GRIDS = 6;
+  const slides = Array.from({length:N_GRIDS}, ()=>{
+    const {cells, rules} = genOneGrid(symbols);
+    return { cells, rows:GRID_ROWS, cols:GRID_COLS, rules, ruleIndex:0 };
+  });
 
   return {
     type:"griglie",
     rows:GRID_ROWS, cols:GRID_COLS,
-    cells,
-    rules, ruleIndex:0,
-    rule: rules[0].text,
-    answer: `${rules[0].count} elementi`,
-    slides:[{cells, rows:GRID_ROWS, cols:GRID_COLS}]
+    slides
   };
 }
 
@@ -10802,29 +10943,31 @@ function codeRange(base, count, step){
 }
 // Famiglie "testuali": l'elemento è una stringa di `len` caratteri presa dal pool,
 // la lunghezza cresce col livello (asse 1 di difficoltà, come negli originali).
+// unlockLevel = livello minimo da cui questa famiglia può comparire in sessione.
 const INTRUSO_TEXT_FAMILIES = [
-  {id:"digit", label:"cifre", pool:"0123456789".split("")},
-  {id:"letter", label:"lettere", pool:"ABCDEFGHILMNOPQRSTUVZ".split("")},
-  {id:"roman", label:"numeri romani", pool:["Ⅰ","Ⅱ","Ⅲ","Ⅳ","Ⅴ","Ⅵ","Ⅶ","Ⅷ","Ⅸ","Ⅹ"]},
-  {id:"cyrillic", label:"cirillico", pool: codeRange(0x0410,32)},
-  {id:"armenian", label:"armeno", pool: codeRange(0x0530,38)},
-  {id:"thai", label:"thai", pool: codeRange(0x0E01,40)},
-  {id:"geez", label:"ge'ez", pool: codeRange(0x1200,60)},
-  {id:"cyrillic-arcaico", label:"cirillico arcaico", pool: codeRange(0x0460,16,2)},
-  {id:"canadian", label:"sillabario canadese", pool: codeRange(0x1400,50)}
+  {id:"digit", label:"cifre", pool:"0123456789".split(""), unlockLevel:1},
+  {id:"letter", label:"lettere", pool:"ABCDEFGHILMNOPQRSTUVZ".split(""), unlockLevel:1},
+  {id:"roman", label:"numeri romani", pool:["Ⅰ","Ⅱ","Ⅲ","Ⅳ","Ⅴ","Ⅵ","Ⅶ","Ⅷ","Ⅸ","Ⅹ"], unlockLevel:3},
+  {id:"cyrillic", label:"cirillico", pool: codeRange(0x0410,32), unlockLevel:5},
+  {id:"armenian", label:"armeno", pool: codeRange(0x0530,38), unlockLevel:8},
+  {id:"thai", label:"thai", pool: codeRange(0x0E01,40), unlockLevel:10},
+  {id:"geez", label:"ge'ez", pool: codeRange(0x1200,60), unlockLevel:12},
+  {id:"cyrillic-arcaico", label:"cirillico arcaico", pool: codeRange(0x0460,16,2), unlockLevel:14},
+  {id:"canadian", label:"sillabario canadese", pool: codeRange(0x1400,50), unlockLevel:15}
 ];
-// Famiglie "atomiche": l'elemento è un solo glifo (dadi, domino, carte...), come negli
+// Famiglie "atomiche": l'elemento è un solo glifo (dadi, domino...), come negli
 // originali — non concatenato in stringhe, la difficoltà sta nella somiglianza visiva.
-// Ordinate dalla più distinguibile alla più confondibile: ai livelli alti si pescano le
-// ultime (più difficili), non sempre le stesse prime (vedi levelFamiliesIntruso).
+// "carte" rimossa: i glifi Unicode delle carte da gioco sono troppo piccoli/poco
+// leggibili anche ingranditi (segnalato da Rodrigo). unlockLevel come sopra: solo
+// dal livello indicato la famiglia può comparire, così gli ideogrammi (i più
+// difficili) non escono più al livello 1 come accadeva prima di questa correzione.
 const INTRUSO_ATOMIC_FAMILIES = [
-  {id:"arrow", label:"frecce", pool:["↑","↓","←","→","↖","↗","↘","↙","⇑","⇓","⇐","⇒"]},
-  {id:"geometric", label:"forme", pool:["●","○","■","□","▲","△","▼","▽","◆","◇","★","☆"]},
-  {id:"dice", label:"dadi", pool: codeRange(0x2680,6)},
-  {id:"cards", label:"carte", pool: codeRange(0x1F0A1,8)},
-  {id:"domino", label:"domino", pool: codeRange(0x1F030,32)},
-  {id:"mahjong", label:"mahjong", pool: codeRange(0x1F007,20)},
-  {id:"cjk", label:"ideogrammi", pool: codeRange(0x53E3,40)}
+  {id:"arrow", label:"frecce", pool:["↑","↓","←","→","↖","↗","↘","↙","⇑","⇓","⇐","⇒"], unlockLevel:1},
+  {id:"geometric", label:"forme", pool:["●","○","■","□","▲","△","▼","▽","◆","◇","★","☆"], unlockLevel:1},
+  {id:"dice", label:"dadi", pool: codeRange(0x2680,6), unlockLevel:3},
+  {id:"domino", label:"domino", pool: codeRange(0x1F030,32), unlockLevel:6},
+  {id:"mahjong", label:"mahjong", pool: codeRange(0x1F007,20), unlockLevel:10},
+  {id:"cjk", label:"ideogrammi", pool: codeRange(0x53E3,40), unlockLevel:13}
 ];
 const INTRUSO_ALL_FAMILIES = [...INTRUSO_TEXT_FAMILIES, ...INTRUSO_ATOMIC_FAMILIES];
 
@@ -10866,18 +11009,15 @@ function lenForLevelIntruso(level){
   return Math.min(5, 1 + Math.floor((level-1)/3));
 }
 function levelFamiliesIntruso(level){
-  // 9 schermate per sessione (nel range 8-11 osservato negli originali). La composizione
-  // si sposta col livello ogni 3 livelli (allineata a lenForLevelIntruso): più script
-  // "oscuri" testuali E, sul lato atomico, famiglie via via più confondibili — non più
-  // sempre le stesse prime (dadi/frecce) anche ai livelli più alti.
-  const tier = Math.min(4, Math.floor((level-1)/3)); // 0..4
-  const numText = 2 + tier;      // 2..6
-  const numAtomic = 9 - numText; // 7..3
-  const list = [];
-  list.push(INTRUSO_TEXT_FAMILIES[0], INTRUSO_TEXT_FAMILIES[1]);
-  for(let i=0;i<numText-2;i++) list.push(INTRUSO_TEXT_FAMILIES[2+i]);
-  list.push(...INTRUSO_ATOMIC_FAMILIES.slice(INTRUSO_ATOMIC_FAMILIES.length - numAtomic));
-  return list;
+  // 9 schermate per sessione (nel range 8-11 osservato negli originali). Si pesca
+  // SOLO tra le famiglie già "sbloccate" a questo livello (unlockLevel<=level) —
+  // ai livelli bassi il pool sbloccato è piccolo e si ricicla mescolato più volte,
+  // ai livelli alti cresce e la sessione diventa più varia. Mai una famiglia più
+  // difficile del previsto, mai sempre le stesse 2-3 quando ce ne sono di più.
+  const eligible = INTRUSO_ALL_FAMILIES.filter(f=>f.unlockLevel<=level);
+  const order = [];
+  while(order.length<9) order.push(...shuffle(eligible));
+  return order.slice(0,9);
 }
 
 function genIntruso(level){
@@ -11029,9 +11169,16 @@ function genSerie(level){
 }
 
 // ---------- ACCESSO LESSICALE ----------
-function genAccesso(level){
+function genAccesso(level, excludeWords){
   const tier = tierFromLevel(level,4);
-  const word = pick(LEXICAL_TIERS[tier].words);
+  const pool = LEXICAL_TIERS[tier].words;
+  const excl = excludeWords ? new Set(excludeWords) : null;
+  let effectivePool = pool;
+  if(excl && excl.size){
+    const fresh = pool.filter(w=>!excl.has(w));
+    if(fresh.length) effectivePool = fresh; // il pool è ampio: quasi sempre resta materiale "fresco"
+  }
+  const word = pick(effectivePool);
   return {
     type:"accesso",
     word,
@@ -11066,22 +11213,22 @@ const LEVEL_NOTES = {
     "Sillabario Ge'ez, altro sotto-set."
   ],
   intruso:[
-    "9 schermate: cifre e lettere singole + tutte e 7 le famiglie di simboli atomici (dadi, domino, carte, frecce, mahjong, forme, ideogrammi).",
+    "Cifre/lettere singole + frecce/forme (4 famiglie sbloccate, 1 carattere).",
+    "Come sopra.",
+    "+ numeri romani, + dadi (6 famiglie sbloccate).",
+    "Come sopra, ora su coppie di caratteri (2 per elemento) per le famiglie testuali.",
+    "+ cirillico (7 famiglie sbloccate, 2 caratteri).",
+    "+ domino (8 famiglie sbloccate).",
     "Come sopra, stessa composizione.",
-    "Come sopra, ma cifre/lettere ora su coppie di caratteri (2 cifre/lettere per elemento).",
-    "Come sopra, stessa composizione a 2 caratteri.",
-    "9 schermate: cifre, lettere, numeri romani (3 caratteri) + 6 famiglie di simboli atomici (esclusi gli ideogrammi).",
+    "+ armeno (9 famiglie sbloccate, 3 caratteri).",
     "Come sopra, stessa composizione.",
-    "Come sopra, stessa composizione.",
-    "Come sopra, stessa composizione.",
-    "9 schermate: + cirillico (4 famiglie testuali, 3 caratteri) + 5 famiglie di simboli atomici (dadi, domino, carte, frecce, mahjong).",
-    "Come sopra, stessa composizione.",
-    "Come sopra, stessa composizione.",
-    "Come sopra, ma testo ora a 4 caratteri.",
-    "9 schermate: + armeno (5 famiglie testuali, 4 caratteri) + 4 famiglie di simboli atomici (dadi, domino, carte, frecce).",
-    "Come sopra, stessa composizione.",
-    "Come sopra, stessa composizione.",
-    "Come sopra, stessa composizione — massima varietà di script e discriminazione fine."
+    "+ thai, + mahjong (11 famiglie sbloccate).",
+    "Come sopra, ora a 4 caratteri.",
+    "+ ge'ez (12 famiglie sbloccate).",
+    "+ ideogrammi cinesi (13 famiglie sbloccate) — qui, non prima.",
+    "+ cirillico arcaico (14 famiglie sbloccate).",
+    "+ sillabario canadese (15 famiglie sbloccate, 5 caratteri).",
+    "Come sopra — massima varietà di script e discriminazione fine."
   ],
   inversione:[
     "Parole reali, 3-4 lettere; numeri 3-4 cifre.","Parole reali.","Parole reali.","Parole reali.",
@@ -11119,12 +11266,11 @@ function colorHex(name){
   return c? c.css : null;
 }
 
-function renderGriglie(deck){
-  const s = deck.slides[0];
-  const rule = deck.rules[deck.ruleIndex];
-  const wrap = document.createElement("div");
-  wrap.className = "grid-wrap";
-  wrap.style.gridTemplateColumns = `repeat(${s.cols}, minmax(0,1fr))`;
+function renderOneGrid(s){
+  const rule = s.rules[s.ruleIndex];
+  const grid = document.createElement("div");
+  grid.className = "grid-wrap";
+  grid.style.gridTemplateColumns = `repeat(${s.cols}, minmax(0,1fr))`;
   s.cells.forEach(c=>{
     const div = document.createElement("div");
     const isAns = state.reveal && rule.matches(c);
@@ -11139,22 +11285,46 @@ function renderGriglie(deck){
     div.style.color = "#111";
     div.style.fontWeight = "800";
     div.textContent = c.sym;
-    wrap.appendChild(div);
+    grid.appendChild(div);
+  });
+  return grid;
+}
+function renderGriglie(deck){
+  const wrap = document.createElement("div");
+  deck.slides.forEach((s,i)=>{
+    const block = document.createElement("div");
+    block.className = "multi-block";
+    const h = document.createElement("div");
+    h.className = "multi-block-head";
+    h.innerHTML = `<b>Griglia ${i+1}/${deck.slides.length}</b> — Regola: ${s.rules[s.ruleIndex].text}`;
+    block.appendChild(h);
+    block.appendChild(renderOneGrid(s));
+    wrap.appendChild(block);
   });
   return wrap;
 }
 
 function renderIntruso(deck){
-  const s = deck.slides[state.slideIndex];
   const wrap = document.createElement("div");
-  wrap.className = "strip";
-  s.items.forEach((it,i)=>{
-    const div = document.createElement("div");
-    div.className = "cell" + (state.reveal && i===s.oddIndex ? " answer":"");
-    div.style.borderColor = "#D9DFD9";
-    div.style.background = "#fff";
-    div.textContent = it;
-    wrap.appendChild(div);
+  deck.slides.forEach((s,i)=>{
+    const block = document.createElement("div");
+    block.className = "multi-block";
+    const h = document.createElement("div");
+    h.className = "multi-block-head";
+    h.innerHTML = `<b>Schermata ${i+1}/${deck.slides.length}</b> (${s.familyLabel}) — ${s.rule}` + (state.reveal ? ` <span class="answer-inline">${s.answer}</span>` : "");
+    block.appendChild(h);
+    const strip = document.createElement("div");
+    strip.className = "strip";
+    s.items.forEach((it,ci)=>{
+      const div = document.createElement("div");
+      div.className = "cell" + (state.reveal && ci===s.oddIndex ? " answer":"");
+      div.style.borderColor = "#D9DFD9";
+      div.style.background = "#fff";
+      div.textContent = it;
+      strip.appendChild(div);
+    });
+    block.appendChild(strip);
+    wrap.appendChild(block);
   });
   return wrap;
 }
@@ -11232,6 +11402,11 @@ function renderAccesso(deck){
   const div = document.createElement("div");
   div.className = "single-word";
   div.textContent = s.word;
+  // font adattato alla lunghezza della parola: corta -> grande, lunga -> più contenuta,
+  // così riempie sempre bene lo spazio senza mai uscire dal riquadro.
+  const len = s.word.length;
+  const size = Math.max(48, Math.min(150, Math.round(1400/len)));
+  div.style.fontSize = size + "px";
   return div;
 }
 
@@ -11255,8 +11430,13 @@ function renderCatTileFallback(tile, it){
   label.textContent = it.it;
   tile.appendChild(label);
 }
-function renderCategorizzazione(deck){
-  const s = deck.slides[state.slideIndex];
+function renderOneCatSlide(deck, s, idx){
+  const block = document.createElement("div");
+  block.className = "multi-block";
+  const h = document.createElement("div");
+  h.className = "multi-block-head";
+  h.innerHTML = `<b>Prova ${idx+1}/${deck.slides.length}</b> — Criterio: ${s.label}`;
+  block.appendChild(h);
   const wrap = document.createElement("div");
   wrap.className = "cat-grid";
   const tiles = s.items.map(it=>{
@@ -11270,6 +11450,7 @@ function renderCategorizzazione(deck){
     wrap.appendChild(tile);
     return tile;
   });
+  block.appendChild(wrap);
   // Risolve le foto reali da Openverse in background (una sola volta per prova):
   // la griglia si aggiorna man mano che arrivano, senza bloccare la schermata.
   // Se una richiesta fallisce (rete assente, CORS, rate limit) resta l'etichetta
@@ -11279,7 +11460,7 @@ function renderCategorizzazione(deck){
     s.items.forEach(async (it, i)=>{
       const img = await fetchOpenverseImage(it.en);
       it.image = img;
-      if(state.exercise==="categorizzazione" && state.deck===deck && state.deck.slides[state.slideIndex]===s){
+      if(state.exercise==="categorizzazione" && state.deck===deck){
         renderCatTileContent(tiles[i], it);
         if(state.reveal){
           tiles[i].style.outline = "3px solid " + (it.group==="A" ? "#2F6F63" : "#A6503A");
@@ -11288,6 +11469,11 @@ function renderCategorizzazione(deck){
       }
     });
   }
+  return block;
+}
+function renderCategorizzazione(deck){
+  const wrap = document.createElement("div");
+  deck.slides.forEach((s,i)=> wrap.appendChild(renderOneCatSlide(deck, s, i)));
   return wrap;
 }
 
@@ -11476,7 +11662,6 @@ const MATERIAL_OPTIONS = {
     {id:"cyrillic", label:"Solo cirillico"},
     {id:"geez", label:"Solo Ge'ez (etiope)"},
     {id:"dice", label:"Solo dadi"},
-    {id:"cards", label:"Solo carte"},
     {id:"cjk", label:"Solo ideogrammi cinesi"}
   ],
   inversione: [
@@ -11512,9 +11697,9 @@ const EX_CONTROLS = {
     const btn = document.createElement("button");
     btn.className = "action ghost";
     btn.style.marginTop = "10px";
-    btn.textContent = "Prossima regola su questa griglia →";
+    btn.textContent = "Prossima regola su tutte le griglie →";
     btn.onclick = ()=>{
-      state.deck.ruleIndex = (state.deck.ruleIndex+1) % state.deck.rules.length;
+      state.deck.slides.forEach(s=>{ s.ruleIndex = (s.ruleIndex+1) % s.rules.length; });
       render();
     };
     wrap.appendChild(btn);
@@ -11650,9 +11835,24 @@ function buildExList(){
   });
 }
 
-function generate(){
+async function generate(){
   state.slideIndex = 0;
-  state.deck = GENERATORS[state.exercise](state.level);
+  const gen = ++state._generationToken; // scarta risposte di storico arrivate in ritardo se nel frattempo si è generato di nuovo
+
+  if(state.exercise==="categorizzazione"){
+    const excludeLabels = await fetchRecentUsed("catHistory", "usedLabels");
+    if(gen !== state._generationToken) return;
+    state.deck = genCategorizzazioneV2(state.level, 9, excludeLabels);
+    appendUsed("catHistory", "usedLabels", state.deck.slides.map(s=>s.rawLabel), 60);
+  } else if(state.exercise==="accesso"){
+    const excludeWords = await fetchRecentUsed("accessoHistory", "usedWords");
+    if(gen !== state._generationToken) return;
+    state.deck = genAccesso(state.level, excludeWords);
+    appendUsed("accessoHistory", "usedWords", [state.deck.word], 80);
+  } else {
+    state.deck = GENERATORS[state.exercise](state.level);
+  }
+
   document.getElementById("ruleBox").style.display = "none";
   const ex = EXERCISES.find(e=>e.id===state.exercise);
   const historyLevel = state.exercise==="fascicolo" ? state.fascicoloWeek : state.level;
@@ -11687,20 +11887,14 @@ function render(){
 
   const ruleBox = document.getElementById("ruleBox");
   if(state.exercise==="griglie"){
-    const r = state.deck.rules[state.deck.ruleIndex];
     ruleBox.style.display = "block";
-    ruleBox.innerHTML = `<b>Regola (${state.deck.ruleIndex+1}/${state.deck.rules.length}):</b> ${r.text}` +
-      (state.reveal ? `<br><b>Risposta:</b> ${r.count} elementi` : "");
+    ruleBox.innerHTML = `<b>${state.deck.slides.length} griglie in questa sessione</b> — la regola di ciascuna è indicata sopra la griglia stessa. "Prossima regola su tutte le griglie" fa avanzare tutte insieme.`;
   } else if(state.exercise==="intruso"){
-    const s = state.deck.slides[state.slideIndex];
     ruleBox.style.display = "block";
-    ruleBox.innerHTML = `<b>Regola:</b> ${s.rule}` + (state.reveal ? `<br><b>Risposta:</b> ${s.answer}` : "");
+    ruleBox.innerHTML = `<b>${state.deck.slides.length} schermate in questa sessione</b> — la famiglia e la regola di ciascuna sono indicate sopra la schermata stessa.`;
   } else if(state.exercise==="categorizzazione"){
-    const s = state.deck.slides[state.slideIndex];
-    const groupA = s.items.filter(it=>it.group==="A").map(it=>it.it).join(", ");
-    const groupB = s.items.filter(it=>it.group==="B").map(it=>it.it).join(", ");
     ruleBox.style.display = "block";
-    ruleBox.innerHTML = `<b>Criterio:</b> ${s.label}` + (state.reveal ? `<br><b>Gruppo 1:</b> ${groupA} &nbsp;·&nbsp; <b>Gruppo 2:</b> ${groupB}` : "");
+    ruleBox.innerHTML = `<b>${state.deck.slides.length} prove in questa sessione</b> — il criterio di ciascuna è indicato sopra la griglia di immagini.`;
   } else if(state.exercise==="serie"){
     const r = state.deck.rules[state.deck.ruleIndex];
     ruleBox.style.display = "block";
@@ -11713,7 +11907,7 @@ function render(){
   }
 
   const foot = document.getElementById("stageFoot");
-  if(state.exercise==="serie" || state.exercise==="intruso" || state.exercise==="categorizzazione"){
+  if(state.exercise==="serie"){
     foot.style.display = "flex";
     document.getElementById("slideCounter").textContent = `${state.slideIndex+1} / ${state.deck.slides.length}`;
   } else {
@@ -11729,38 +11923,40 @@ function hexNoHash(h){ return h.replace("#",""); }
 function exportGriglie(deck, level){
   const p = new PptxGenJS();
   p.layout = "LAYOUT_4x3"; // 10x7.5in — come gli originali, non widescreen (causa della distorsione)
-  const s = deck.slides[0];
-  const r = deck.rules[deck.ruleIndex];
-  const slide = p.addSlide();
-  slide.background = {color:"FFFFFF"};
-  // Istruzione lineare e diretta: solo la regola attiva e le regole alternative applicabili
-  // alla stessa griglia — nessuna risposta nelle note (la conta la fa il paziente).
-  const rulesList = deck.rules
-    .map(x=>x.text.replace(/^Conta /,"").replace(/\.$/,""))
-    .join(", ");
-  slide.addNotes(`Regola: ${r.text} Altre regole applicabili su questa stessa griglia: ${rulesList}.`);
-
-  // Cerchi (non rettangoli) dimensionati per riempire la slide 10x7.5" quasi per intero:
-  // il passo è il massimo che entra su entrambi gli assi (griglia GRID_ROWSxGRID_COLS),
-  // il diametro è il 96% del passo (margine minimo, cerchi quasi a contatto).
   const SLIDE_W=10, SLIDE_H=7.5;
-  const cols = s.cols, rows = s.rows;
-  const PITCH = Math.min(SLIDE_W/cols, SLIDE_H/rows);
-  const CIRCLE = PITCH*0.96;
-  const gridW = (cols-1)*PITCH + CIRCLE, gridH = (rows-1)*PITCH + CIRCLE;
-  const marginX = (SLIDE_W - gridW)/2, marginY = (SLIDE_H - gridH)/2;
-  const fontSize = Math.round(CIRCLE*46);
-  const lineWidth = Math.max(4, Math.round(CIRCLE*5.45));
-  s.cells.forEach(c=>{
-    const bgHex = c.fill ? hexNoHash(colorHex(c.fill)) : "FFFFFF";
-    const borderHex = c.border ? hexNoHash(colorHex(c.border)) : "000000";
-    slide.addText(c.sym, {
-      shape: "ellipse",
-      x: marginX + c.col*PITCH, y: marginY + c.row*PITCH, w:CIRCLE, h:CIRCLE,
-      align:"center", valign:"middle", fontSize, bold:true,
-      color:"1E2A26",
-      fill:{color:bgHex}, line:{color:borderHex, width:lineWidth},
-      isTextBox:true
+  deck.slides.forEach((s,si)=>{
+    const r = s.rules[s.ruleIndex];
+    const slide = p.addSlide();
+    slide.background = {color:"FFFFFF"};
+    // Istruzione essenziale: regola attiva + lista puntata delle altre regole applicabili,
+    // già in ordine di complessità crescente (simbolo → colore singolo → colore doppio →
+    // posizionale → simbolo+colore) — niente prosa, niente risposta (la conta il paziente).
+    const rulesList = s.rules
+      .map((x,i)=>`${i+1}. ${x.text.replace(/^Conta (tutti )?(gli )?/,"").replace(/\.$/,"")}`)
+      .join("\n");
+    slide.addNotes(`Griglia ${si+1}/${deck.slides.length}. Regola attiva: ${r.text}\n\nAltre regole su questa griglia (semplice → complessa):\n${rulesList}`);
+
+    // Cerchi (non rettangoli) dimensionati per riempire la slide 10x7.5" quasi per intero:
+    // il passo è il massimo che entra su entrambi gli assi (griglia GRID_ROWSxGRID_COLS),
+    // il diametro è il 96% del passo (margine minimo, cerchi quasi a contatto).
+    const cols = s.cols, rows = s.rows;
+    const PITCH = Math.min(SLIDE_W/cols, SLIDE_H/rows);
+    const CIRCLE = PITCH*0.96;
+    const gridW = (cols-1)*PITCH + CIRCLE, gridH = (rows-1)*PITCH + CIRCLE;
+    const marginX = (SLIDE_W - gridW)/2, marginY = (SLIDE_H - gridH)/2;
+    const fontSize = Math.round(CIRCLE*46);
+    const lineWidth = Math.max(4, Math.round(CIRCLE*5.45));
+    s.cells.forEach(c=>{
+      const bgHex = c.fill ? hexNoHash(colorHex(c.fill)) : "FFFFFF";
+      const borderHex = c.border ? hexNoHash(colorHex(c.border)) : "000000";
+      slide.addText(c.sym, {
+        shape: "ellipse",
+        x: marginX + c.col*PITCH, y: marginY + c.row*PITCH, w:CIRCLE, h:CIRCLE,
+        align:"center", valign:"middle", fontSize, bold:true,
+        color:"1E2A26",
+        fill:{color:bgHex}, line:{color:borderHex, width:lineWidth},
+        isTextBox:true
+      });
     });
   });
   return p.writeFile({fileName:`Griglie-Conteggio_L${level}.pptx`});
@@ -11861,7 +12057,11 @@ function exportAccesso(deck, level){
   p.layout = "LAYOUT_WIDE";
   const s = p.addSlide();
   s.background={color:"FFFFFF"};
-  s.addText(deck.word,{x:0,y:0,w:13.33,h:7.5,align:"center",valign:"middle",fontSize:80,bold:true,color:"1E2A26",isTextBox:true});
+  // fontSize adattato alla lunghezza della parola (prima era fisso a 80pt: enorme spreco
+  // per parole corte, rischio di uscire dal riquadro per quelle lunghe).
+  const len = deck.word.length;
+  const fontSize = Math.round(Math.max(70, Math.min(260, 816/(len*0.55))));
+  s.addText(deck.word,{x:0,y:0,w:13.33,h:7.5,align:"center",valign:"middle",fontSize,bold:true,color:"1E2A26",isTextBox:true});
   s.addNotes(deck.rule);
   return p.writeFile({fileName:`Accesso-lessicale_L${level}.pptx`});
 }
@@ -11952,9 +12152,19 @@ document.getElementById("nextSlide").addEventListener("click", ()=>{
   if(state.slideIndex < state.deck.slides.length-1){ state.slideIndex++; render(); }
 });
 
+const groupInput = document.getElementById("groupNameInput");
+groupInput.value = currentGroupName();
+groupInput.addEventListener("change", ()=>{
+  localStorage.setItem("pdm_group_name", groupInput.value.trim());
+  updateHistoryStatus();
+});
+initSharedHistory();
+updateHistoryStatus();
+
 buildExList();
 renderExControls();
 generate();
 </script>
+
 </body>
 </html>
