@@ -236,6 +236,16 @@
     margin-bottom:10px;
   }
   .answer-inline{ color:var(--accent, #2F6F63); font-weight:600; }
+  .rule-list{
+    margin-top:16px;
+    padding-left:22px;
+    font-size:13.5px;
+    line-height:1.9;
+  }
+  .rule-list li.rule-active{
+    font-weight:700;
+    color:var(--accent);
+  }
   .grid-wrap{
     display:grid;
     gap:6px;
@@ -10412,14 +10422,18 @@ const _imgCache = new Map();
 
 async function fetchOpenverseImage(enQuery) {
   if (_imgCache.has(enQuery)) return _imgCache.get(enQuery);
-  const url = `https://api.openverse.org/v1/images/?q=${encodeURIComponent(enQuery)}&page_size=6&license_type=commercial`;
+  // Niente più filtro "solo licenza commerciale" (restringeva troppo la scelta, spesso
+  // lasciando solo foto poco pertinenti) e si prende il risultato più rilevante secondo
+  // il ranking di Openverse (prima si pescava a caso tra i primi 4, il che portava dentro
+  // anche match meno calzanti).
+  const url = `https://api.openverse.org/v1/images/?q=${encodeURIComponent(enQuery)}&page_size=10`;
   try {
     const res = await fetch(url, { mode: "cors" });
     if (!res.ok) throw new Error("HTTP " + res.status);
     const data = await res.json();
     const results = (data.results || []).filter(r => r.thumbnail || r.url);
     if (!results.length) throw new Error("nessun risultato");
-    const pick = results[Math.floor(Math.random() * Math.min(results.length, 4))];
+    const pick = results[0];
     const info = { src: pick.thumbnail || pick.url, credit: pick.creator || "", source: pick.source || "", foreignUrl: pick.foreign_landing_url || "" };
     _imgCache.set(enQuery, info);
     return info;
@@ -10523,12 +10537,8 @@ async function resolveTrialImages(trial) {
    Finché firebaseConfig resta vuoto, questa sezione non fa nulla: l'app
    funziona esattamente come prima, solo senza memoria tra un dispositivo e l'altro.
    ========================================================= */
-const firebaseConfig = {apiKey: "AIzaSyCEFMdVHdANv1PsVlb-Wo65JHe4IKMtk3o",
-    authDomain: "pdmgenerator.firebaseapp.com",
-    projectId: "pdmgenerator",
-    storageBucket: "pdmgenerator.firebasestorage.app",
-    messagingSenderId: "203067967755",
-    appId: "1:203067967755:web:6ec8266c59798c852e3a0e"
+const firebaseConfig = {
+  // apiKey: "...", authDomain: "...", projectId: "...", ...
 };
 
 let sharedHistoryReady = false;
@@ -10653,38 +10663,58 @@ LEXICAL_TIERS[2].words = LEXICAL_TIERS[2].words.filter(w=>/^[A-Za-zàèéìòù]
 // categorization_library.js / categorization_engine.js).
 
 
+// 24 livelli — SOLO per Serie attentive (gli altri esercizi restano a 16). Elenco fornito
+// direttamente da Rodrigo, non generato: ogni livello è una singola consegna, senza
+// varianti speculari automatiche (le variazioni di mappatura sono già scritte esplicitamente
+// livello per livello, es. i livelli 3-6 differiscono tra loro apposta).
 const SERIE_RULES = [
-  "Mano dx se il carattere è nero, mano sx se è rosso.",
-  "Mano dx se è una lettera, mano sx se è un numero. Variante: A o 1 → mano dx, B o 2 → mano sx.",
-  "Mano dx se A, dire «Sì» se B, No-Go se 2, dire «No» se 1.",
-  "Dire «Sì» se A (1 No-Go), mano sx se B o 2; variante: No-Go se A, mano dx se 1, dire «No» se B o 2.",
-  "Dire «Sì» se A (1 No-Go), mano sx se B o 2 (come sopra, stessa consegna).",
-  "Mano dx se A, mano sx se B, dire «Sì» se 1, dire «No» se 2 — poi invertire lettera/numero.",
-  "Mano dx se A, dire «Sì» se B, mano sx se 1, dire «No» se 2 — poi invertire.",
-  "Mano sx se A, dire «No» se B, mano dx se 1, dire «Sì» se 2 — poi invertire.",
-  "Mano dx se A, dire «No» se B, mano sx se 1, dire «Sì» se 2 — poi invertire.",
-  "Mano sx se A, dire «Sì» se B, mano dx se 1, dire «No» se 2 — poi invertire.",
-  "Mano dx se lettera nera, No-Go se lettera rossa; mano sx se numero rosso, No-Go se numero nero. (poi invertire)",
-  "Mano sx se lettera nera, No-Go se lettera rossa; dire «Sì» se numero rosso, No-Go se numero rosso. (poi invertire)",
-  "Mano dx se lettera nera O numero rosso; mano sx se lettera rossa O numero nero.",
-  "Mano sx se lettera nera O numero rosso; dire «Sì» se lettera rossa O numero nero.",
-  "Mano dx se lettera rossa O numero nero; dire «No» se lettera nera O numero rosso.",
-  "Rispondere in base allo STIMOLO PRECEDENTE (n-1 indietro): mano dx se il precedente era nero / una lettera; mano sx se il precedente era rosso / un numero."
+  "Mano dx se nero, sx se rosso.",
+  "Mano dx se lettera, sx se numero.",
+  "Mano dx se A o 1, sx se B o 2 (variante con Sì/No).",
+  "Mano dx se A o 1, sx se B o 2 (variante con Sì/No) + 1 No-Go casualmente.",
+  "Mano dx se A o 2, sx se B o 1 (variante con Sì/No).",
+  "Mano dx se A o 2, sx se B o 1 (variante con Sì/No) + 1 No-Go casualmente.",
+  "Mano dx se A, sx se B, «Sì» se 1, «No» se 2.",
+  "«Sì» se A, «No» se B, mano dx se 1, sx se 2.",
+  "Mano dx se A, «Sì» se B, sx se 1, «No» se 2.",
+  "Mano dx se A, «Sì» se B, sx se 1, «No» se 2 + 1 No-Go casualmente.",
+  "Mano sx se A, «No» se B, dx se 1, «Sì» se 2.",
+  "Mano sx se A, «No» se B, dx se 1, «Sì» se 2 + 1 No-Go casualmente.",
+  "Mano dx se A, «No» se B, sx se 1, «Sì» se 2.",
+  "Mano dx se A, «No» se B, sx se 1, «Sì» se 2 + 1 No-Go casualmente.",
+  "Mano sx se A, «Sì» se B, dx se 1, «No» se 2.",
+  "Mano sx se A, «Sì» se B, dx se 1, «No» se 2 + 1 No-Go casualmente.",
+  "Mano dx se lettera nera, No-Go se lettera rossa; sx se numero rosso, No-Go se numero nero.",
+  "Mano sx se lettera nera, No-Go se lettera rossa; «Sì» se numero rosso, No-Go se numero nero.",
+  "Mano dx se lettera nera o numero rosso; sx se lettera rossa o numero nero.",
+  "Mano sx se lettera nera o numero rosso; «Sì» se lettera rossa o numero nero.",
+  "Mano dx se lettera rossa o numero nero; «No» se lettera nera o numero rosso.",
+  "Mano sx se lettera nera o numero rosso; «No» se lettera rossa o numero nero.",
+  "n-1 back: risposta basata sullo stimolo precedente (dx se era nero/lettera, sx se era rosso/numero).",
+  "n-1 back: risposta basata sullo stimolo precedente (dx se era nero/lettera, «Sì» se era rosso/numero)."
 ];
+const SERIE_MAX_LEVEL = SERIE_RULES.length;
 
-const DIGIT_RULES = [
-  {key:"ripeti", label:"Ripeti in avanti", apply:s=>s},
-  {key:"inverti", label:"Inverti", apply:s=>s.split("").reverse().join("")},
-  {key:"crescente", label:"Riordina crescente", apply:s=>s.split("").sort().join("")},
-  {key:"somma", label:"Somma le cifre", apply:s=>String(s.split("").reduce((a,c)=>a+Number(c),0))},
-  {key:"parita", label:"Solo pari/dispari alternati", apply:s=>{
+const SEQUENCE_RULES = [
+  {key:"ripeti", label:"Ripeti in avanti", kinds:["letters","digits","alnum"], apply:s=>s},
+  {key:"inverti", label:"Inverti", kinds:["letters","digits","alnum"], apply:s=>s.split("").reverse().join("")},
+  {key:"ordina", label:"Riordina (crescente/alfabetico)", kinds:["letters","digits","alnum"], apply:s=>s.split("").sort().join("")},
+  {key:"somma", label:"Somma le cifre", kinds:["digits"], apply:s=>String(s.split("").reduce((a,c)=>a+Number(c),0))},
+  {key:"parita", label:"Solo pari/dispari alternati", kinds:["digits"], apply:s=>{
       let ev=s.split("").filter(c=>Number(c)%2===0);
       let od=s.split("").filter(c=>Number(c)%2!==0);
       let out=[]; let i=0;
       while(ev.length||od.length){ if(i%2===0 && ev.length) out.push(ev.shift()); else if(od.length) out.push(od.shift()); i++; }
       return out.join("")||"—";
-  }}
+  }},
+  {key:"vocali", label:"Solo vocali", kinds:["letters","alnum"], apply:s=>s.split("").filter(c=>"AEIOU".includes(c.toUpperCase())).join("")||"—"},
+  {key:"consonanti", label:"Solo consonanti", kinds:["letters","alnum"], apply:s=>s.split("").filter(c=>/[A-Z]/i.test(c) && !"AEIOU".includes(c.toUpperCase())).join("")||"—"},
+  {key:"posdispari", label:"Solo posizioni dispari (1ª, 3ª, 5ª...)", kinds:["letters","digits","alnum"], apply:s=>s.split("").filter((c,i)=>i%2===0).join("")||"—"},
+  {key:"pospari", label:"Solo posizioni pari (2ª, 4ª, 6ª...)", kinds:["letters","digits","alnum"], apply:s=>s.split("").filter((c,i)=>i%2===1).join("")||"—"}
 ];
+// Alias per compatibilità con il codice esistente che referenzia ancora DIGIT_RULES
+// (il selettore mostra solo le regole applicabili al tipo di blocco corrente).
+const DIGIT_RULES = SEQUENCE_RULES;
 
 /* =========================================================
    UTILITY
@@ -10783,6 +10813,7 @@ const state = {
   catMode:"raggruppa",
   materialOverride:{griglie:"auto", intruso:"auto", inversione:"auto"},
   inversioneItemsOverride:null,
+  inversioneForceAlnum:false,
   intrusoScreensOverride:null,
   serieItemsOverride:null,
   categorizzazioneTrialsOverride:null,
@@ -10994,7 +11025,9 @@ const INTRUSO_TEXT_FAMILIES = [
 const INTRUSO_ATOMIC_FAMILIES = [
   {id:"arrow", label:"frecce", pool:["↑","↓","←","→","↖","↗","↘","↙","⇑","⇓","⇐","⇒"], unlockLevel:1},
   {id:"geometric", label:"forme", pool:["●","○","■","□","▲","△","▼","▽","◆","◇","★","☆"], unlockLevel:1},
-  {id:"dice", label:"dadi", pool: codeRange(0x2680,6), unlockLevel:3},
+  {id:"suits", label:"semi delle carte", pool:["♠","♥","♦","♣"], unlockLevel:1},
+  {id:"music", label:"note musicali", pool:["♩","♪","♫","♬"], unlockLevel:1},
+  {id:"dice", label:"dadi", pool: codeRange(0x2680,6), unlockLevel:1},
   {id:"domino", label:"domino", pool: codeRange(0x1F030,32), unlockLevel:6},
   {id:"mahjong", label:"mahjong", pool: codeRange(0x1F007,20), unlockLevel:10},
   {id:"cjk", label:"ideogrammi", pool: codeRange(0x53E3,40), unlockLevel:13}
@@ -11127,7 +11160,7 @@ function defaultItemsPerInversione(level){
 function genInversione(level){
   const lexical = level<=4;
   const mixedCase = level>=11;
-  const alnum = level>=11;
+  const alnum = level>=11 || state.inversioneForceAlnum; // la spunta anticipa il blocco alfanumerico, la complessità (lunghezza, maiuscole) resta comunque legata al livello vero
   const lens = level<10 ? [3,4] : [3,4,5];
   const itemsPer = state.inversioneItemsOverride || defaultItemsPerInversione(level);
   const ov = state.materialOverride.inversione;
@@ -11165,19 +11198,6 @@ function genInversione(level){
 }
 
 // ---------- SERIE ATTENTIVE ALTERNATE ----------
-// Variante speculare di una regola: scambia sistematicamente dx<->sx e Sì<->No, così la
-// seconda regola ha la STESSA struttura/complessità della prima (stessa difficoltà) ma
-// una mappatura stimolo-risposta diversa — utile per ripetere la stimolazione senza che
-// il paziente abbia memorizzato un automatismo motorio fisso sullo stesso simbolo.
-function mirrorSerieRule(text){
-  return text
-    .replace(/mano dx/gi, "\u0001R\u0001")
-    .replace(/mano sx/gi, "mano dx")
-    .replace(/\u0001R\u0001/g, "mano sx")
-    .replace(/«Sì»/g, "\u0002Y\u0002")
-    .replace(/«No»/g, "«Sì»")
-    .replace(/\u0002Y\u0002/g, "«No»");
-}
 function genSerie(level){
   const length = state.serieItemsOverride || 154; // come negli originali (stessa lunghezza in tutte le sessioni), regolabile
   const pool = ["A","B","1","2"];
@@ -11187,16 +11207,12 @@ function genSerie(level){
     seq.push({char:pick(pool), color});
     color = color==="black" ? "red":"black";
   }
-  const base = SERIE_RULES[level-1];
-  const rules = [
-    {text: base},
-    {text: mirrorSerieRule(base)}
-  ];
+  const rule = SERIE_RULES[level-1];
+  const nextRule = level < SERIE_MAX_LEVEL ? SERIE_RULES[level] : null;
   return {
     type:"serie",
     seq,
-    rules, ruleIndex:0,
-    rule: rules[0].text,
+    rule, nextRule,
     slides: seq.map((s,i)=>({...s, index:i}))
   };
 }
@@ -11274,12 +11290,30 @@ const LEVEL_NOTES = {
     "Alfanumerico misto esteso.","Alfanumerico misto esteso.","Alfanumerico misto esteso.","Alfanumerico misto esteso."
   ],
   serie:[
-    "Scelta a 2 vie su colore.","Categorizzazione lettera/numero + raggruppamento arbitrario.",
-    "Mappatura a 4 vie con No-Go.","Mappatura a 4 vie con No-Go.","Mappatura a 4 vie con No-Go.",
-    "Mappatura a 4 vie, doppia modalità, con inversione.","Come sopra.","Come sopra.","Come sopra.","Come sopra.",
-    "Regola congiunta colore×categoria + No-Go.","Regola congiunta + No-Go.",
-    "Regola congiuntiva OR cross-dimensionale.","Come sopra.","Come sopra.",
-    "N-1 back: risposta sullo stimolo precedente."
+    "Scelta a 2 vie su colore.",
+    "Scelta a 2 vie su categoria (lettera/numero).",
+    "Mappatura a 4 vie (manuale o verbale).",
+    "Come sopra, con inibizione (No-Go) casuale.",
+    "Mappatura a 4 vie, incrociata rispetto al livello 3.",
+    "Come sopra, con No-Go casuale.",
+    "Doppia modalità di risposta: manuale + verbale.",
+    "Doppia modalità, mappatura invertita rispetto al livello 7.",
+    "Doppia modalità, altra combinazione manuale/verbale.",
+    "Come sopra, con No-Go casuale.",
+    "Doppia modalità, mappatura invertita rispetto al livello 9.",
+    "Come sopra, con No-Go casuale.",
+    "Doppia modalità, altra combinazione ancora.",
+    "Come sopra, con No-Go casuale.",
+    "Doppia modalità, mappatura invertita rispetto al livello 13.",
+    "Come sopra, con No-Go casuale.",
+    "Regola congiunta colore×categoria, con inibizione su un lato.",
+    "Come sopra, mappatura invertita.",
+    "Regola congiuntiva OR cross-dimensionale (colore O categoria).",
+    "Come sopra, mappatura invertita.",
+    "Regola congiuntiva OR, altra combinazione.",
+    "Come sopra, mappatura invertita.",
+    "N-1 back: risposta sullo stimolo precedente (doppia manuale).",
+    "N-1 back: risposta sullo stimolo precedente (manuale + verbale)."
   ],
   accesso:[
     "Nomi concreti, alta frequenza.","Nomi concreti, alta frequenza.","Nomi concreti, alta frequenza.","Nomi concreti, alta frequenza.",
@@ -11332,10 +11366,24 @@ function renderGriglie(deck){
     if(deck.slides.length > 1){
       const h = document.createElement("div");
       h.className = "multi-block-head";
-      h.innerHTML = `<b>Griglia ${i+1}/${deck.slides.length}</b> — Regola (${s.ruleIndex+1}/${s.rules.length}): ${s.rules[s.ruleIndex].text}`;
+      h.innerHTML = `<b>Griglia ${i+1}/${deck.slides.length}</b>`;
       block.appendChild(h);
     }
     block.appendChild(renderOneGrid(s));
+    // Tutte le regole valide per QUESTA griglia (fino a 10), visibili insieme — non serve
+    // più cliccare "prossima regola" per vederle una alla volta: quella attiva (evidenziata
+    // sulla griglia sopra) è segnata, le altre restano lì come alternative pronte all'uso.
+    const list = document.createElement("ol");
+    list.className = "rule-list";
+    s.rules.forEach((r,ri)=>{
+      const li = document.createElement("li");
+      li.className = ri===s.ruleIndex ? "rule-active" : "";
+      li.innerHTML = r.text.replace(/^Conta (tutti )?(gli )?/,"") + (state.reveal ? ` <span class="answer-inline">(${r.count} elementi)</span>` : "");
+      li.style.cursor = "pointer";
+      li.onclick = ()=>{ s.ruleIndex = ri; render(); };
+      list.appendChild(li);
+    });
+    block.appendChild(list);
     wrap.appendChild(block);
   });
   return wrap;
@@ -11409,14 +11457,14 @@ function renderInversione(deck){
     b.items.forEach(it=>{
       const span = document.createElement("span");
       span.appendChild(renderMarkedText(it));
-      if(state.reveal && b.kind==="digits"){
-        const rule = DIGIT_RULES.find(r=>r.key===state.digitRule);
+      if(state.reveal){
+        // Se la regola scelta non si applica a questo tipo di blocco (es. "Somma le
+        // cifre" su un blocco di lettere), si mostra "Inverti" — l'unica regola
+        // valida per qualunque tipo — invece di una regola che non avrebbe senso qui.
+        let rule = SEQUENCE_RULES.find(r=>r.key===state.digitRule);
+        if(!rule || !rule.kinds.includes(b.kind)) rule = SEQUENCE_RULES.find(r=>r.key==="inverti");
         const small = document.createElement("small");
         small.textContent = `${rule.label}: ${rule.apply(it.text)}`;
-        span.appendChild(small);
-      } else if(state.reveal && b.kind!=="digits"){
-        const small = document.createElement("small");
-        small.textContent = `Inverti: ${it.text.split("").reverse().join("")}`;
         span.appendChild(small);
       }
       row.appendChild(span);
@@ -11749,6 +11797,8 @@ const MATERIAL_OPTIONS = {
     {id:"auto", label:"Automatico (da livello, 9 schermate miste)"},
     {id:"digit", label:"Solo cifre"},
     {id:"letter", label:"Solo lettere"},
+    {id:"suits", label:"Solo semi delle carte"},
+    {id:"music", label:"Solo note musicali"},
     {id:"cyrillic", label:"Solo cirillico"},
     {id:"geez", label:"Solo Ge'ez (etiope)"},
     {id:"dice", label:"Solo dadi"},
@@ -11828,18 +11878,9 @@ const EX_CONTROLS = {
   },
   serie: ()=>{
     const wrap = document.createElement("div");
-    const btn = document.createElement("button");
-    btn.className = "action ghost";
-    btn.textContent = "Prossima regola su questa serie →";
-    btn.onclick = ()=>{
-      state.deck.ruleIndex = (state.deck.ruleIndex+1) % state.deck.rules.length;
-      render();
-    };
-    wrap.appendChild(btn);
     const note = document.createElement("div");
     note.className = "level-note";
-    note.style.marginTop = "8px";
-    note.textContent = "La seconda regola è la stessa struttura con dx/sx e Sì/No scambiati: stessa difficoltà, mappatura diversa — utile per ripetere senza automatismo motorio appreso.";
+    note.textContent = `24 livelli — solo per questo esercizio (gli altri restano a 16). Ogni livello ha una sola consegna; la schermata mostra anche un'anteprima della consegna del livello successivo.`;
     wrap.appendChild(note);
     wrap.appendChild(numerosityControl("Numero di stimoli nella serie", "serieItemsOverride", 20, 300, 154));
     return wrap;
@@ -11855,19 +11896,34 @@ const EX_CONTROLS = {
     wrap.appendChild(materialSelector("inversione"));
     const label = document.createElement("label");
     label.style.marginTop = "12px";
-    label.textContent = "Regola per il blocco numerico";
+    label.textContent = "Regola da applicare (dove valida per il tipo di blocco)";
     wrap.appendChild(label);
     const group = document.createElement("div");
     group.className = "btn-group";
-    DIGIT_RULES.forEach(r=>{
+    SEQUENCE_RULES.forEach(r=>{
       const chip = document.createElement("button");
       chip.className = "chip" + (state.digitRule===r.key ? " active":"");
       chip.textContent = r.label;
+      chip.title = `Si applica a: ${r.kinds.join(", ")}`;
       chip.onclick = ()=>{ state.digitRule=r.key; renderExControls(); render(); };
       group.appendChild(chip);
     });
     wrap.appendChild(group);
     wrap.appendChild(numerosityControl("Numero di stimoli per blocco", "inversioneItemsOverride", 2, 10, defaultItemsPerInversione(state.level)));
+
+    const alnumRow = document.createElement("label");
+    alnumRow.style.cssText = "display:flex; align-items:center; gap:8px; margin-top:14px; font-weight:600;";
+    const alnumCheck = document.createElement("input");
+    alnumCheck.type = "checkbox";
+    alnumCheck.checked = state.inversioneForceAlnum;
+    alnumCheck.addEventListener("change", e=>{ state.inversioneForceAlnum = e.target.checked; generate(); });
+    alnumRow.appendChild(alnumCheck);
+    alnumRow.appendChild(document.createTextNode("Aggiungi blocco alfanumerico anche a questo livello"));
+    wrap.appendChild(alnumRow);
+    const alnumNote = document.createElement("div");
+    alnumNote.className = "level-note";
+    alnumNote.textContent = "Normalmente il blocco alfanumerico misto compare solo dal livello 11. Con la spunta attiva compare da subito, ma lunghezza e maiuscole/minuscole restano comunque calibrate sul livello selezionato — non si semplifica solo perché arriva prima.";
+    wrap.appendChild(alnumNote);
     return wrap;
   },
   categorizzazione: ()=>{
@@ -11944,6 +12000,12 @@ function buildExList(){
 
 async function generate(){
   state.slideIndex = 0;
+  // Il range di livello dipende dall'esercizio (Serie attentive arriva a 24, tutti gli
+  // altri restano a 16): si limita PRIMA di generare, non solo nel render, altrimenti
+  // passando da Serie a un livello alto verso un altro esercizio si rischia di chiamare
+  // un generatore con un livello fuori dai suoi limiti.
+  const maxLevelNow = state.exercise==="serie" ? SERIE_MAX_LEVEL : 16;
+  if(state.level > maxLevelNow) state.level = maxLevelNow;
   const gen = ++state._generationToken; // scarta risposte di storico arrivate in ritardo se nel frattempo si è generato di nuovo
 
   if(state.exercise==="categorizzazione"){
@@ -11976,13 +12038,17 @@ async function generate(){
 function render(){
   const ex = EXERCISES.find(e=>e.id===state.exercise);
   const isFascicolo = state.exercise==="fascicolo";
+  const maxLevel = state.exercise==="serie" ? SERIE_MAX_LEVEL : 16;
   document.getElementById("exTitle").textContent = ex.name;
   document.getElementById("levelField").style.display = isFascicolo ? "none" : "block";
   document.getElementById("btnExport").textContent = isFascicolo ? "Esporta in Word (.docx)" : "Esporta in PowerPoint";
   if(isFascicolo){
     document.getElementById("exMeta").textContent = `Settimana ${state.fascicoloWeek}`;
   } else {
-    document.getElementById("exMeta").textContent = `Livello ${state.level} di 16`;
+    const levelRangeEl = document.getElementById("levelRange");
+    levelRangeEl.max = String(maxLevel);
+    if(state.level > maxLevel){ state.level = maxLevel; levelRangeEl.value = maxLevel; }
+    document.getElementById("exMeta").textContent = `Livello ${state.level} di ${maxLevel}`;
     document.getElementById("levelBadge").textContent = state.level;
     document.getElementById("levelNote").textContent = LEVEL_NOTES[state.exercise][state.level-1];
   }
@@ -11995,7 +12061,7 @@ function render(){
   const ruleBox = document.getElementById("ruleBox");
   if(state.exercise==="griglie"){
     ruleBox.style.display = "block";
-    ruleBox.innerHTML = `<b>Regola (${state.deck.slides[0].ruleIndex+1}/${state.deck.slides[0].rules.length}):</b> ${state.deck.slides[0].rules[state.deck.slides[0].ruleIndex].text}` + (state.reveal ? `<br><b>Risposta:</b> ${state.deck.slides[0].rules[state.deck.slides[0].ruleIndex].count} elementi` : "");
+    ruleBox.innerHTML = `<b>${state.deck.slides[0].rules.length} regole disponibili su questa griglia</b> — quella evidenziata sotto è quella attiva; clicca su una qualsiasi della lista per selezionarla.`;
   } else if(state.exercise==="intruso"){
     ruleBox.style.display = "block";
     ruleBox.innerHTML = `<b>${state.deck.slides.length} schermate in questa sessione</b> — la famiglia e la regola di ciascuna sono indicate sopra la schermata stessa.`;
@@ -12003,9 +12069,9 @@ function render(){
     ruleBox.style.display = "block";
     ruleBox.innerHTML = `<b>${state.deck.slides.length} prove in questa sessione</b> — il criterio di ciascuna è indicato sopra la griglia di immagini.`;
   } else if(state.exercise==="serie"){
-    const r = state.deck.rules[state.deck.ruleIndex];
     ruleBox.style.display = "block";
-    ruleBox.innerHTML = `<b>Regola (${state.deck.ruleIndex+1}/${state.deck.rules.length}):</b> ${r.text}`;
+    ruleBox.innerHTML = `<b>Regola (livello ${state.level}/${SERIE_MAX_LEVEL}):</b> ${state.deck.rule}` +
+      (state.deck.nextRule ? `<br><span class="level-note" style="margin-top:6px;"><b>Al livello successivo:</b> ${state.deck.nextRule}</span>` : `<br><span class="level-note" style="margin-top:6px;">Ultimo livello disponibile.</span>`);
   } else if(state.deck.rule){
     ruleBox.style.display = "block";
     ruleBox.innerHTML = `<b>Regola:</b> ${state.deck.rule}` + (state.reveal && state.deck.answer ? `<br><b>Risposta:</b> ${state.deck.answer}` : "");
@@ -12031,17 +12097,15 @@ function exportGriglie(deck, level){
   const p = new PptxGenJS();
   p.layout = "LAYOUT_4x3"; // 10x7.5in — come gli originali, non widescreen (causa della distorsione)
   const SLIDE_W=10, SLIDE_H=7.5;
-  deck.slides.forEach((s,si)=>{
-    const r = s.rules[s.ruleIndex];
+  deck.slides.forEach((s)=>{
+    // Una sola slide, una sola griglia — le regole valide (fino a una decina) vanno
+    // tutte nel commento, in forma essenziale, esattamente come nei file originali.
     const slide = p.addSlide();
     slide.background = {color:"FFFFFF"};
-    // Istruzione essenziale: regola attiva + lista puntata delle altre regole applicabili,
-    // già in ordine di complessità crescente (simbolo → colore singolo → colore doppio →
-    // posizionale → simbolo+colore) — niente prosa, niente risposta (la conta il paziente).
     const rulesList = s.rules
       .map((x,i)=>`${i+1}. ${x.text.replace(/^Conta (tutti )?(gli )?/,"").replace(/\.$/,"")}`)
       .join("\n");
-    slide.addNotes(`Griglia ${si+1}/${deck.slides.length}. Regola attiva: ${r.text}\n\nAltre regole su questa griglia (semplice → complessa):\n${rulesList}`);
+    slide.addNotes(`Regole valide su questa griglia (semplice → complessa):\n${rulesList}`);
 
     // Cerchi (non rettangoli) dimensionati per riempire la slide 10x7.5" quasi per intero:
     // il passo è il massimo che entra su entrambi gli assi (griglia GRID_ROWSxGRID_COLS),
@@ -12116,9 +12180,10 @@ function exportInversione(deck, level){
   const title = p.addSlide();
   title.background={color:"FFFFFF"};
   title.addText(`Inversione e riordino — Livello ${level}`, {x:0.5,y:2.8,w:12.3,h:1.2,align:"center",fontSize:32,bold:true,color:"1E2A26",isTextBox:true});
-  const rule = DIGIT_RULES.find(r=>r.key===state.digitRule);
+  const rule = SEQUENCE_RULES.find(r=>r.key===state.digitRule);
   title.addNotes(
-    `Blocco numerico — regola attiva: ${rule.label}. Lettere/alfanumerico: invertire l'ordine. `+
+    `Regola attiva: ${rule.label} (si applica ai blocchi di tipo: ${rule.kinds.join(", ")}). `+
+    `Per i blocchi di tipo diverso da quelli elencati, usare "Inverti" (si applica sempre). `+
     `Ogni stimolo ha 1-2 caratteri colorati (rosso, dal livello 13 anche verde): la consegna clinica `+
     `esatta legata a questi caratteri non è confermata nel materiale originale — verificare con Rodrigo.`
   );
@@ -12149,7 +12214,7 @@ function exportSerie(deck, level){
   const title = p.addSlide();
   title.background={color:"FFFFFF"};
   title.addText(`Serie attentive alternate — Livello ${level}`, {x:0.5,y:2.8,w:12.3,h:1.2,align:"center",fontSize:32,bold:true,color:"1E2A26",isTextBox:true});
-  title.addNotes(deck.rules[deck.ruleIndex].text);
+  title.addNotes(`Regola: ${deck.rule}` + (deck.nextRule ? `\n\nAl livello successivo (${level+1}): ${deck.nextRule}` : "\n\nUltimo livello disponibile."));
   deck.seq.forEach(st=>{
     const s = p.addSlide();
     s.background={color:"FFFFFF"};
