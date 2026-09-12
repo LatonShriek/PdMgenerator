@@ -256,13 +256,12 @@
   .circle-cell{aspect-ratio:1/1; width:auto; font-size:16px;}
 
   .strip{
-    display:flex;
+    display:grid;
     gap:14px;
-    flex-wrap:wrap;
     justify-content:center;
     align-items:center;
   }
-  .strip .cell{font-size:26px;padding:10px 14px;min-width:56px;min-height:56px;}
+  .strip .cell{font-size:26px;padding:10px 14px;min-width:56px;min-height:56px; display:flex; align-items:center; justify-content:center;}
 
   .word-list{
     display:flex;
@@ -476,7 +475,20 @@
 </div>
 
 <script src="https://cdn.jsdelivr.net/npm/pptxgenjs@3.12.0/dist/pptxgen.bundle.js"></script>
-<script src="https://cdn.jsdelivr.net/npm/docx@9.6.1/dist/index.umd.cjs"></script>
+<script src="https://cdn.jsdelivr.net/npm/docx@8.5.0/build/index.umd.min.js"></script>
+<script>
+// Rete de sicurezza: se per qualunque motivo la libreria "docx" non si è caricata
+// dal CDN principale (rete lenta, blocco momentaneo, cache), ne prova una seconda
+// da un dominio diverso invece di lasciare l'esportazione del fascicolo rotta.
+window.addEventListener("load", function(){
+  if(typeof window.docx === "undefined"){
+    var fallback = document.createElement("script");
+    fallback.src = "https://unpkg.com/docx@8.5.0/build/index.umd.min.js";
+    document.head.appendChild(fallback);
+  }
+});
+</script>
+
 <script src="https://cdnjs.cloudflare.com/ajax/libs/FileSaver.js/2.0.5/FileSaver.min.js"></script>
 <script src="https://www.gstatic.com/firebasejs/10.14.1/firebase-app-compat.js"></script>
 <script src="https://www.gstatic.com/firebasejs/10.14.1/firebase-auth-compat.js"></script>
@@ -10512,13 +10524,8 @@ async function resolveTrialImages(trial) {
    funziona esattamente come prima, solo senza memoria tra un dispositivo e l'altro.
    ========================================================= */
 const firebaseConfig = {
-    apiKey: "AIzaSyCEFMdVHdANv1PsVlb-Wo65JHe4IKMtk3o",
-    authDomain: "pdmgenerator.firebaseapp.com",
-    projectId: "pdmgenerator",
-    storageBucket: "pdmgenerator.firebasestorage.app",
-    messagingSenderId: "203067967755",
-    appId: "1:203067967755:web:6ec8266c59798c852e3a0e"
-  };
+  // apiKey: "...", authDomain: "...", projectId: "...", ...
+};
 
 let sharedHistoryReady = false;
 let firestoreDb = null;
@@ -10728,11 +10735,11 @@ function saveHistoryEntry(entry){
 }
 function summarizeDeck(exId, level, deck){
   switch(exId){
-    case "griglie": return `${deck.slides.length} griglie ${deck.slides[0].rows}×${deck.slides[0].cols}`;
+    case "griglie": return `Griglia ${deck.slides[0].rows}×${deck.slides[0].cols}, ${deck.slides[0].rules.length} regole disponibili`;
     case "intruso": return `${deck.slides.length} schermate (famiglie: ${deck.slides.map(s=>s.familyLabel).join(", ")})`;
     case "inversione": return `${deck.blocks.length} blocchi (${deck.blocks.map(b=>b.items.length).reduce((a,b)=>a+b,0)} item totali)`;
     case "serie": return `Sequenza di ${deck.seq.length} stimoli`;
-    case "accesso": return `Parola: ${deck.word}`;
+    case "accesso": return deck.words.length>1 ? `${deck.words.length} parole: ${deck.words.join(", ")}` : `Parola: ${deck.word}`;
     case "categorizzazione": return `${deck.slides.length} schermate (es. ${deck.slides[0].label})`;
     case "fascicolo": return `Fascicolo ${deck.week} — ${deck.week}°settimana`;
     default: return "";
@@ -10763,6 +10770,10 @@ const state = {
   catMode:"raggruppa",
   materialOverride:{griglie:"auto", intruso:"auto", inversione:"auto"},
   inversioneItemsOverride:null,
+  intrusoScreensOverride:null,
+  serieItemsOverride:null,
+  categorizzazioneTrialsOverride:null,
+  accessoWordsOverride:null,
   fascicoloWeek:1,
   deck:null,
   slideIndex:0,
@@ -10920,9 +10931,10 @@ function genGriglie(level){
     symbols = fam.pool;
   }
 
-  // Una sessione = più griglie (prima era una sola): coerente con Intruso e
-  // Categorizzazione, che producono più schermate per sessione.
-  const N_GRIDS = 6;
+  // Una sola griglia per sessione, con tutte le regole valide (fino a 10) selezionabili
+  // una alla volta — come nei materiali originali: non più griglie diverse, ma varianti
+  // di regola sulla stessa griglia.
+  const N_GRIDS = 1;
   const slides = Array.from({length:N_GRIDS}, ()=>{
     const {cells, rules} = genOneGrid(symbols);
     return { cells, rows:GRID_ROWS, cols:GRID_COLS, rules, ruleIndex:0 };
@@ -11013,29 +11025,32 @@ function lenForLevelIntruso(level){
   // difficoltà più granulare, un salto ogni 3 livelli anziché ogni 4-7.
   return Math.min(5, 1 + Math.floor((level-1)/3));
 }
-function levelFamiliesIntruso(level){
-  // 9 schermate per sessione (nel range 8-11 osservato negli originali). Si pesca
-  // SOLO tra le famiglie già "sbloccate" a questo livello (unlockLevel<=level) —
-  // ai livelli bassi il pool sbloccato è piccolo e si ricicla mescolato più volte,
-  // ai livelli alti cresce e la sessione diventa più varia. Mai una famiglia più
-  // difficile del previsto, mai sempre le stesse 2-3 quando ce ne sono di più.
+function levelFamiliesIntruso(level, count){
+  // Schermate per sessione (di default 9, nel range 8-11 osservato negli originali,
+  // ma regolabile dal controllo "Numero di schermate"). Si pesca SOLO tra le famiglie
+  // già "sbloccate" a questo livello (unlockLevel<=level) — ai livelli bassi il pool
+  // sbloccato è piccolo e si ricicla mescolato più volte, ai livelli alti cresce e la
+  // sessione diventa più varia. Mai una famiglia più difficile del previsto, mai
+  // sempre le stesse 2-3 quando ce ne sono di più.
+  count = count || 9;
   const eligible = INTRUSO_ALL_FAMILIES.filter(f=>f.unlockLevel<=level);
   const order = [];
-  while(order.length<9) order.push(...shuffle(eligible));
-  return order.slice(0,9);
+  while(order.length<count) order.push(...shuffle(eligible));
+  return order.slice(0,count);
 }
 
 function genIntruso(level){
+  const count = state.intrusoScreensOverride || 9;
   const ov = state.materialOverride.intruso;
   let fams;
   if(ov && ov!=="auto"){
     // Variare il materiale non deve MAI distorcere la logica: stessa famiglia per tutte
-    // le 9 schermate, ma ciascuna generata in modo indipendente con la stessa identica
+    // le schermate, ma ciascuna generata in modo indipendente con la stessa identica
     // regola di conteggio (n=15/18, un solo singolo) usata in modalità automatica.
     const overrideFam = INTRUSO_ALL_FAMILIES.find(f=>f.id===ov) || INTRUSO_TEXT_FAMILIES[0];
-    fams = Array.from({length:9}, ()=>overrideFam);
+    fams = Array.from({length:count}, ()=>overrideFam);
   } else {
-    fams = levelFamiliesIntruso(level);
+    fams = levelFamiliesIntruso(level, count);
   }
   const len = lenForLevelIntruso(level);
   const slides = fams
@@ -11151,7 +11166,7 @@ function mirrorSerieRule(text){
     .replace(/\u0002Y\u0002/g, "«No»");
 }
 function genSerie(level){
-  const length = 154; // come negli originali (stessa lunghezza in tutte le sessioni)
+  const length = state.serieItemsOverride || 154; // come negli originali (stessa lunghezza in tutte le sessioni), regolabile
   const pool = ["A","B","1","2"];
   let color = Math.random()<0.5 ? "black":"red";
   const seq = [];
@@ -11183,12 +11198,14 @@ function genAccesso(level, excludeWords){
     const fresh = pool.filter(w=>!excl.has(w));
     if(fresh.length) effectivePool = fresh; // il pool è ampio: quasi sempre resta materiale "fresco"
   }
-  const word = pick(effectivePool);
+  const count = Math.min(state.accessoWordsOverride || 1, effectivePool.length);
+  const words = pickN(effectivePool, count);
   return {
     type:"accesso",
-    word,
+    word: words[0],
+    words,
     rule: "Gerarchia di facilitazione se il paziente non recupera la parola: sovraordinata → subordinata/esempi → somiglianze e parentele → usi → caratteristiche tipiche.",
-    slides:[{word}]
+    slides: words.map(w=>({word:w}))
   };
 }
 
@@ -11299,16 +11316,31 @@ function renderGriglie(deck){
   deck.slides.forEach((s,i)=>{
     const block = document.createElement("div");
     block.className = "multi-block";
-    const h = document.createElement("div");
-    h.className = "multi-block-head";
-    h.innerHTML = `<b>Griglia ${i+1}/${deck.slides.length}</b> — Regola: ${s.rules[s.ruleIndex].text}`;
-    block.appendChild(h);
+    if(deck.slides.length > 1){
+      const h = document.createElement("div");
+      h.className = "multi-block-head";
+      h.innerHTML = `<b>Griglia ${i+1}/${deck.slides.length}</b> — Regola (${s.ruleIndex+1}/${s.rules.length}): ${s.rules[s.ruleIndex].text}`;
+      block.appendChild(h);
+    }
     block.appendChild(renderOneGrid(s));
     wrap.appendChild(block);
   });
   return wrap;
 }
 
+function bestGridCols(n, areaW, areaH){
+  // Stessa logica di dimensionamento usata nell'export PowerPoint: cerca il numero
+  // di colonne che rende le celle più vicine possibile al quadrato, così a schermo
+  // e nel file esportato la disposizione è la stessa griglia pulita, mai righe
+  // spezzate in modo asimmetrico (es. 13 elementi + 2 su una riga a parte).
+  let cols = 1, bestMinSide = -1;
+  for(let c=1; c<=n; c++){
+    const r = Math.ceil(n/c);
+    const minSide = Math.min(areaW/c, areaH/r);
+    if(minSide > bestMinSide){ bestMinSide = minSide; cols = c; }
+  }
+  return cols;
+}
 function renderIntruso(deck){
   const wrap = document.createElement("div");
   deck.slides.forEach((s,i)=>{
@@ -11320,6 +11352,8 @@ function renderIntruso(deck){
     block.appendChild(h);
     const strip = document.createElement("div");
     strip.className = "strip";
+    const cols = bestGridCols(s.items.length, 1333, 500); // stesso rapporto larghezza/altezza dell'export
+    strip.style.gridTemplateColumns = `repeat(${cols}, minmax(0,1fr))`;
     s.items.forEach((it,ci)=>{
       const div = document.createElement("div");
       div.className = "cell" + (state.reveal && ci===s.oddIndex ? " answer":"");
@@ -11403,16 +11437,37 @@ function renderSerie(deck){
 }
 
 function renderAccesso(deck){
-  const s = deck.slides[0];
-  const div = document.createElement("div");
-  div.className = "single-word";
-  div.textContent = s.word;
-  // font adattato alla lunghezza della parola: corta -> grande, lunga -> più contenuta,
-  // così riempie sempre bene lo spazio senza mai uscire dal riquadro.
-  const len = s.word.length;
-  const size = Math.max(48, Math.min(150, Math.round(1400/len)));
-  div.style.fontSize = size + "px";
-  return div;
+  if(deck.slides.length === 1){
+    const s = deck.slides[0];
+    const div = document.createElement("div");
+    div.className = "single-word";
+    div.textContent = s.word;
+    // font adattato alla lunghezza della parola: corta -> grande, lunga -> più contenuta,
+    // così riempie sempre bene lo spazio senza mai uscire dal riquadro.
+    const len = s.word.length;
+    const size = Math.max(48, Math.min(150, Math.round(1400/len)));
+    div.style.fontSize = size + "px";
+    return div;
+  }
+  // Più parole nella stessa sessione: elenco impilato, ciascuna comunque grande e
+  // adattata alla propria lunghezza, invece di una sola parola gigante a schermo.
+  const wrap = document.createElement("div");
+  deck.slides.forEach((s,i)=>{
+    const block = document.createElement("div");
+    block.className = "multi-block";
+    const h = document.createElement("div");
+    h.className = "multi-block-head";
+    h.innerHTML = `<b>Parola ${i+1}/${deck.slides.length}</b>`;
+    block.appendChild(h);
+    const div = document.createElement("div");
+    div.className = "single-word";
+    div.textContent = s.word;
+    const len = s.word.length;
+    div.style.fontSize = Math.max(36, Math.min(90, Math.round(900/len))) + "px";
+    block.appendChild(div);
+    wrap.appendChild(block);
+  });
+  return wrap;
 }
 
 function renderCatTileContent(tile, it){
@@ -11622,7 +11677,24 @@ async function rasterizeSVGBrowser(svgString){
   });
 }
 
+async function waitForDocxLibrary(timeoutMs){
+  const start = Date.now();
+  while(typeof window.docx === "undefined"){
+    if(Date.now() - start > timeoutMs) return false;
+    await new Promise(r=>setTimeout(r, 150));
+  }
+  return true;
+}
+
 async function exportFascicolo(deck){
+  // La libreria "docx" arriva da CDN: se la rete è lenta potrebbe non essere ancora
+  // pronta al primo clic. Aspetta fino a 5s invece di fallire subito, e se anche dopo
+  // non c'è, spiega cosa fare invece di mostrare un errore tecnico incomprensibile.
+  const ready = await waitForDocxLibrary(5000);
+  if(!ready){
+    alert("La libreria per generare il file Word non si è ancora caricata. Controlla la connessione e riprova tra qualche secondo — se il problema persiste, ricarica la pagina.");
+    return;
+  }
   const doc = await window.DocBuilder.buildFascicoloDocument(window.docx, deck, rasterizeSVGBrowser, window.Engine);
   const blob = await window.docx.Packer.toBlob(doc);
   saveAs(blob, `Fascicolo_${deck.week}.docx`);
@@ -11695,6 +11767,37 @@ function materialSelector(exId){
   return wrap;
 }
 
+function numerosityControl(labelText, stateKey, min, max, autoValue){
+  const wrap = document.createElement("div");
+  const countLabel = document.createElement("label");
+  countLabel.style.marginTop = "14px";
+  countLabel.textContent = labelText;
+  wrap.appendChild(countLabel);
+  const countRow = document.createElement("div");
+  countRow.className = "level-row";
+  const isAuto = state[stateKey]==null;
+  const countInput = document.createElement("input");
+  countInput.type = "range"; countInput.min = String(min); countInput.max = String(max);
+  countInput.value = state[stateKey] || autoValue;
+  const countBadge = document.createElement("div");
+  countBadge.className = "level-badge";
+  countBadge.textContent = isAuto ? "auto" : countInput.value;
+  countInput.addEventListener("input", e=>{
+    state[stateKey] = Number(e.target.value);
+    countBadge.textContent = state[stateKey];
+    generate();
+  });
+  countRow.appendChild(countInput); countRow.appendChild(countBadge);
+  wrap.appendChild(countRow);
+  const resetBtn = document.createElement("button");
+  resetBtn.className = "chip" + (isAuto ? " active":"");
+  resetBtn.style.marginTop = "8px";
+  resetBtn.textContent = "Automatico (da livello)";
+  resetBtn.onclick = ()=>{ state[stateKey]=null; renderExControls(); generate(); };
+  wrap.appendChild(resetBtn);
+  return wrap;
+}
+
 const EX_CONTROLS = {
   griglie: ()=>{
     const wrap = document.createElement("div");
@@ -11702,7 +11805,7 @@ const EX_CONTROLS = {
     const btn = document.createElement("button");
     btn.className = "action ghost";
     btn.style.marginTop = "10px";
-    btn.textContent = "Prossima regola su tutte le griglie →";
+    btn.textContent = "Prossima regola su questa griglia →";
     btn.onclick = ()=>{
       state.deck.slides.forEach(s=>{ s.ruleIndex = (s.ruleIndex+1) % s.rules.length; });
       render();
@@ -11725,9 +11828,15 @@ const EX_CONTROLS = {
     note.style.marginTop = "8px";
     note.textContent = "La seconda regola è la stessa struttura con dx/sx e Sì/No scambiati: stessa difficoltà, mappatura diversa — utile per ripetere senza automatismo motorio appreso.";
     wrap.appendChild(note);
+    wrap.appendChild(numerosityControl("Numero di stimoli nella serie", "serieItemsOverride", 20, 300, 154));
     return wrap;
   },
-  intruso: ()=> materialSelector("intruso"),
+  intruso: ()=>{
+    const wrap = document.createElement("div");
+    wrap.appendChild(materialSelector("intruso"));
+    wrap.appendChild(numerosityControl("Numero di schermate per sessione", "intrusoScreensOverride", 4, 16, 9));
+    return wrap;
+  },
   inversione: ()=>{
     const wrap = document.createElement("div");
     wrap.appendChild(materialSelector("inversione"));
@@ -11745,33 +11854,7 @@ const EX_CONTROLS = {
       group.appendChild(chip);
     });
     wrap.appendChild(group);
-
-    const countLabel = document.createElement("label");
-    countLabel.style.marginTop = "14px";
-    countLabel.textContent = "Numero di stimoli per blocco";
-    wrap.appendChild(countLabel);
-    const countRow = document.createElement("div");
-    countRow.className = "level-row";
-    const isAuto = state.inversioneItemsOverride==null;
-    const countInput = document.createElement("input");
-    countInput.type = "range"; countInput.min = "2"; countInput.max = "10";
-    countInput.value = state.inversioneItemsOverride || defaultItemsPerInversione(state.level);
-    const countBadge = document.createElement("div");
-    countBadge.className = "level-badge";
-    countBadge.textContent = isAuto ? "auto" : countInput.value;
-    countInput.addEventListener("input", e=>{
-      state.inversioneItemsOverride = Number(e.target.value);
-      countBadge.textContent = state.inversioneItemsOverride;
-      generate();
-    });
-    countRow.appendChild(countInput); countRow.appendChild(countBadge);
-    wrap.appendChild(countRow);
-    const resetBtn = document.createElement("button");
-    resetBtn.className = "chip" + (isAuto ? " active":"");
-    resetBtn.style.marginTop = "8px";
-    resetBtn.textContent = "Automatico (da livello)";
-    resetBtn.onclick = ()=>{ state.inversioneItemsOverride=null; renderExControls(); generate(); };
-    wrap.appendChild(resetBtn);
+    wrap.appendChild(numerosityControl("Numero di stimoli per blocco", "inversioneItemsOverride", 2, 10, defaultItemsPerInversione(state.level)));
     return wrap;
   },
   categorizzazione: ()=>{
@@ -11780,6 +11863,12 @@ const EX_CONTROLS = {
     p.className = "level-note";
     p.textContent = "Compito: dividere le 6 immagini in due gruppi da 3, in base a un criterio comune (142 criteri reali, verificati da Rodrigo). Ogni volta che generi materiale, l'app pesca un criterio a caso tra quelli disponibili per il livello e sceglie 3+3 oggetti da pool più ampi dei 3 mostrati negli originali — così la combinazione non è mai identica anche restando sullo stesso livello. Le foto sono cercate dal vivo su Openverse (CC, senza chiave API); se la richiesta non va a buon fine per qualsiasi motivo, il riquadro mostra il nome dell'oggetto invece della foto — non è un errore, è il comportamento previsto.";
     wrap.appendChild(p);
+    wrap.appendChild(numerosityControl("Numero di prove per sessione", "categorizzazioneTrialsOverride", 4, 16, 9));
+    return wrap;
+  },
+  accesso: ()=>{
+    const wrap = document.createElement("div");
+    wrap.appendChild(numerosityControl("Numero di parole per sessione", "accessoWordsOverride", 1, 10, 1));
     return wrap;
   },
   fascicolo: ()=>{
@@ -11847,13 +11936,13 @@ async function generate(){
   if(state.exercise==="categorizzazione"){
     const excludeLabels = await fetchRecentUsed("catHistory", "usedLabels");
     if(gen !== state._generationToken) return;
-    state.deck = genCategorizzazioneV2(state.level, 9, excludeLabels);
+    state.deck = genCategorizzazioneV2(state.level, state.categorizzazioneTrialsOverride || 9, excludeLabels);
     appendUsed("catHistory", "usedLabels", state.deck.slides.map(s=>s.rawLabel), 60);
   } else if(state.exercise==="accesso"){
     const excludeWords = await fetchRecentUsed("accessoHistory", "usedWords");
     if(gen !== state._generationToken) return;
     state.deck = genAccesso(state.level, excludeWords);
-    appendUsed("accessoHistory", "usedWords", [state.deck.word], 80);
+    appendUsed("accessoHistory", "usedWords", state.deck.words, 80);
   } else {
     state.deck = GENERATORS[state.exercise](state.level);
   }
@@ -11893,7 +11982,7 @@ function render(){
   const ruleBox = document.getElementById("ruleBox");
   if(state.exercise==="griglie"){
     ruleBox.style.display = "block";
-    ruleBox.innerHTML = `<b>${state.deck.slides.length} griglie in questa sessione</b> — la regola di ciascuna è indicata sopra la griglia stessa. "Prossima regola su tutte le griglie" fa avanzare tutte insieme.`;
+    ruleBox.innerHTML = `<b>Regola (${state.deck.slides[0].ruleIndex+1}/${state.deck.slides[0].rules.length}):</b> ${state.deck.slides[0].rules[state.deck.slides[0].ruleIndex].text}` + (state.reveal ? `<br><b>Risposta:</b> ${state.deck.slides[0].rules[state.deck.slides[0].ruleIndex].count} elementi` : "");
   } else if(state.exercise==="intruso"){
     ruleBox.style.display = "block";
     ruleBox.innerHTML = `<b>${state.deck.slides.length} schermate in questa sessione</b> — la famiglia e la regola di ciascuna sono indicate sopra la schermata stessa.`;
@@ -12060,14 +12149,16 @@ function exportSerie(deck, level){
 function exportAccesso(deck, level){
   const p = new PptxGenJS();
   p.layout = "LAYOUT_WIDE";
-  const s = p.addSlide();
-  s.background={color:"FFFFFF"};
   // fontSize adattato alla lunghezza della parola (prima era fisso a 80pt: enorme spreco
   // per parole corte, rischio di uscire dal riquadro per quelle lunghe).
-  const len = deck.word.length;
-  const fontSize = Math.round(Math.max(70, Math.min(260, 816/(len*0.55))));
-  s.addText(deck.word,{x:0,y:0,w:13.33,h:7.5,align:"center",valign:"middle",fontSize,bold:true,color:"1E2A26",isTextBox:true});
-  s.addNotes(deck.rule);
+  deck.slides.forEach(sl=>{
+    const s = p.addSlide();
+    s.background={color:"FFFFFF"};
+    const len = sl.word.length;
+    const fontSize = Math.round(Math.max(70, Math.min(260, 816/(len*0.55))));
+    s.addText(sl.word,{x:0,y:0,w:13.33,h:7.5,align:"center",valign:"middle",fontSize,bold:true,color:"1E2A26",isTextBox:true});
+    s.addNotes(deck.rule);
+  });
   return p.writeFile({fileName:`Accesso-lessicale_L${level}.pptx`});
 }
 
