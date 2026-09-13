@@ -1476,9 +1476,46 @@ return {
   // grassetto + un a-capo naturale (spazio finale forza il wrap) + eventuale
   // sottotitolo Calibri 15pt grassetto — fedele all'originale (due dimensioni
   // di font nello stesso paragrafo, non due paragrafi separati).
+  // Larghezza utile della pagina A4 (11906 DXA totali − 1440 DXA di margine per lato).
+  const PAGE_USABLE_W = 11906 - 1440 * 2;
+
+  // Stima prudente (per eccesso) della larghezza in DXA di una stringa in
+  // grassetto a una data dimensione (in "half-points", come vuole `size` di
+  // docx): meglio sovrastimare che sottostimare, per non rischiare comunque
+  // un a-capo indesiderato. 0.62 × pt è una stima ragionevole per un
+  // grassetto sans-serif, valida sia per cifre sia per lettere cirilliche
+  // (più larghe delle latine, da cui il fattore prudente).
+  function estimateTextWidthDXA(text, sizeHalfPt) {
+    const pt = sizeHalfPt / 2;
+    return text.length * pt * 0.62 * 20;
+  }
+
+  // Trova la dimensione più grande (tra quelle disponibili) con cui il testo
+  // sta su UNA riga sola nella larghezza utile della pagina.
+  function fittingTitleSize(text, maxSizeHalfPt = 50, minSizeHalfPt = 26) {
+    for (let size = maxSizeHalfPt; size >= minSizeHalfPt; size -= 2) {
+      if (estimateTextWidthDXA(text + ' ', size) <= PAGE_USABLE_W) return size;
+    }
+    return minSizeHalfPt;
+  }
+
+  // Intestazione di sezione: un solo paragrafo centrato, titolo in Calibri
+  // (dimensione ADATTATA alla lunghezza del testo — vedi fittingTitleSize) +
+  // un a-capo naturale + eventuale sottotitolo Calibri 15pt grassetto.
+  //
+  // Prima il titolo era sempre a 25pt fissi: con un bersaglio di 4 caratteri
+  // cirillici (più larghi delle cifre) il testo completo ("Cerchiare e
+  // contare tutte le sequenze БЦДП") andava a capo su due righe invece di
+  // una, sforando di una riga il budget verticale della griglia sottostante
+  // e spingendo l'ultima riga della tabella su una pagina a parte — bug
+  // trovato renderizzando il documento vero con un bersaglio cirillico, non
+  // solo leggendo il codice. Ora il titolo si restringe quanto serve (fino a
+  // un minimo di 13pt) per restare SEMPRE su una riga sola, qualunque sia
+  // l'alfabeto o la lunghezza del bersaglio.
   function heading(docx, text, subtitle) {
     const { Paragraph, TextRun, AlignmentType } = docx;
-    const runs = [new TextRun({ text: text + ' ', bold: true, size: 50, font: 'Calibri' })];
+    const titleSize = fittingTitleSize(text);
+    const runs = [new TextRun({ text: text + ' ', bold: true, size: titleSize, font: 'Calibri' })];
     if (subtitle) runs.push(new TextRun({ text: subtitle, bold: true, size: 30, font: 'Calibri', break: 1 }));
     // pageBreakBefore: true su OGNI intestazione — un esercizio per pagina, come
     // nell'originale (dove il titolo occupa la prima pagina da solo e ogni
@@ -10895,12 +10932,7 @@ async function resolveTrialImages(trial) {
    funziona esattamente come prima, solo senza memoria tra un dispositivo e l'altro.
    ========================================================= */
 const firebaseConfig = {
-  apiKey: "AIzaSyCEFMdVHdANv1PsVlb-Wo65JHe4IKMtk3o",
-    authDomain: "pdmgenerator.firebaseapp.com",
-    projectId: "pdmgenerator",
-    storageBucket: "pdmgenerator.firebasestorage.app",
-    messagingSenderId: "203067967755",
-    appId: "1:203067967755:web:6ec8266c59798c852e3a0e"
+  // apiKey: "...", authDomain: "...", projectId: "...", ...
 };
 
 let sharedHistoryReady = false;
@@ -12322,7 +12354,7 @@ const EX_CONTROLS = {
     wrap.appendChild(nextRow);
     const nextNote = document.createElement("div");
     nextNote.className = "level-note";
-    nextNote.textContent = "Se attiva, compare come testo visibile e stampabile (non più solo nel commento nascosto del PowerPoint) — a schermo e nel file esportato.";
+    nextNote.textContent = "Controlla solo il pannello a schermo qui in sidebar (utile mentre generi il materiale). Nel file PowerPoint esportato, regola in vigore e regola successiva vanno sempre entrambe nelle note del relatore — mai come testo sulla slide, quindi mai visibili al paziente durante la proiezione o la stampa normale.";
     wrap.appendChild(nextNote);
     wrap.appendChild(numerosityControl("Numero di stimoli nella serie", "serieItemsOverride", 20, 300, 154));
     return wrap;
@@ -12713,22 +12745,25 @@ function exportInversione(deck, level){
 function exportSerie(deck, level){
   const p = new PptxGenJS();
   p.layout = "LAYOUT_WIDE";
+  // La regola in vigore e quella del livello successivo vanno SOLO nelle note
+  // del relatore (visibili in PowerPoint solo a chi presenta, in Visualizzazione
+  // relatore o stampando le pagine note) — mai come testo sulla slide, che
+  // sarebbe visibile anche al paziente se il file viene proiettato o stampato
+  // normalmente. Le note sono ripetute su ogni slide (non solo sul titolo), così
+  // restano a portata mentre si avanza stimolo per stimolo durante la seduta.
+  const nextText = deck.nextRule ? `Al livello successivo: ${deck.nextRule}` : "Ultimo livello disponibile.";
+  const notesText = `Regola (livello ${level}): ${deck.rule}\n${nextText}`;
+
   const title = p.addSlide();
   title.background={color:"FFFFFF"};
   title.addText(`Serie attentive alternate — Livello ${level}`, {x:0.5,y:2.5,w:12.3,h:1.2,align:"center",fontSize:32,bold:true,color:"1E2A26",isTextBox:true});
-  title.addText(`Regola: ${deck.rule}`, {x:0.5,y:3.8,w:12.3,h:0.7,align:"center",fontSize:18,color:"4B5A55",isTextBox:true});
-  // Il criterio del livello successivo è testo VISIBILE e stampabile sulla slide del
-  // titolo (non più nascosto nel commento, mai visibile stampando normalmente) — solo
-  // se la spunta è attiva: di default resta nascosto per non anticipare la difficoltà.
-  if(state.serieShowNextCriterion){
-    const nextText = deck.nextRule ? `Al livello successivo: ${deck.nextRule}` : "Ultimo livello disponibile.";
-    title.addText(nextText, {x:0.5,y:4.6,w:12.3,h:0.7,align:"center",fontSize:14,italic:true,color:"A6503A",isTextBox:true});
-  }
+  title.addNotes(notesText);
   deck.seq.forEach(st=>{
     const s = p.addSlide();
     s.background={color:"FFFFFF"};
     s.addText(st.char,{x:0,y:0,w:13.33,h:7.5,align:"center",valign:"middle",fontSize:220,bold:true,
       color: st.color==="black" ? "000000":"FF0000", isTextBox:true});
+    s.addNotes(notesText);
   });
   return p.writeFile({fileName:exportFileName("serie", level, "pptx")});
 }
