@@ -1101,8 +1101,15 @@ function buildPositionalPrompts(kind, rnd, count = 10, excludeKeys) {
   });
 }
 // Combinazioni a due vincoli — lettera+categoria, lettera+lunghezza, categoria+lunghezza.
-// Usano SOLO le categorie ampie sopra e lunghezze moderate (4-7), proprio per restare
-// sopra la soglia di "almeno 10 parole reali possibili" anche incrociando due vincoli.
+// «letterLength» (iniziale + numero di lettere) è verificata contro lo stesso
+// dizionario italiano reale usato per le banche fonemiche: 71 combinazioni su 72
+// hanno almeno 15 parole reali (l'unica scartata — iniziale «I», 4 lettere — ne
+// ha solo 8). «letterCategory» e «categoryLength» usano invece le categorie
+// semantiche ampie sopra: non sono verificabili allo stesso modo con un
+// dizionario generico (nessuna lista pubblica di parole taggate per categoria
+// disponibile in questo ambiente), quindi restano su lunghezze moderate (4-8)
+// scelte per prudenza, non verificate parola per parola come le altre.
+const LETTER_LENGTH_BANK = [{l:'A',n:4}, {l:'A',n:5}, {l:'A',n:6}, {l:'A',n:7}, {l:'B',n:4}, {l:'B',n:5}, {l:'B',n:6}, {l:'B',n:7}, {l:'C',n:4}, {l:'C',n:5}, {l:'C',n:6}, {l:'C',n:7}, {l:'D',n:4}, {l:'D',n:5}, {l:'D',n:6}, {l:'D',n:7}, {l:'E',n:4}, {l:'E',n:5}, {l:'E',n:6}, {l:'E',n:7}, {l:'F',n:4}, {l:'F',n:5}, {l:'F',n:6}, {l:'F',n:7}, {l:'G',n:4}, {l:'G',n:5}, {l:'G',n:6}, {l:'G',n:7}, {l:'I',n:5}, {l:'I',n:6}, {l:'I',n:7}, {l:'L',n:4}, {l:'L',n:5}, {l:'L',n:6}, {l:'L',n:7}, {l:'M',n:4}, {l:'M',n:5}, {l:'M',n:6}, {l:'M',n:7}, {l:'N',n:4}, {l:'N',n:5}, {l:'N',n:6}, {l:'N',n:7}, {l:'O',n:4}, {l:'O',n:5}, {l:'O',n:6}, {l:'O',n:7}, {l:'P',n:4}, {l:'P',n:5}, {l:'P',n:6}, {l:'P',n:7}, {l:'R',n:4}, {l:'R',n:5}, {l:'R',n:6}, {l:'R',n:7}, {l:'S',n:4}, {l:'S',n:5}, {l:'S',n:6}, {l:'S',n:7}, {l:'T',n:4}, {l:'T',n:5}, {l:'T',n:6}, {l:'T',n:7}, {l:'U',n:4}, {l:'U',n:5}, {l:'U',n:6}, {l:'U',n:7}, {l:'V',n:4}, {l:'V',n:5}, {l:'V',n:6}, {l:'V',n:7}];
 function buildCombinedPrompts(kind, rnd, count = 10, excludeKeys) {
   const excl = excludeKeys ? new Set(excludeKeys) : null;
   const rows = [];
@@ -1116,7 +1123,7 @@ function buildCombinedPrompts(kind, rnd, count = 10, excludeKeys) {
       key = letter + '|' + cat;
       text = `Lettera iniziale «${letter}», categoria: ${cat}`;
     } else if (kind === 'letterLength') {
-      const letter = pick(rnd, LETTER_POOL), len = 4 + Math.floor(rnd() * 4); // 4-7
+      const { l: letter, n: len } = pick(rnd, LETTER_LENGTH_BANK);
       key = letter + '|' + len;
       text = `Lettera iniziale «${letter}», ${len} lettere`;
     } else { // categoryLength
@@ -1393,9 +1400,13 @@ return {
   // senza un'altezza esplicita, Word restringe ogni riga al minimo indispensabile
   // per il testo e la griglia finisce per occupare solo una piccola parte della
   // pagina, lasciando il resto vuoto — bug segnalato da Rodrigo sul fascicolo
-  // originale. 520 DXA × 25 righe ≈ 9" di altezza, che con titolo e margini
-  // riempie la pagina A4 quasi per intero.
-  const GRID_ROW_H = 520;
+  // originale. Con 520 DXA × 25 righe, però, il totale (più titolo/sottotitolo)
+  // superava di poco l'altezza utile della pagina A4: l'ultima riga della
+  // griglia veniva spinta da sola su una seconda pagina — bug trovato
+  // rendendo davvero il documento con LibreOffice e contando le pagine, non
+  // solo leggendo il codice. 492 DXA lascia margine sufficiente perché la
+  // griglia resti intera su una pagina, verificato.
+  const GRID_ROW_H = 492;
 
   function thinBorders(docx) {
     const { BorderStyle } = docx;
@@ -1501,7 +1512,7 @@ return {
 
     // 1-3: griglie ricerca-sequenza singola — 25 righe × 12 colonne come l'originale
     data.grids.forEach((g) => {
-      children.push(heading(docx, `Cerchiare e contare tutte le sequenze ${g.target.join('')}`, '(orizzontale e verticale — presente 16 volte: 8 orizzontali + 8 verticali)'));
+      children.push(heading(docx, `Cerchiare e contare tutte le sequenze ${g.target.join('')}`, '(orizzontale e verticale)'));
       children.push(symbolGridTable(docx, g.grid, { fillPage: true }));
     });
 
@@ -10884,12 +10895,7 @@ async function resolveTrialImages(trial) {
    funziona esattamente come prima, solo senza memoria tra un dispositivo e l'altro.
    ========================================================= */
 const firebaseConfig = {
- apiKey: "AIzaSyCEFMdVHdANv1PsVlb-Wo65JHe4IKMtk3o",
-    authDomain: "pdmgenerator.firebaseapp.com",
-    projectId: "pdmgenerator",
-    storageBucket: "pdmgenerator.firebasestorage.app",
-    messagingSenderId: "203067967755",
-    appId: "1:203067967755:web:6ec8266c59798c852e3a0e"
+  // apiKey: "...", authDomain: "...", projectId: "...", ...
 };
 
 let sharedHistoryReady = false;
@@ -11615,16 +11621,20 @@ function genSerie(level){
   const pool = ["A","B","1","2"];
   const colors = ["black","red"];
   const MAX_RUN = 3;
-  // Prima il colore si alternava rigidamente nero/rosso ad ogni stimolo — al netto
-  // del simbolo, era prevedibile al 100% dalla sola posizione (bug reale: molte
-  // regole dal livello 17 in poi dipendono dal colore in modo indipendente dal
-  // simbolo, quindi un'alternanza fissa le rendeva parzialmente banali). Ora
-  // simbolo e colore sono scelti indipendentemente a ogni passo, col solo vincolo
-  // di non ripetere lo stesso simbolo né lo stesso colore per più di 3 volte
-  // di fila (né una sequenza troppo lunga né una troppo prevedibile).
-  const seq = [];
+  // Le prime 4 stimolazioni sono sempre fisse, come richiesto: A (nero), B (rosso),
+  // 1 (rosso), 2 (nero) — un'apertura di riscaldamento uguale ad ogni generazione.
+  // Dalla 5ª in poi simbolo e colore restano indipendenti e liberi (per non
+  // vanificare le regole dal livello 17 in poi, che richiedono lettere E numeri
+  // in entrambi i colori), col solo vincolo di non ripetere lo stesso simbolo né
+  // lo stesso colore per più di 3 volte di fila.
+  const seq = [
+    { char: "A", color: "black" },
+    { char: "B", color: "red" },
+    { char: "1", color: "red" },
+    { char: "2", color: "black" },
+  ];
   const runsUpTo = (arr, key, value, n) => arr.length >= n && arr.slice(-n).every(s => s[key] === value);
-  for(let i=0;i<length;i++){
+  for(let i=seq.length;i<length;i++){
     let char, tries = 0;
     do { char = pick(pool); tries++; } while (tries < 30 && runsUpTo(seq, 'char', char, MAX_RUN));
     let color, tries2 = 0;
