@@ -454,6 +454,12 @@
     <input type="text" id="groupNameInput" placeholder="es. Gruppo martedì mattina" style="width:100%; padding:8px; border-radius:8px; border:1px solid var(--line); font-size:13px;">
     <div class="level-note" id="historyStatus" style="margin-top:6px;">Cronologia condivisa non configurata (solo locale a questo browser).</div>
   </div>
+
+  <div class="field" style="margin-top:14px;">
+    <label for="groupNumberInput">Numero gruppo (nel nome dei file esportati)</label>
+    <input type="text" id="groupNumberInput" placeholder="es. 3" style="width:100%; padding:8px; border-radius:8px; border:1px solid var(--line); font-size:13px;">
+    <div class="level-note" style="margin-top:6px;">Esempio: "3 - Griglie-Conteggio.1(5).pptx" — 3 è il numero fisso dell'esercizio, 1 il livello, 5 il numero di gruppo scritto qui.</div>
+  </div>
 </div>
 
 <div id="historyPanel" style="display:none;">
@@ -10807,12 +10813,7 @@ async function resolveTrialImages(trial) {
    funziona esattamente come prima, solo senza memoria tra un dispositivo e l'altro.
    ========================================================= */
 const firebaseConfig = {
-  apiKey: "AIzaSyCEFMdVHdANv1PsVlb-Wo65JHe4IKMtk3o",
-    authDomain: "pdmgenerator.firebaseapp.com",
-    projectId: "pdmgenerator",
-    storageBucket: "pdmgenerator.firebasestorage.app",
-    messagingSenderId: "203067967755",
-    appId: "1:203067967755:web:6ec8266c59798c852e3a0e"
+  // apiKey: "...", authDomain: "...", projectId: "...", ...
 };
 
 let sharedHistoryReady = false;
@@ -11091,6 +11092,7 @@ const state = {
   intrusoScreensOverride:null,
   serieItemsOverride:null,
   serieShowNextCriterion:false,
+  groupNumber:"",
   categorizzazioneTrialsOverride:null,
   accessoWordsOverride:null,
   fascicoloWeek:1,
@@ -11103,14 +11105,31 @@ const state = {
 };
 
 const EXERCISES = [
-  {id:"griglie", name:"Griglie-Conteggio", desc:"Ricerca visiva e conteggio in griglia"},
-  {id:"intruso", name:"Intruso percettivo", desc:"Trova l'unico elemento senza il suo pari"},
-  {id:"inversione", name:"Inversione e riordino", desc:"Span e manipolazione di sequenze"},
-  {id:"serie", name:"Serie attentive alternate", desc:"Attenzione alternata, task-switching, n-back"},
-  {id:"accesso", name:"Accesso lessicale online", desc:"Denominazione con cueing graduato"},
   {id:"categorizzazione", name:"Categorizzazione", desc:"Dividi 6 immagini in 2 gruppi da 3 (prototipo con icone)"},
+  {id:"intruso", name:"Intruso percettivo", desc:"Trova l'unico elemento senza il suo pari"},
+  {id:"griglie", name:"Griglie-Conteggio", desc:"Ricerca visiva e conteggio in griglia"},
+  {id:"serie", name:"Serie attentive alternate", desc:"Attenzione alternata, task-switching, n-back"},
+  {id:"inversione", name:"Inversione e riordino", desc:"Span e manipolazione di sequenze"},
+  {id:"accesso", name:"Accesso lessicale online", desc:"Denominazione con cueing graduato"},
   {id:"fascicolo", name:"Fascicolo esercizi a casa", desc:"Fascicolo stampabile per gli esercizi a domicilio, progressione settimanale"}
 ];
+// Numero di sessione fisso per esercizio (usato nel nome del file esportato), fedele
+// all'ordine dei tuoi materiali originali — non l'ordine alfabetico o di comparsa
+// nell'elenco, che potrebbe cambiare in futuro senza dover rinumerare i file.
+const EXERCISE_NUMBER = {
+  categorizzazione: 1, intruso: 2, griglie: 3, serie: 4, inversione: 5, accesso: 6,
+};
+// Nome file coerente con la numerazione dei tuoi materiali originali:
+// "{N} - {Nome esercizio}.{livello}({numero gruppo}).pptx" — il numero di gruppo
+// arriva dal campo in sidebar; se non è stato compilato, si omette la parte tra
+// parentesi invece di scrivere "()" vuoto.
+function exportFileName(exId, level, ext){
+  const ex = EXERCISES.find(e=>e.id===exId);
+  const n = EXERCISE_NUMBER[exId];
+  const prefix = n ? `${n} - ` : "";
+  const group = state.groupNumber ? `(${state.groupNumber})` : "";
+  return `${prefix}${ex.name}.${level}${group}.${ext}`;
+}
 
 /* =========================================================
    GENERATORI — uno per esercizio, dipendenti dal livello
@@ -12062,7 +12081,8 @@ async function exportFascicolo(deck){
   }
   const doc = await window.DocBuilder.buildFascicoloDocument(window.docx, deck, rasterizeSVGBrowser, window.Engine);
   const blob = await window.docx.Packer.toBlob(doc);
-  saveAs(blob, `Fascicolo_${deck.week}.docx`);
+  const group = state.groupNumber ? `(${state.groupNumber})` : "";
+  saveAs(blob, `Fascicolo.${deck.week}${group}.docx`);
 }
 
 const RENDERERS = {
@@ -12503,7 +12523,7 @@ function exportGriglie(deck, level){
       });
     });
   });
-  return p.writeFile({fileName:`Griglie-Conteggio_L${level}.pptx`});
+  return p.writeFile({fileName:exportFileName("griglie", level, "pptx")});
 }
 
 function exportIntruso(deck, level){
@@ -12544,7 +12564,7 @@ function exportIntruso(deck, level){
       });
     });
   });
-  return p.writeFile({fileName:`Intruso-percettivo_L${level}.pptx`});
+  return p.writeFile({fileName:exportFileName("intruso", level, "pptx")});
 }
 
 function exportInversione(deck, level){
@@ -12580,7 +12600,7 @@ function exportInversione(deck, level){
       // mai nel file esportato (vale per tutti gli esercizi, non solo questo).
     });
   });
-  return p.writeFile({fileName:`Inversione-e-riordino_L${level}.pptx`});
+  return p.writeFile({fileName:exportFileName("inversione", level, "pptx")});
 }
 
 function exportSerie(deck, level){
@@ -12603,7 +12623,7 @@ function exportSerie(deck, level){
     s.addText(st.char,{x:0,y:0,w:13.33,h:7.5,align:"center",valign:"middle",fontSize:220,bold:true,
       color: st.color==="black" ? "000000":"FF0000", isTextBox:true});
   });
-  return p.writeFile({fileName:`Serie-attentive-alternate_L${level}.pptx`});
+  return p.writeFile({fileName:exportFileName("serie", level, "pptx")});
 }
 
 function exportAccesso(deck, level){
@@ -12619,7 +12639,7 @@ function exportAccesso(deck, level){
     s.addText(sl.word,{x:0,y:0,w:13.33,h:7.5,align:"center",valign:"middle",fontSize,bold:true,color:"1E2A26",isTextBox:true});
     s.addNotes(deck.rule);
   });
-  return p.writeFile({fileName:`Accesso-lessicale_L${level}.pptx`});
+  return p.writeFile({fileName:exportFileName("accesso", level, "pptx")});
 }
 
 async function exportCategorizzazione(deck, level){
@@ -12648,7 +12668,7 @@ async function exportCategorizzazione(deck, level){
     });
     slide.addText(s.label,{x:0.35,y:7.15,w:12.6,h:0.3,fontSize:11,color:"4B5A55",isTextBox:true});
   }
-  return p.writeFile({fileName:`Categorizzazione_L${level}.pptx`});
+  return p.writeFile({fileName:exportFileName("categorizzazione", level, "pptx")});
 }
 
 const EXPORTERS = {
@@ -12716,6 +12736,14 @@ groupInput.addEventListener("change", ()=>{
 });
 initSharedHistory();
 updateHistoryStatus();
+
+const groupNumberInput = document.getElementById("groupNumberInput");
+groupNumberInput.value = localStorage.getItem("pdm_group_number") || "";
+state.groupNumber = groupNumberInput.value.trim();
+groupNumberInput.addEventListener("change", ()=>{
+  state.groupNumber = groupNumberInput.value.trim();
+  localStorage.setItem("pdm_group_number", state.groupNumber);
+});
 
 buildExList();
 renderExControls();
