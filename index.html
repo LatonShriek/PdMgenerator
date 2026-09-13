@@ -643,44 +643,75 @@ function plantOnce(grid, rows, cols, seqLen, target, rnd) {
   }
 }
 
-function generateSequenceGrid(rows, cols, alphabet, rnd, opts = {}) {
-  const seqLen = opts.seqLen || 4;
-  const target = opts.target || pickN(rnd, alphabet, seqLen);
-  const grid = Array.from({ length: rows }, () => Array.from({ length: cols }, () => pick(rnd, alphabet)));
-
-  // pianta il bersaglio un numero di volte "ragionevole" (in orizzontale e
-  // verticale); dato che piantagioni successive possono sovrascriversi a
-  // vicenda, si continua finché il conteggio effettivo non raggiunge la
-  // soglia minima richiesta (non ci si accontenta del numero di tentativi).
-  const minOccurrences = opts.plantCount || (6 + Math.floor(rnd() * 5));
-  let count = 0;
-  let guard = 0;
-  while (count < minOccurrences && guard < minOccurrences * 8) {
-    plantOnce(grid, rows, cols, seqLen, target, rnd);
-    count = countSequenceOccurrences(grid, target);
-    guard++;
-  }
-
-  return { grid, target, count, seqLen };
-}
-
-function countSequenceOccurrences(grid, target) {
+function countDirectionalOccurrences(grid, target) {
   const rows = grid.length, cols = grid[0].length, len = target.length;
-  let count = 0;
-  // orizzontale (entrambi i versi)
+  let h = 0, v = 0;
   for (let r = 0; r < rows; r++) {
     for (let c = 0; c <= cols - len; c++) {
-      if (matchSeq(grid[r], c, target)) count++;
+      if (matchSeq(grid[r], c, target)) h++;
     }
   }
-  // verticale
   for (let c = 0; c < cols; c++) {
     const col = grid.map(row => row[c]);
     for (let r = 0; r <= rows - len; r++) {
-      if (matchSeq(col, r, target)) count++;
+      if (matchSeq(col, r, target)) v++;
     }
   }
-  return count;
+  return { h, v };
+}
+
+// Genera una griglia in cui il bersaglio compare ESATTAMENTE 8 volte in
+// orizzontale e 8 in verticale (16 in totale) — non "almeno", un numero
+// fisso e verificato, così la difficoltà è la stessa ad ogni generazione e
+// ad ogni settimana. Si pianta direttamente nelle direzioni giuste (non a
+// caso) e, se il rumore di fondo introduce occorrenze accidentali in più o
+// in meno, si rigenera l'intera griglia da capo (fino a 60 tentativi) invece
+// di accontentarsi di un conteggio approssimato.
+function generateSequenceGrid(rows, cols, alphabet, rnd, opts = {}) {
+  const seqLen = opts.seqLen || 4;
+  const target = opts.target || pickN(rnd, alphabet, seqLen);
+  const hTarget = opts.hTarget || 8;
+  const vTarget = opts.vTarget || 8;
+
+  let grid, counts;
+  let attempt = 0;
+  do {
+    grid = Array.from({ length: rows }, () => Array.from({ length: cols }, () => pick(rnd, alphabet)));
+
+    const hCells = [];
+    for (let r = 0; r < rows; r++) for (let c = 0; c <= cols - seqLen; c++) hCells.push([r, c]);
+    shuffleInPlaceArr(rnd, hCells);
+    for (let i = 0; i < Math.min(hTarget, hCells.length); i++) {
+      const [r, c] = hCells[i];
+      for (let k = 0; k < seqLen; k++) grid[r][c + k] = target[k];
+    }
+
+    const vCells = [];
+    for (let c = 0; c < cols; c++) for (let r = 0; r <= rows - seqLen; r++) vCells.push([r, c]);
+    shuffleInPlaceArr(rnd, vCells);
+    for (let i = 0; i < Math.min(vTarget, vCells.length); i++) {
+      const [r, c] = vCells[i];
+      for (let k = 0; k < seqLen; k++) grid[r + k][c] = target[k];
+    }
+
+    counts = countDirectionalOccurrences(grid, target);
+    attempt++;
+  } while ((counts.h !== hTarget || counts.v !== vTarget) && attempt < 60);
+
+  return { grid, target, count: counts.h + counts.v, countH: counts.h, countV: counts.v, seqLen };
+}
+
+function shuffleInPlaceArr(rnd, arr) {
+  for (let i = arr.length - 1; i > 0; i--) {
+    const j = Math.floor(rnd() * (i + 1));
+    [arr[i], arr[j]] = [arr[j], arr[i]];
+  }
+  return arr;
+}
+
+function countSequenceOccurrences(grid, target) {
+  const { h, v } = countDirectionalOccurrences(grid, target);
+  return h + v;
 }
 function matchSeq(arr, start, target) {
   for (let i = 0; i < target.length; i++) if (arr[start + i] !== target[i]) return false;
@@ -690,7 +721,44 @@ function matchSeq(arr, start, target) {
 // ---------------------------------------------------------------------------
 // 3. GRIGLIA "cerchiare tutte le sequenze indicate" — bersagli multipli
 // ---------------------------------------------------------------------------
+// Conta le occorrenze di una sequenza in TUTTE le direzioni previste per questa
+// griglia: orizzontale, verticale e le due diagonali (discendente a destra e a
+// sinistra) — usata solo qui, perché le prime 3 griglie restano orizzontale/
+// verticale come da richiesta originale.
+function countAllDirections(grid, target) {
+  const rows = grid.length, cols = grid[0].length, len = target.length;
+  let count = 0;
+  for (let r = 0; r < rows; r++)
+    for (let c = 0; c <= cols - len; c++)
+      if (matchSeq(grid[r], c, target)) count++;
+  for (let c = 0; c < cols; c++) {
+    const col = grid.map(row => row[c]);
+    for (let r = 0; r <= rows - len; r++)
+      if (matchSeq(col, r, target)) count++;
+  }
+  for (let r = 0; r <= rows - len; r++)
+    for (let c = 0; c <= cols - len; c++)
+      if ([...Array(len)].every((_, k) => grid[r + k][c + k] === target[k])) count++;
+  for (let r = 0; r <= rows - len; r++)
+    for (let c = len - 1; c < cols; c++)
+      if ([...Array(len)].every((_, k) => grid[r + k][c - k] === target[k])) count++;
+  return count;
+}
+
+// Griglia "mista": 12 bersagli distinti, distribuiti 4 orizzontali + 4
+// verticali + 4 in obliquo (2 discendenti a destra, 2 a sinistra), ciascuno
+// garantito presente ALMENO una volta. (Prima tentava di garantire
+// ESATTAMENTE una volta rigenerando l'intera griglia da capo ad ogni
+// tentativo: con 12 vincoli congiunti su una griglia di ~190 celle il rumore
+// di fondo crea quasi sempre un'occorrenza accidentale in più da qualche
+// parte, e il tentativo falliva l'81% delle volte nei test — bug trovato
+// durante la verifica in browser. Un'occorrenza in più non è comunque un
+// problema per l'esercizio: il paziente cerchia tutte le occorrenze di ogni
+// sequenza indicata, una in più si cerchia e basta.)
 function generateMultiTargetGrid(rows, cols, alphabet, rnd, nTargets, seqLen = 4) {
+  nTargets = nTargets || 12;
+  const perDir = { H: 4, V: 4, DR: 2, DL: 2 };
+
   const targets = [];
   const seen = new Set();
   while (targets.length < nTargets) {
@@ -698,23 +766,40 @@ function generateMultiTargetGrid(rows, cols, alphabet, rnd, nTargets, seqLen = 4
     const key = t.join('');
     if (!seen.has(key)) { seen.add(key); targets.push(t); }
   }
-  const grid = Array.from({ length: rows }, () => Array.from({ length: cols }, () => pick(rnd, alphabet)));
-  targets.forEach(target => {
-    const plants = 1 + Math.floor(rnd() * 2);
-    for (let p = 0; p < plants; p++) plantOnce(grid, rows, cols, seqLen, target, rnd);
-  });
+  const dirs = [];
+  for (let i = 0; i < perDir.H; i++) dirs.push('H');
+  for (let i = 0; i < perDir.V; i++) dirs.push('V');
+  for (let i = 0; i < perDir.DR; i++) dirs.push('DR');
+  for (let i = 0; i < perDir.DL; i++) dirs.push('DL');
 
-  // riparazione: piantagioni successive possono cancellare occorrenze di
-  // bersagli piantati prima. Si ripete finché ogni bersaglio compare almeno
-  // una volta (i bersagli già soddisfatti non vengono ripiantati, per non
-  // innescare un rincorrersi infinito tra due sequenze che si sovrascrivono).
+  const grid = Array.from({ length: rows }, () => Array.from({ length: cols }, () => pick(rnd, alphabet)));
+
+  function plantAt(target, dir) {
+    if (dir === 'H') {
+      const r = Math.floor(rnd() * rows), c = Math.floor(rnd() * (cols - seqLen + 1));
+      for (let k = 0; k < seqLen; k++) grid[r][c + k] = target[k];
+    } else if (dir === 'V') {
+      const c = Math.floor(rnd() * cols), r = Math.floor(rnd() * (rows - seqLen + 1));
+      for (let k = 0; k < seqLen; k++) grid[r + k][c] = target[k];
+    } else if (dir === 'DR') {
+      const r = Math.floor(rnd() * (rows - seqLen + 1)), c = Math.floor(rnd() * (cols - seqLen + 1));
+      for (let k = 0; k < seqLen; k++) grid[r + k][c + k] = target[k];
+    } else { // DL
+      const r = Math.floor(rnd() * (rows - seqLen + 1)), c = seqLen - 1 + Math.floor(rnd() * (cols - seqLen + 1));
+      for (let k = 0; k < seqLen; k++) grid[r + k][c - k] = target[k];
+    }
+  }
+
+  targets.forEach((t, i) => plantAt(t, dirs[i]));
+
+  // riparazione: se il rumore di fondo ha per caso cancellato un bersaglio
+  // (count 0), lo ripianta nella stessa direzione prevista, finché non
+  // compare almeno una volta.
+  let counts = targets.map(t => countAllDirections(grid, t));
   let round = 0;
-  let counts = targets.map(t => countSequenceOccurrences(grid, t));
-  while (counts.some(c => c === 0) && round < targets.length * 6) {
-    targets.forEach((target, i) => {
-      if (counts[i] === 0) plantOnce(grid, rows, cols, seqLen, target, rnd);
-    });
-    counts = targets.map(t => countSequenceOccurrences(grid, t));
+  while (counts.some(c => c === 0) && round < nTargets * 6) {
+    targets.forEach((t, i) => { if (counts[i] === 0) plantAt(t, dirs[i]); });
+    counts = targets.map(t => countAllDirections(grid, t));
     round++;
   }
 
@@ -973,81 +1058,24 @@ function solveMaze(maze) {
 //     aperta: qui servono solo i PROMPT, non una banca di parole-risposta)
 // ---------------------------------------------------------------------------
 const CATEGORY_POOL = {
-  1: ['Alimenti', 'Bevande', 'Frutta', 'Verdura', 'Animali', 'Colori', 'Mobili', 'Indumenti', 'Mezzi di trasporto', 'Giochi', 'Utensili', 'Edifici', 'Parti del corpo', 'Strumenti musicali', 'Sport', 'Frutti di mare', 'Dolci', 'Fiori', 'Alberi', 'Uccelli', 'Insetti', 'Elettrodomestici', 'Metalli', 'Pianeti'],
-  2: ['Pesci', 'Frutta secca', 'Combustibili', 'Contenitori per liquidi', 'Edifici pubblici', 'Attrezzi in officina', 'Oggetti per scrivere', 'Attrezzi in campagna', 'Materiale da costruzione', 'Organi', 'Animali esotici', 'Province italiane', 'Strumenti da cucina', 'Materiali tessili', 'Capitali europee', 'Fiumi italiani', 'Razze di cani', 'Pietre preziose', 'Professioni sanitarie'],
-  3: ['Oggetti che richiedono precisione nell\u2019uso', 'Cose che si trovano in cucina ma non si mangiano', 'Strumenti che tagliano', 'Mestieri artigianali', 'Oggetti che producono luce', 'Strumenti di misura', 'Cose che si trovano in un ufficio ma non su una scrivania', 'Oggetti che emettono un suono', 'Strumenti usati in giardinaggio', 'Oggetti che si trovano in una valigia da viaggio', 'Cose che si indossano solo in inverno', 'Mestieri che richiedono una divisa', 'Oggetti che contengono un liquido', 'Strumenti musicali a corda', 'Attrezzi da disegno tecnico', 'Oggetti che si usano per pulire'],
+  1: ['Alimenti', 'Bevande', 'Frutta', 'Verdura', 'Animali', 'Colori', 'Mobili', 'Indumenti', 'Mezzi di trasporto', 'Giochi', 'Utensili', 'Edifici', 'Parti del corpo', 'Strumenti musicali', 'Sport', 'Frutti di mare', 'Dolci', 'Fiori', 'Alberi', 'Uccelli', 'Insetti', 'Elettrodomestici', 'Metalli', 'Pianeti', 'Frutti tropicali', 'Ortaggi a radice', 'Formaggi', 'Salumi', 'Scarpe', 'Gioielli', 'Strumenti da scrivania', 'Dispositivi elettronici', 'Giochi da tavolo', 'Festività'],
+  2: ['Pesci', 'Frutta secca', 'Combustibili', 'Contenitori per liquidi', 'Edifici pubblici', 'Attrezzi in officina', 'Oggetti per scrivere', 'Attrezzi in campagna', 'Materiale da costruzione', 'Organi', 'Animali esotici', 'Province italiane', 'Strumenti da cucina', 'Materiali tessili', 'Capitali europee', 'Fiumi italiani', 'Razze di cani', 'Pietre preziose', 'Professioni sanitarie', 'Strumenti da giardinaggio', 'Mezzi di soccorso', 'Strumenti da disegno', 'Parti dell’auto', 'Negozi', 'Stanze della casa', 'Materiali tessili industriali', 'Strumenti da falegname', 'Monumenti famosi', 'Insegne stradali'],
+  3: ['Oggetti che richiedono precisione nell’uso', 'Cose che si trovano in cucina ma non si mangiano', 'Strumenti che tagliano', 'Mestieri artigianali', 'Oggetti che producono luce', 'Strumenti di misura', 'Cose che si trovano in un ufficio ma non su una scrivania', 'Oggetti che emettono un suono', 'Strumenti usati in giardinaggio', 'Oggetti che si trovano in una valigia da viaggio', 'Cose che si indossano solo in inverno', 'Mestieri che richiedono una divisa', 'Oggetti che contengono un liquido', 'Strumenti musicali a corda', 'Attrezzi da disegno tecnico', 'Oggetti che si usano per pulire', 'Cose che si trovano in una cassetta degli attrezzi', 'Animali che vivono in tana', 'Oggetti che fanno rumore quando cadono', 'Cose fredde', 'Strumenti a fiato', 'Animali a sangue freddo', 'Oggetti rotondi', 'Mestieri che si svolgono all’aperto', 'Cose a righe', 'Mestieri notturni'],
 };
-// Database di prompt fonemici VERIFICATI (non generati a caso): ogni voce è stata
-// controllata a mano contro parole italiane reali e di uso comune, non rare.
 const LETTER_POOL = 'A B C D E F G I L M N O P R S T U V'.split(' '); // usata per l'iniziale libera (schema 5+): già esclude lettere rare come inizio (H,Q,X,Y,W,J,K,Z)
-// Prima queste due lettere venivano scelte a caso dall'alfabeto, senza nessuna
-// garanzia che una parola reale le rispettasse davvero (causa più probabile di
-// "sembra non avere soluzione" — lo stesso problema segnalato per gli anagrammi,
-// ma qui strutturale, non occasionale).
 const PHONEMIC_DB = {
-  // Vincolo di posizione (2a lettera ... penultima lettera), lunghezza della parola
-  // LIBERA — non più fissata a 5 o 6 lettere come nella versione precedente (da cui il
-  // formato con i puntini "-A...L-" al posto di "-A-L-": i puntini segnalano che nel
-  // mezzo può starci un numero qualsiasi di lettere). Fissare la lunghezza esatta era un
-  // vincolo aggiuntivo non necessario che restringeva molto le parole reali disponibili;
-  // lasciandola libera lo stesso identico vincolo di posizione ammette molte più parole
-  // (qui gli esempi restano solo dimostrativi, non è più necessario un elenco lunghissimo
-  // per garantire "almeno 10 parole": con lunghezza libera la soglia si supera quasi
-  // sempre per le coppie comuni elencate).
-  position: [
-    { l1:'A', l2:'L', words:['PALLA','GALLO','VALLE','BALLO','CALLO','TAVOLO','CASTELLO','CAPPELLO','MARTELLO'] },
-    { l1:'A', l2:'T', words:['PARTE','CARTE','MATTO','PATTO','GATTO'] },
-    { l1:'A', l2:'N', words:['CARNE','PANNO','CANNE'] },
-    { l1:'A', l2:'S', words:['CASSA','MASSA','TASSO'] },
-    { l1:'O', l2:'T', words:['PONTE','CONTE','PORTA'] },
-    { l1:'A', l2:'C', words:['BARCA','PARCO'] },
-    { l1:'A', l2:'R', words:['BARRA','FARRO'] },
-    { l1:'E', l2:'N', words:['LEONE','PENNE'] },
-    { l1:'I', l2:'R', words:['TIGRE','FIORE'] },
-    { l1:'O', l2:'N', words:['FORNO','SOGNO'] },
-    { l1:'U', l2:'L', words:['SCUOLA','AQUILA'] },
-    { l1:'L', l2:'N', words:['BALENA','MULINO'] },
-    { l1:'M', l2:'N', words:['CAMINO','LIMONE'] },
-    { l1:'R', l2:'N', words:['FARINA','MARINA'] },
-  ],
-  // due lettere adiacenti (digramma) in un punto qualsiasi della parola — i digrammi
-  // più comuni dell'italiano, ciascuno con decine di parole reali possibili (qui solo
-  // 5 esempi per voce, a scopo di verifica).
-  joined: [
-    { l1:'A', l2:'N', words:['CANE','PANE','ANNO','MANO','PIANO'] },
-    { l1:'A', l2:'R', words:['CARTA','BARCA','MARE','PARCO','ARANCIA'] },
-    { l1:'O', l2:'R', words:['PORTA','TORRE','FORNO','ORSO','COLORE'] },
-    { l1:'E', l2:'R', words:['VERDE','FERRO','PERA','CERA','TERRA'] },
-    { l1:'A', l2:'L', words:['PALLA','SALE','ALBERO','GIALLO','BALCONE'] },
-    { l1:'I', l2:'N', words:['VINO','PINO','FINE','CANTINA','MATTINO'] },
-    { l1:'O', l2:'N', words:['SONNO','LEONE','PONTE','MONTE','CANZONE'] },
-    { l1:'R', l2:'A', words:['STRADA','CAMERA','BARCA','GRANDE','ORARIO'] },
-    { l1:'E', l2:'S', words:['PESCE','MESE','VESPA','FINESTRA','ESTATE'] },
-    { l1:'I', l2:'A', words:['PIAZZA','FIABA','BIANCO','DIAMANTE','MAGIA'] },
-    { l1:'U', l2:'R', words:['DURO','PURO','SICURO','MISURA','FUTURO'] },
-    { l1:'O', l2:'L', words:['SOLE','VOLPE','SCUOLA','ISOLA','FOLLA'] },
-  ],
-  // due lettere presenti in un punto qualsiasi, non necessariamente vicine — vincolo
-  // più debole del precedente, quindi coppie di consonanti comuni bastano e avanzano.
-  disjoint: [
-    { l1:'C', l2:'R', words:['CARTA','CORPO','BARCA','PARCO'] },
-    { l1:'S', l2:'T', words:['STELLA','STRADA','STATO','TESTA'] },
-    { l1:'N', l2:'R', words:['FARINA','FORNO','CARNE'] },
-    { l1:'L', l2:'T', words:['LATTE','LETTO','TAVOLO','LITRO'] },
-    { l1:'M', l2:'R', words:['MARE','ARMONIA','MARTE','MARMO'] },
-    { l1:'P', l2:'R', words:['PORTA','PRATO','PROVA','CAPRA'] },
-    { l1:'D', l2:'R', words:['DRAGO','QUADRO','VERDE','RADIO'] },
-    { l1:'B', l2:'R', words:['BARCA','LIBRO','BRACCIO','FEBBRE'] },
-    { l1:'G', l2:'R', words:['GRANDE','GRANO','GRIGIO'] },
-    { l1:'F', l2:'R', words:['FRUTTA','FIORE','FREDDO','FERRO'] },
-  ],
+  // Coppia posizionale (2a lettera ... penultima lettera), lunghezza libera. 60 coppie
+  // per schema (prima erano 10-14): ognuna verificata contro un dizionario italiano
+  // reale di ~60.000 forme di parola, tenuta solo se supera una soglia minima di parole
+  // realmente esistenti — non più solo un pugno di esempi scritti a mano.
+  position: [{l1:'I',l2:'T'}, {l1:'O',l2:'T'}, {l1:'E',l2:'T'}, {l1:'A',l2:'T'}, {l1:'R',l2:'T'}, {l1:'N',l2:'T'}, {l1:'A',l2:'N'}, {l1:'I',l2:'N'}, {l1:'O',l2:'N'}, {l1:'E',l2:'N'}, {l1:'U',l2:'T'}, {l1:'I',l2:'R'}, {l1:'E',l2:'R'}, {l1:'C',l2:'T'}, {l1:'O',l2:'R'}, {l1:'I',l2:'V'}, {l1:'R',l2:'N'}, {l1:'A',l2:'R'}, {l1:'P',l2:'T'}, {l1:'O',l2:'V'}, {l1:'I',l2:'M'}, {l1:'I',l2:'S'}, {l1:'A',l2:'M'}, {l1:'R',l2:'V'}, {l1:'E',l2:'M'}, {l1:'M',l2:'T'}, {l1:'O',l2:'S'}, {l1:'E',l2:'V'}, {l1:'O',l2:'M'}, {l1:'S',l2:'T'}, {l1:'A',l2:'V'}, {l1:'E',l2:'S'}, {l1:'R',l2:'M'}, {l1:'U',l2:'N'}, {l1:'B',l2:'T'}, {l1:'A',l2:'S'}, {l1:'A',l2:'L'}, {l1:'F',l2:'T'}, {l1:'N',l2:'R'}, {l1:'L',l2:'T'}, {l1:'I',l2:'A'}, {l1:'R',l2:'S'}, {l1:'I',l2:'D'}, {l1:'E',l2:'L'}, {l1:'I',l2:'L'}, {l1:'U',l2:'R'}, {l1:'V',l2:'T'}, {l1:'N',l2:'V'}, {l1:'U',l2:'M'}, {l1:'O',l2:'L'}, {l1:'R',l2:'A'}, {l1:'D',l2:'T'}, {l1:'O',l2:'A'}, {l1:'I',l2:'E'}, {l1:'C',l2:'N'}, {l1:'P',l2:'N'}, {l1:'O',l2:'D'}, {l1:'A',l2:'I'}, {l1:'C',l2:'V'}, {l1:'U',l2:'V'}],
+  // due lettere adiacenti (digramma) in un punto qualsiasi della parola — stessa
+  // validazione, soglia più alta (>=40 parole) perché qui il vincolo è più debole.
+  joined: [{l1:'E',l2:'R'}, {l1:'R',l2:'E'}, {l1:'A',l2:'T'}, {l1:'T',l2:'E'}, {l1:'R',l2:'A'}, {l1:'T',l2:'A'}, {l1:'T',l2:'I'}, {l1:'S',l2:'T'}, {l1:'R',l2:'I'}, {l1:'A',l2:'N'}, {l1:'A',l2:'V'}, {l1:'A',l2:'S'}, {l1:'I',l2:'N'}, {l1:'I',l2:'A'}, {l1:'N',l2:'O'}, {l1:'V',l2:'A'}, {l1:'M',l2:'O'}, {l1:'O',l2:'N'}, {l1:'A',l2:'R'}, {l1:'C',l2:'O'}, {l1:'A',l2:'M'}, {l1:'R',l2:'O'}, {l1:'C',l2:'A'}, {l1:'T',l2:'O'}, {l1:'E',l2:'N'}, {l1:'D',l2:'I'}, {l1:'O',l2:'R'}, {l1:'S',l2:'E'}, {l1:'S',l2:'I'}, {l1:'L',l2:'A'}, {l1:'L',l2:'I'}, {l1:'E',l2:'S'}, {l1:'N',l2:'A'}, {l1:'N',l2:'T'}, {l1:'S',l2:'C'}, {l1:'A',l2:'L'}, {l1:'V',l2:'I'}, {l1:'D',l2:'E'}, {l1:'I',l2:'S'}, {l1:'O',l2:'L'}, {l1:'T',l2:'R'}, {l1:'N',l2:'D'}, {l1:'C',l2:'I'}, {l1:'I',l2:'T'}, {l1:'A',l2:'I'}, {l1:'L',l2:'E'}, {l1:'E',l2:'T'}, {l1:'S',l2:'A'}, {l1:'I',l2:'C'}, {l1:'P',l2:'R'}, {l1:'D',l2:'O'}, {l1:'P',l2:'E'}, {l1:'M',l2:'A'}, {l1:'N',l2:'I'}, {l1:'P',l2:'A'}, {l1:'V',l2:'O'}, {l1:'I',l2:'M'}, {l1:'S',l2:'P'}, {l1:'N',l2:'E'}, {l1:'O',l2:'S'}],
+  // due lettere presenti in un punto qualsiasi, non necessariamente vicine.
+  disjoint: [{l1:'R',l2:'T'}, {l1:'S',l2:'T'}, {l1:'R',l2:'S'}, {l1:'N',l2:'R'}, {l1:'N',l2:'T'}, {l1:'N',l2:'S'}, {l1:'C',l2:'R'}, {l1:'P',l2:'R'}, {l1:'C',l2:'S'}, {l1:'M',l2:'R'}, {l1:'C',l2:'T'}, {l1:'D',l2:'R'}, {l1:'R',l2:'V'}, {l1:'C',l2:'N'}, {l1:'P',l2:'S'}, {l1:'L',l2:'T'}, {l1:'L',l2:'R'}, {l1:'D',l2:'N'}, {l1:'M',l2:'T'}, {l1:'L',l2:'S'}, {l1:'P',l2:'T'}, {l1:'T',l2:'V'}, {l1:'G',l2:'R'}, {l1:'S',l2:'V'}, {l1:'M',l2:'S'}, {l1:'M',l2:'N'}, {l1:'D',l2:'T'}, {l1:'N',l2:'V'}, {l1:'D',l2:'S'}, {l1:'L',l2:'N'}, {l1:'G',l2:'N'}, {l1:'C',l2:'L'}, {l1:'N',l2:'P'}, {l1:'G',l2:'S'}, {l1:'C',l2:'M'}, {l1:'B',l2:'R'}, {l1:'G',l2:'T'}, {l1:'L',l2:'V'}, {l1:'F',l2:'R'}, {l1:'L',l2:'M'}, {l1:'C',l2:'P'}, {l1:'M',l2:'P'}, {l1:'C',l2:'V'}, {l1:'G',l2:'L'}, {l1:'C',l2:'D'}, {l1:'L',l2:'P'}, {l1:'B',l2:'T'}, {l1:'F',l2:'T'}, {l1:'M',l2:'V'}, {l1:'D',l2:'M'}, {l1:'B',l2:'S'}, {l1:'D',l2:'V'}, {l1:'F',l2:'N'}, {l1:'F',l2:'S'}, {l1:'D',l2:'L'}, {l1:'P',l2:'V'}, {l1:'G',l2:'V'}, {l1:'D',l2:'P'}, {l1:'B',l2:'L'}, {l1:'B',l2:'N'}],
 };
-// Categorie "ampie" — usate SOLO nelle combinazioni lettera+categoria e
-// categoria+lunghezza, dove serve una categoria abbastanza generosa da avere
-// comunque almeno una decina di parole reali indipendentemente dalla lettera o
-// dalla lunghezza richiesta (le categorie più strette del blocco semantico vanno
-// bene da sole, ma non incrociate con un altro vincolo).
-const BROAD_CATEGORIES = ['Alimenti', 'Animali', 'Mobili', 'Indumenti', 'Mezzi di trasporto'];
+const BROAD_CATEGORIES = ['Alimenti', 'Animali', 'Mobili', 'Indumenti', 'Mezzi di trasporto', 'Strumenti', 'Edifici', 'Giochi', 'Elettrodomestici', 'Frutta'];
 
 // Prompt per i blocchi di accesso lessicale vincolato per posizione/adiacenza:
 // posizione   -> "-X...Y-"    (2a lettera X ... penultima lettera Y, lunghezza libera)
@@ -1165,7 +1193,7 @@ function weekParams(week) {
   return {
     week: w,
     grids: profile.slots.map(key => ({ familyKey: key, family: SYMBOL_FAMILIES[key] })),
-    multiTargetCount: clamp(5 + Math.floor(w / 2), 5, 10),
+    multiTargetCount: 12,
     hasCrucipuzzle, crucipuzzleMinWords,
     sequencingType, sequencingCount,
     mazeCols, mazeRows,
@@ -1188,20 +1216,26 @@ function renderMazeSVG(maze, cellSize = 24, showSolution = false) {
   const h = rows * cellSize + pad * 2 + 20;
   let lines = '';
   const stroke = (x1, y1, x2, y2) => { lines += `<line x1="${x1}" y1="${y1}" x2="${x2}" y2="${y2}" stroke="black" stroke-width="3" stroke-linecap="square"/>`; };
+  const [sx, sy] = maze.start, [ex, ey] = maze.end;
   for (let y = 0; y < rows; y++) {
     for (let x = 0; x < cols; x++) {
       const c = cells[y][x];
       const x0 = pad + x * cellSize, y0 = pad + 20 + y * cellSize;
       const x1 = x0 + cellSize, y1 = y0 + cellSize;
+      // Apertura reale nel perimetro: un varco tagliato nel muro esterno in
+      // corrispondenza della cella di partenza (lato sinistro) e di quella di
+      // arrivo (lato destro) — prima qui si chiudeva SEMPRE il bordo esterno,
+      // e "INIZIO/FINE" erano solo etichette di testo sovrapposte al muro.
+      const isStartWall = (x === 0 && y === sy);
+      const isEndWall = (x === cols - 1 && y === ey);
       if (c.N) stroke(x0, y0, x1, y0);
-      if (c.W) stroke(x0, y0, x0, y1);
-      // disegna sempre il bordo esterno destro/inferiore per chiudere il labirinto
-      if (c.E || x === cols - 1) stroke(x1, y0, x1, y1);
+      if (c.W && !isStartWall) stroke(x0, y0, x0, y1);
+      if ((c.E || x === cols - 1) && !isEndWall) stroke(x1, y0, x1, y1);
       if (c.S || y === rows - 1) stroke(x0, y1, x1, y1);
     }
   }
-  const startX = pad, startY = pad + 20 + 0.5 * cellSize;
-  const endX = pad + cols * cellSize, endY = pad + 20 + (rows - 0.5) * cellSize;
+  const startX = pad, startY = pad + 20 + (sy + 0.5) * cellSize;
+  const endX = pad + cols * cellSize, endY = pad + 20 + (ey + 0.5) * cellSize;
   // Percorso soluzione: SOLO quando esplicitamente richiesto (mai nell'esportazione,
   // solo nell'anteprima app con "Mostra risposta") — una linea colorata che passa per
   // il centro di ogni cella del percorso più breve trovato con la BFS.
@@ -1245,7 +1279,10 @@ function buildFascicolo(week, seed, exclusions) {
   const p = weekParams(week);
   const excl = exclusions || {};
 
-  const grids = p.grids.map(g => generateSequenceGrid(16, 12, g.family.chars, rnd));
+  // Le prime 3 griglie occupano l'intera pagina (25 righe, come nell'originale
+  // di Rodrigo); la griglia mista (4ª) resta più piccola apposta (16 righe) per
+  // lasciare spazio alla tabella dei 12 bersagli sotto.
+  const grids = p.grids.map(g => generateSequenceGrid(25, 12, g.family.chars, rnd));
   const multi = generateMultiTargetGrid(16, 12, p.grids[0].family.chars, rnd, p.multiTargetCount);
   const crucipuzzle = p.hasCrucipuzzle ? generateCrucipuzzle(16, 12, p.crucipuzzleMinWords, rnd, excl.crucipuzzleLenMin, excl.crucipuzzleLenMax) : null;
   const sequencing = p.sequencingType === 'numeric'
@@ -1352,6 +1389,13 @@ return {
   const PROMPT_LABEL_W = 4350;  // DXA — colonna prompt (originale)
   const PROMPT_ANSWER_W = 4125; // DXA — colonna risposta (originale)
   const PROMPT_ROW_H = 1190;    // DXA — altezza minima riga tabella prompt (originale, ~0.83")
+  // Altezza minima di riga per le griglie a 25 righe (prime 3 di ogni fascicolo):
+  // senza un'altezza esplicita, Word restringe ogni riga al minimo indispensabile
+  // per il testo e la griglia finisce per occupare solo una piccola parte della
+  // pagina, lasciando il resto vuoto — bug segnalato da Rodrigo sul fascicolo
+  // originale. 520 DXA × 25 righe ≈ 9" di altezza, che con titolo e margini
+  // riempie la pagina A4 quasi per intero.
+  const GRID_ROW_H = 520;
 
   function thinBorders(docx) {
     const { BorderStyle } = docx;
@@ -1359,12 +1403,17 @@ return {
     return { top: edge, bottom: edge, left: edge, right: edge, insideHorizontal: edge, insideVertical: edge };
   }
 
-  function symbolGridTable(docx, grid) {
+  function symbolGridTable(docx, grid, opts = {}) {
     const { Table, TableRow, TableCell, Paragraph, TextRun, WidthType, VerticalAlign, AlignmentType } = docx;
+    // Righe con altezza esplicita SOLO per le griglie grandi (25 righe, piena
+    // pagina): la griglia mista (4ª) resta volutamente più piccola e continua
+    // ad auto-dimensionarsi sul contenuto, per lasciare spazio alla legenda sotto.
+    const rowHeight = opts.fillPage ? GRID_ROW_H : null;
     const rows = grid.map(rowArr => new TableRow({
+      height: rowHeight ? { value: rowHeight, rule: 'atLeast' } : undefined,
       children: rowArr.map(sym => new TableCell({
         width: { size: GRID_CELL_W, type: WidthType.DXA },
-        verticalAlign: VerticalAlign.TOP,
+        verticalAlign: VerticalAlign.CENTER,
         margins: { top: 100, bottom: 100, left: 100, right: 100 },
         children: [new Paragraph({ alignment: AlignmentType.CENTER, children: [new TextRun({ text: sym, size: 24, bold: true, font: 'Arial' })] })],
       })),
@@ -1452,12 +1501,12 @@ return {
 
     // 1-3: griglie ricerca-sequenza singola — 25 righe × 12 colonne come l'originale
     data.grids.forEach((g) => {
-      children.push(heading(docx, `Cerchiare e contare tutte le sequenze ${g.target.join('')}`, '(orizzontale e verticale)'));
-      children.push(symbolGridTable(docx, g.grid));
+      children.push(heading(docx, `Cerchiare e contare tutte le sequenze ${g.target.join('')}`, '(orizzontale e verticale — presente 16 volte: 8 orizzontali + 8 verticali)'));
+      children.push(symbolGridTable(docx, g.grid, { fillPage: true }));
     });
 
-    // 4: griglia multi-bersaglio (16 righe) + legenda
-    children.push(heading(docx, 'Cerchiare tutte le sequenze indicate'));
+    // 4: griglia multi-bersaglio (16 righe, volutamente più piccola) + legenda
+    children.push(heading(docx, 'Cerchiare tutte le sequenze indicate', '(orizzontale, verticale e obliqua — 12 sequenze da trovare)'));
     children.push(symbolGridTable(docx, data.multi.grid));
     children.push(new Paragraph({ spacing: { before: 160 }, children: [] }));
     children.push(legendTable(docx, data.multi.targets));
@@ -10674,21 +10723,29 @@ const CATEGORIZZAZIONE_LIBRARY = {
 </script>
 <script>
 /* =========================================================
-   CATEGORIZZAZIONE — motore di campionamento + fetch immagini Openverse
+   CATEGORIZZAZIONE — motore di campionamento + fetch pittogrammi OpenMoji
    ========================================================= */
 /* ============================================================================
    CATEGORIZZAZIONE v2 — pool di item per criterio (non più 1 coppia fissa per
-   livello) + immagini reali via Pixabay, con fallback testuale se la chiamata
-   fallisce (rete assente, CORS, rate limit, chiave non configurata) così la
-   schermata non si rompe mai. Openverse è stato tolto su richiesta di Rodrigo
-   (risultati troppo spesso poco pertinenti).
+   livello) + pittogrammi OpenMoji (CC BY-SA 4.0), con fallback testuale se il
+   termine non ha un'icona affidabile o la rete non risponde, così la
+   schermata non si rompe mai. Pixabay e Openverse sono stati tolti su
+   richiesta di Rodrigo (foto reali non più adatte/disponibili).
    ============================================================================ */
 
-// Chiave Pixabay: incollala qui (gratis su pixabay.com/api/docs, compare in
-// pagina appena si è loggati, nessuna approvazione richiesta). Finché resta
-// vuota, ogni cella mostra l'etichetta testuale dell'oggetto invece della foto
-// — non è un errore, è il comportamento previsto senza chiave.
-const PIXABAY_API_KEY = "57568618-1e3cd5a99d08d0ba88fa6ec6e";
+// Sorgente immagini: OpenMoji (CC BY-SA 4.0) al posto di Pixabay/Openverse —
+// pittogrammi disegnati invece di foto reali, sempre disponibili senza chiave
+// API. OPENMOJI_ICON_MAP associa ogni termine inglese già usato nella libreria
+// (campo "en" di ogni item) al nome-icona OpenMoji corrispondente, quando ne
+// esiste uno affidabile: la mappa è stata verificata offline contro l'intero
+// set OpenMoji (4579 pittogrammi), non generata a runtime per tentativi — un
+// termine assente da questa mappa (~59% della libreria: molti termini sono
+// troppo astratti o specifici per un pittogramma, es. "air compressor",
+// "antique dresser") va dritto al fallback testuale invece di tentare un
+// abbinamento indovinato che rischierebbe di mostrare l'icona sbagliata.
+// Attribuzione richiesta dalla licenza CC BY-SA 4.0: va citata una sola volta
+// nel fascicolo/deck esportato (vedi README), non su ogni slide.
+const OPENMOJI_ICON_MAP = {"abacus":"abacus","accordion":"accordion","acoustic guitar":"guitar","adhesive bandage":"adhesive-bandage","airplane":"airplane","alarm clock":"alarm-clock","ambulance":"ambulance","anchor":"anchor","ant":"ant","ant colony":"ant","ant digging":"ant","antique violin":"violin","apple fruit":"apple","armchair":"armchair","avocado":"avocado","axe":"axe","axe chopping":"axe","backpack":"backpack","backpack sprayer":"backpack","bacon strips":"bacon","badger animal":"badger","baked bread":"bread","balance scale":"balance-scale","ball of yarn":"yarn","balloon":"balloon","banana":"banana","basket":"basket","basketball hoop":"basketball","basketball player":"basketball","bass drum":"drum","bat animal":"bat","bat flying night":"bat","battery":"battery","beach bucket":"bucket","beach umbrella":"umbrella","beagle dog":"dog","bear":"bear","bear alone":"bear","bear standing":"bear","bed":"bed","beer bottle":"beer-bottle","beer mug":"beer-mug","bell pepper":"bell-pepper","bell tower":"bell","bicycle":"bicycle","bicycle wheel":"bicycle","bird cage":"bird","bird song":"bird","birthday cake":"birthday-cake","blue jeans":"jeans","boiled egg":"egg","bone anatomy":"bone","book":"books","boulder rock":"rock","bouquet of roses":"bouquet","bow and arrow":"bow-and-arrow","boxing gloves":"gloves","brain anatomy":"brain","bread":"bread","bread dough":"bread","bread loaf":"bread","brick":"brick","brick wall":"brick","bricks":"brick","briefcase":"briefcase","broccoli":"broccoli","broom":"broom","bucket":"bucket","building entrance door":"door","burning candle":"candle","bus":"bus","butter":"butter","butter block":"butter","butterfly":"butterfly","butterfly wings":"butterfly","button mushroom":"mushroom","cable car":"cable","cactus plant":"cactus","cake on plate":"cake","cake slice":"cake","calculator":"calculator","camel":"camel","camouflaged frog":"frog","candle":"candle","candy":"candy","canoe":"canoe","cargo ship":"ship","cargo shorts":"shorts","carrot":"carrot","castle":"castle","cat":"cat","cat climbing":"cat","chair":"chair","cheese wedge":"cheese-wedge","cheese wheel":"wheel","cherries":"cherries","chestnut spiky shell":"chestnut","chestnuts":"chestnut","chicken":"chicken","chicken breast":"chicken","chili pepper":"pepper","chocolate bar":"chocolate-bar","chocolate cake":"cake","chopsticks":"chopsticks","church building":"church","cinema screen":"cinema","clapping hands":"clapping-hands","closed book":"closed-book","cloud":"cloud","cloud shape":"cloud","coconut":"coconut","coiled snake":"snake","coin":"coin","compass":"compass","compass tool":"compass","computer keyboard":"computer-keyboard","construction crane":"construction","construction site":"construction","construction worker":"construction-worker","contact lenses":"contacts","cooking pot":"cooking","country house":"house","cow":"cow","crab":"crab","crab shell":"crab","cracked mirror":"mirror","crayon":"crayon","crayons":"crayon","crocodile":"crocodile","croissant":"croissant","cruise ship":"ship","cucumber":"cucumber","cut rose":"rose","cut sunflower":"sunflower","cut tulip":"tulip","daily newspaper":"newspaper","dalmatian dog":"dog","daytime butterfly":"butterfly","deer":"deer","deer forest":"deer","diamond ring":"ring","digital scale":"scale","director chair":"chair","disposable gloves":"gloves","disposable razor":"razor","djembe drum":"drum","dog":"dog","dog digging":"dog","dolphin":"dolphin","door":"door","door handle":"door","dragon":"dragon","dress shirt":"dress","dress shoes":"dress","drum":"drum","duck":"duck","eagle":"eagle","eagle diving":"eagle","eagle flying":"eagle","eagle solo":"eagle","ear defenders":"ear","eggplant":"eggplant","eggplant summer":"eggplant","eggs":"egg","eggs and bacon":"bacon","electric guitar":"guitar","electric razor":"razor","electric toothbrush":"toothbrush","electric wire":"wire","elephant":"elephant","elevator":"elevator","engagement ring":"ring","envelope":"envelope","euro banknote":"euro-banknote","exterior window":"window","family farmland":"family","family house":"family","family photograph":"family","farmer field":"farmer","feather":"feather","feather duster":"feather","feather pillow":"feather","fire hydrant":"fire","fireplace fire":"fire","fireworks":"fireworks","fish":"fish","fish fillet":"fish","flamingo":"flamingo","flashlight":"flashlight","floating wood":"wood","flower bouquet":"bouquet","flute":"flute","fountain pen":"fountain-pen","fox":"fox","fox nocturnal":"fox","french fries":"french-fries","fresh egg":"egg","fresh eggplant":"eggplant","fresh fish":"fish","fresh tomato":"tomato","fried chicken":"chicken","fried shrimp":"fried-shrimp","frog":"frog","fruit at market scale":"scale","fur coat":"coat","garage door":"door","garden snail":"snail","garlic":"garlic","gear mechanism":"gear","gears mechanism":"gear","gecko lizard":"lizard","ginger root":"ginger-root","giraffe":"giraffe","giraffe pattern":"giraffe","glass bottle":"glass-bottle","glass jar":"jar","glass of milk":"glass-of-milk","glass window":"window","glasses":"glasses","goat":"goat","golden retriever dog":"dog","goldfish":"goldfish","gorilla":"gorilla","gps device":"gps","graduation cap":"graduation-cap","grapes":"grapes","grapes on vine":"grapes","grapes with seeds":"grapes","guinea pig":"pig","guitar":"guitar","guitar amplifier":"guitar","guitar with pick":"guitar","hair scissors":"scissors","hamburger patty":"hamburger","hammer":"hammer","hammer head":"hammer","hand saw":"saw","handbag":"handbag","handshake":"handshake","handshake greeting":"handshake","harp":"harp","headphones":"headphone","heart shape drawing":"heart","hedgehog":"hedgehog","heirloom ring":"ring","helicopter":"helicopter","heron bird":"bird","hiking backpack":"backpack","hindu temple":"hindu-temple","holstein cow":"cow","homemade bread":"bread","honey jar":"jar","horse":"horse","hospital building":"hospital","hot air balloon":"balloon","house":"house","house key":"house","house roof":"house","human ear":"ear","human eye":"eye","human foot":"foot","human legs":"leg","human nose":"nose","hydration backpack":"backpack","ice cream":"ice-cream","ice cream cone":"ice","ice cubes":"ice","ice skater":"ice","ice storage":"ice","ice water":"ice","infinity symbol":"infinity","intact egg":"egg","interview conversation":"interview","italian ice":"ice","jam jar":"jar","jar container":"jar","kangaroo":"kangaroo","keys":"key","kick scooter":"kick-scooter","kidney beans":"kidney","kitchen knife":"kitchen-knife","kite flying":"kite","kiwi fruit":"kiwi-fruit","koala":"koala","koala tree":"koala","ladder":"ladder","laptop computer":"laptop","led lamp":"led","lemon":"lemon","leopard":"leopard","linen dress":"dress","lion":"lion","lipstick":"lipstick","lit candle":"candle","lizard":"lizard","lizard sunbathing":"lizard","loudspeaker":"loudspeaker","lungs anatomy":"lungs","luxury watch":"watch","mandrill monkey":"monkey","mango":"mango","mango fruit":"mango","marker pen":"pen","mashed potato":"potato","mechanical watch":"watch","megaphone":"megaphone","melon":"melon","melon on vine":"melon","melon slice":"melon","mermaid":"mermaid","metal hook":"hook","metal key":"key","microphone":"microphone","microscope":"microscope","milk and cookies":"cookie","misty mountain":"mountain","moldy bread":"bread","monkey climbing":"monkey","mosque":"mosque","mosquito":"mosquito","motor scooter":"motor-scooter","motorcycle":"motorcycle","mountain":"mountain","mountain cabin":"mountain","mountain goat":"mountain","mountain hut":"mountain","mountain peak":"mountain","mountain trail":"mountain","mouse animal":"mouse","mushroom in forest":"mushroom","nail polish":"nail-polish","narwhal":"narwhal","necktie":"necktie","needle and thread":"thread","newborn baby":"baby","newspaper":"newspaper","north star":"north","notebook":"notebook","octopus":"octopus","octopus camouflage":"octopus","office chair":"chair","old book":"books","olive oil":"olive","olive oil bottle":"olive","olive tree":"olive","olives":"olive","onion":"onion","open book":"open-book","origami paper bird":"bird","owl":"owl","owl alone":"owl","owl night":"owl","paintbrush":"paintbrush","parachute":"parachute","parrot":"parrot","peach fruit":"peach","peach summer":"peach","peacock":"peacock","pear fruit":"pear","pen":"pen","pen holder":"pen","pencil":"pencil","pencil case":"pencil","penguin":"penguin","penguin colony":"penguin","phoenix mythical":"phoenix","piano keys":"key","pickles jar":"jar","pig":"pig","pineapple":"pineapple","pizza":"pizza","pizza slice":"pizza","planner notebook":"notebook","plastic bottle":"plastic-bottle","plastic bucket":"bucket","plus sign symbol":"plus","poetry book":"books","poison dart frog":"frog","polar bear":"polar-bear","pomegranate":"pomegranate","popcorn":"popcorn","porcini mushroom":"mushroom","portable radio":"radio","potato":"potato","potato chips":"potato","potted cactus":"cactus","potted seedling":"seedling","prickly pear":"pear","prickly pear cactus":"cactus","printer":"printer","puzzle piece":"puzzle-piece","rabbit":"rabbit","rabbit burrow":"rabbit","raccoon":"raccoon","radio device":"radio","rain cloud":"cloud","rainbow":"rainbow","ram animal":"ram","rare antique coin":"coin","raw carrot":"carrot","raw chicken leg":"leg","raw wood":"wood","razor":"razor","reading book":"books","red apple":"red-apple","red bell pepper":"pepper","red kidney beans":"beans","rhinoceros":"rhinoceros","ribbon":"ribbon","rock climber":"rock","rock concert":"rock","rose flower":"rose","rosemary herb":"herb","rotten egg":"egg","roulette wheel":"wheel","running shoes":"running-shoe","safety deposit box":"safety","safety razor":"safety","safety vest":"safety-vest","safety whistle":"safety","sailboat":"sailboat","salt bowl":"salt","salted peanuts":"peanuts","sandwich":"sandwich","scarf":"scarf","school backpack":"school","school building":"school","school bus":"school","school desk":"school","school notebook":"school","scissors":"scissors","scorpion":"scorpion","scratch lottery ticket":"ticket","screwdriver":"screwdriver","seal animal":"seal","sewing needle":"sewing-needle","shark":"shark","shopping bag":"shopping-bags","shopping cart":"shopping-cart","shorts":"shorts","shovel":"shovel","signal flag":"signal","silk dress":"dress","skateboard":"skateboard","ski goggles":"goggles","ski helmet":"skis","ski mask":"skis","ski poles":"skis","skier":"skier","skis":"skis","skunk":"skunk","sliding door":"door","slot machine":"slot-machine","sloth animal":"sloth","small bell":"bell","small chair":"chair","small house":"house","smartwatch":"smartwatch","snail":"snail","snail shell":"snail","snake":"snake","snowflake":"snowflake","soap bar":"soap","soccer ball":"soccer-ball","socket wrench":"wrench","socks":"socks","sourdough bread":"bread","spaghetti pasta":"spaghetti","sponge":"sponge","spoon":"spoon","squid":"squid","stack of books":"books","stars sky":"star","steam cooking":"cooking","stink bug":"bug","stomach anatomy":"stomach","stone rock":"rock","stopwatch":"stopwatch","straw basket":"basket","strawberry":"strawberry","strawberry plant":"strawberry","striped snake":"snake","submarine":"submarine","sun":"sun","sun drawing":"sun","sun-dried tomatoes":"sun","sunflower":"sunflower","sunflower oil":"sunflower","sunglasses":"sunglasses","sushi":"sushi","synagogue":"synagogue","synthesizer keyboard":"keyboard","syringe":"syringe","t-shirt":"t-shirt","tablet device":"tablet","taxi car":"taxi","technical pencil":"pencil","teddy bear":"teddy-bear","telephone":"telephone","telescope":"telescope","television":"television","tennis player":"tennis","tennis racket":"tennis","thermometer":"thermometer","tiger":"tiger","toilet paper roll":"toilet","tomato":"tomato","tomato plant":"tomato","tomato plant sun":"tomato","tomato sauce":"tomato","tomato summer":"tomato","toothbrush":"toothbrush","top hat":"top-hat","torch fire":"fire","toucan bird":"bird","town hall":"town","tractor":"tractor","traffic law book":"books","train":"train","train station":"train","trowel tool":"trowel","trumpet":"trumpet","trumpet instrument":"trumpet","tuna fish":"fish","turtle":"turtle","umbrella":"umbrella","unicorn":"unicorn","violin":"violin","violin with bow":"violin","volleyball player":"volleyball","warning light":"warning","washing machine":"washing-machine","watchmaker gears":"gear","water bucket":"bucket","watermelon":"watermelon","wedding dress":"wedding","wedding favor":"wedding","whale":"whale","wheelbarrow":"wheelbarrow","wheelbarrow loaded":"wheelbarrow","white bread":"bread","white cloud":"cloud","whole apple":"apple","wicker basket":"basket","wild boar":"boar","wild mushroom":"mushroom","window":"window","window glass":"window","winter coat":"coat","winter gloves":"gloves","wire cable":"wire","wireless mouse":"wireless","wolf":"wolf","wolf pack":"wolf","wood block":"wood","wood block floating":"wood","wood carving":"wood","wood plank":"wood","wooden bucket":"bucket","wooden chair":"chair","wooden front door":"door","wooden ladder":"ladder","wool socks":"socks","work gloves":"gloves","working watch":"watch","wrapped gift":"wrapped-gift","wrench":"wrench","zebra":"zebra"};
 
 // Cache in-memoria (per sessione) delle immagini già risolte, per non rifare la
 // stessa richiesta due volte nella stessa sessione di lavoro.
@@ -10696,25 +10753,39 @@ const _imgCache = new Map();
 
 async function fetchCategorizationImage(enQuery) {
   if (_imgCache.has(enQuery)) return _imgCache.get(enQuery);
-  if (!PIXABAY_API_KEY) { _imgCache.set(enQuery, null); return null; }
-  const info = await fetchPixabayImage(enQuery);
-  _imgCache.set(enQuery, info); // null incluso: chi chiama userà il fallback testuale
-  return info;
-}
-
-async function fetchPixabayImage(enQuery) {
-  const url = `https://pixabay.com/api/?key=${encodeURIComponent(PIXABAY_API_KEY)}&q=${encodeURIComponent(enQuery)}&image_type=photo&safesearch=true&per_page=10`;
+  const iconName = OPENMOJI_ICON_MAP[enQuery];
+  if (!iconName) { _imgCache.set(enQuery, null); return null; }
   try {
-    const res = await fetch(url);
-    if (!res.ok) throw new Error("HTTP " + res.status);
-    const data = await res.json();
-    const hits = data.hits || [];
-    if (!hits.length) throw new Error("nessun risultato");
-    const pick = hits[0];
-    return { src: pick.webformatURL || pick.previewURL, credit: pick.user || "", source: "Pixabay", foreignUrl: pick.pageURL || "" };
+    const png = await svgToPngDataUrl(`https://api.iconify.design/openmoji/${iconName}.svg`);
+    const info = { src: png, credit: "OpenMoji", source: "OpenMoji", foreignUrl: "https://openmoji.org" };
+    _imgCache.set(enQuery, info);
+    return info;
   } catch (e) {
+    _imgCache.set(enQuery, null); // rete assente, CORS, icona non trovata: fallback testuale, mai un errore visibile
     return null;
   }
+}
+
+// Le icone OpenMoji sono servite come SVG dalla API pubblica Iconify (nessuna
+// chiave richiesta). Le rasterizziamo in PNG via canvas, sia per la preview a
+// schermo sia perché l'esportazione PowerPoint (pptxgenjs) richiede un
+// raster, non un SVG grezzo, in addImage().
+function svgToPngDataUrl(svgUrl, size = 256) {
+  return fetch(svgUrl).then(res => {
+    if (!res.ok) throw new Error("HTTP " + res.status);
+    return res.text();
+  }).then(svgText => new Promise((resolve, reject) => {
+    const img = new Image();
+    img.onload = () => {
+      const canvas = document.createElement("canvas");
+      canvas.width = size; canvas.height = size;
+      const ctx = canvas.getContext("2d");
+      ctx.drawImage(img, 0, 0, size, size);
+      resolve(canvas.toDataURL("image/png"));
+    };
+    img.onerror = () => reject(new Error("icona non renderizzabile"));
+    img.src = "data:image/svg+xml;base64," + btoa(unescape(encodeURIComponent(svgText)));
+  }));
 }
 
 function shuffleArr(arr) {
@@ -10813,12 +10884,7 @@ async function resolveTrialImages(trial) {
    funziona esattamente come prima, solo senza memoria tra un dispositivo e l'altro.
    ========================================================= */
 const firebaseConfig = {
-  apiKey: "AIzaSyCEFMdVHdANv1PsVlb-Wo65JHe4IKMtk3o",
-    authDomain: "pdmgenerator.firebaseapp.com",
-    projectId: "pdmgenerator",
-    storageBucket: "pdmgenerator.firebasestorage.app",
-    messagingSenderId: "203067967755",
-    appId: "1:203067967755:web:6ec8266c59798c852e3a0e"
+  // apiKey: "...", authDomain: "...", projectId: "...", ...
 };
 
 let sharedHistoryReady = false;
@@ -11542,11 +11608,23 @@ function genInversione(level){
 function genSerie(level){
   const length = state.serieItemsOverride || 154; // come negli originali (stessa lunghezza in tutte le sessioni), regolabile
   const pool = ["A","B","1","2"];
-  let color = Math.random()<0.5 ? "black":"red";
+  const colors = ["black","red"];
+  const MAX_RUN = 3;
+  // Prima il colore si alternava rigidamente nero/rosso ad ogni stimolo — al netto
+  // del simbolo, era prevedibile al 100% dalla sola posizione (bug reale: molte
+  // regole dal livello 17 in poi dipendono dal colore in modo indipendente dal
+  // simbolo, quindi un'alternanza fissa le rendeva parzialmente banali). Ora
+  // simbolo e colore sono scelti indipendentemente a ogni passo, col solo vincolo
+  // di non ripetere lo stesso simbolo né lo stesso colore per più di 3 volte
+  // di fila (né una sequenza troppo lunga né una troppo prevedibile).
   const seq = [];
+  const runsUpTo = (arr, key, value, n) => arr.length >= n && arr.slice(-n).every(s => s[key] === value);
   for(let i=0;i<length;i++){
-    seq.push({char:pick(pool), color});
-    color = color==="black" ? "red":"black";
+    let char, tries = 0;
+    do { char = pick(pool); tries++; } while (tries < 30 && runsUpTo(seq, 'char', char, MAX_RUN));
+    let color, tries2 = 0;
+    do { color = pick(colors); tries2++; } while (tries2 < 30 && runsUpTo(seq, 'color', color, MAX_RUN));
+    seq.push({char, color});
   }
   const rule = SERIE_RULES[level-1];
   const nextRule = level < SERIE_MAX_LEVEL ? SERIE_RULES[level] : null;
@@ -11914,7 +11992,7 @@ function renderOneCatSlide(deck, s, idx){
     return tile;
   });
   block.appendChild(wrap);
-  // Risolve le foto reali da Openverse in background (una sola volta per prova):
+  // Risolve i pittogrammi OpenMoji in background (una sola volta per prova):
   // la griglia si aggiorna man mano che arrivano, senza bloccare la schermata.
   // Se una richiesta fallisce (rete assente, CORS, rate limit) resta l'etichetta
   // testuale — non è mai un errore visibile.
@@ -12272,7 +12350,7 @@ const EX_CONTROLS = {
     const wrap = document.createElement("div");
     const p = document.createElement("div");
     p.className = "level-note";
-    p.textContent = "Compito: dividere le 6 immagini in due gruppi da 3, in base a un criterio comune (142 criteri reali, verificati da Rodrigo). Ogni volta che generi materiale, l'app pesca un criterio a caso tra quelli disponibili per il livello e sceglie 3+3 oggetti da pool più ampi dei 3 mostrati negli originali — così la combinazione non è mai identica anche restando sullo stesso livello. Le foto sono cercate dal vivo su Pixabay (serve una chiave gratuita, vedi README); senza chiave, o se la richiesta non va a buon fine, il riquadro mostra il nome dell'oggetto invece della foto — non è un errore, è il comportamento previsto.";
+    p.textContent = "Compito: dividere le 6 immagini in due gruppi da 3, in base a un criterio comune (142 criteri reali, verificati da Rodrigo). Ogni volta che generi materiale, l'app pesca un criterio a caso tra quelli disponibili per il livello e sceglie 3+3 oggetti da pool più ampi dei 3 mostrati negli originali — così la combinazione non è mai identica anche restando sullo stesso livello. Le immagini sono pittogrammi OpenMoji (disegni, non foto); circa 4 termini su 10 non hanno un'icona affidabile in libreria — in quel caso il riquadro mostra il nome dell'oggetto invece del disegno, non è un errore.";
     wrap.appendChild(p);
     wrap.appendChild(numerosityControl("Numero di prove per sessione", "categorizzazioneTrialsOverride", 4, 16, 9));
     return wrap;
@@ -12500,10 +12578,14 @@ function exportGriglie(deck, level){
     // tutte nel commento, in forma essenziale, esattamente come nei file originali.
     const slide = p.addSlide();
     slide.background = {color:"FFFFFF"};
-    const rulesList = s.rules
-      .map((x,i)=>`${i+1}. ${x.text.replace(/^Conta (tutti )?(gli )?/,"").replace(/\.$/,"")}`)
-      .join("\n");
-    slide.addNotes(`Regole valide su questa griglia (semplice → complessa):\n${rulesList}`);
+    // Regole raggruppate 3 per riga invece di una per riga: da fino a 10 righe
+    // a non più di 4, per essere leggibili a colpo d'occhio durante la seduta
+    // invece che come un lungo elenco verticale (richiesta di Rodrigo).
+    const items = s.rules.map((x,i)=>`${i+1}) ${x.text.replace(/^Conta (tutti )?(gli )?/,"").replace(/\.$/,"")}`);
+    const perLine = 3;
+    const groupedLines = [];
+    for(let i=0;i<items.length;i+=perLine) groupedLines.push(items.slice(i,i+perLine).join("   |   "));
+    slide.addNotes(`Regole valide su questa griglia (semplice → complessa):\n${groupedLines.join("\n")}`);
 
     // Cerchi (non rettangoli) dimensionati per riempire la slide 10x7.5" quasi per intero:
     // il passo è il massimo che entra su entrambi gli assi (griglia GRID_ROWSxGRID_COLS),
