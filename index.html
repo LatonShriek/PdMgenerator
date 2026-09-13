@@ -792,10 +792,12 @@ const DIRECTIONS = [
   [0, 1], [0, -1], [1, 0], [-1, 0], [1, 1], [1, -1], [-1, 1], [-1, -1],
 ];
 
-function generateCrucipuzzle(rows, cols, minWords, rnd) {
+function generateCrucipuzzle(rows, cols, minWords, rnd, lenMin, lenMax) {
   const grid = Array.from({ length: rows }, () => Array.from({ length: cols }, () => null));
   const alphabet = 'ABCDEFGHILMNOPQRSTUVZ'.split('');
-  const allWords = Object.values(WORD_BANK).flat().filter(w => w.length <= Math.min(rows, cols));
+  const maxFit = Math.min(rows, cols);
+  const loMin = Math.max(3, lenMin || 3), hiMax = Math.min(maxFit, lenMax || maxFit);
+  const allWords = Object.values(WORD_BANK).flat().filter(w => w.length >= loMin && w.length <= hiMax);
   const candidates = pickN(rnd, allWords, allWords.length);
   const placed = [];
 
@@ -844,13 +846,37 @@ function scatterPositions(n, rnd, width = 700, height = 950, minDist = 70) {
     const y = 40 + rnd() * (height - 80);
     if (pts.every(p => Math.hypot(p.x - x, p.y - y) >= minDist)) pts.push({ x, y });
   }
-  while (pts.length < n) pts.push({ x: 40 + rnd() * (width - 80), y: 40 + rnd() * (height - 80) }); // fallback se lo spazio è saturo
+  // Se lo spazio è saturo, invece di rinunciare del tutto al distanziamento (rischio di
+  // due cerchi sovrapposti, che sembrerebbero "un numero sparito o duplicato" a chi
+  // guarda), si riprova con una distanza minima ridotta gradualmente — sempre qualche
+  // margine, mai zero.
+  let relax = minDist;
+  while (pts.length < n && relax > 20) {
+    relax -= 10;
+    let guard = 0;
+    while (pts.length < n && guard < n * 100) {
+      guard++;
+      const x = 40 + rnd() * (width - 80);
+      const y = 40 + rnd() * (height - 80);
+      if (pts.every(p => Math.hypot(p.x - x, p.y - y) >= relax)) pts.push({ x, y });
+    }
+  }
+  while (pts.length < n) pts.push({ x: 40 + rnd() * (width - 80), y: 40 + rnd() * (height - 80) }); // ultimissima spiaggia, praticamente mai raggiunta
   return pts;
 }
 
 function generateNumericSequencing(count, maxVal, rnd) {
   const values = new Set();
-  while (values.size < count) values.add(1 + Math.floor(rnd() * maxVal));
+  // Esclude anche i numeri con cifre ripetute al proprio interno (11, 22, 77...): non
+  // sono duplicati tra loro, ma potrebbero sembrare "ripetizioni" a prima vista.
+  const hasRepeatedDigit = n => { const s = String(n); return new Set(s).size !== s.length; };
+  let guard = 0;
+  while (values.size < count && guard < count * 300) {
+    guard++;
+    const v = 1 + Math.floor(rnd() * maxVal);
+    if (!hasRepeatedDigit(v)) values.add(v);
+  }
+  while (values.size < count) values.add(1 + Math.floor(rnd() * maxVal)); // se il pool senza cifre ripetute non basta, si completa senza il filtro
   const sorted = [...values].sort((a, b) => a - b);
   const positions = scatterPositions(count, rnd);
   const shuffled = pickN(rnd, sorted.map((v, i) => ({ value: v, ...positions[i] })), count);
@@ -904,6 +930,38 @@ function generateMaze(cols, rows, rnd) {
   return { cells, cols, rows, start: [0, 0], end: [cols - 1, rows - 1] };
 }
 
+// Risolve il labirinto con una ricerca in ampiezza (BFS) — usata SOLO per mostrare il
+// percorso nell'anteprima dell'app quando si attiva "Mostra risposta"; non entra mai
+// nell'esportazione (né PowerPoint né Word).
+function solveMaze(maze) {
+  const { cells, cols, rows, start, end } = maze;
+  const key = (x, y) => y * cols + x;
+  const visited = new Set([key(start[0], start[1])]);
+  const prev = new Map();
+  const queue = [start];
+  while (queue.length) {
+    const [x, y] = queue.shift();
+    if (x === end[0] && y === end[1]) break;
+    const c = cells[y][x];
+    const neighbors = [];
+    if (!c.N) neighbors.push([x, y - 1]);
+    if (!c.S) neighbors.push([x, y + 1]);
+    if (!c.E) neighbors.push([x + 1, y]);
+    if (!c.W) neighbors.push([x - 1, y]);
+    for (const [nx, ny] of neighbors) {
+      const k = key(nx, ny);
+      if (!visited.has(k)) { visited.add(k); prev.set(k, [x, y]); queue.push([nx, ny]); }
+    }
+  }
+  const path = [end];
+  let cur = end;
+  while (cur[0] !== start[0] || cur[1] !== start[1]) {
+    cur = prev.get(key(cur[0], cur[1]));
+    path.push(cur);
+  }
+  return path.reverse();
+}
+
 // ---------------------------------------------------------------------------
 // 10. CATEGORIE e LETTERE per gli esercizi di accesso lessicale (a risposta
 //     aperta: qui servono solo i PROMPT, non una banca di parole-risposta)
@@ -921,10 +979,17 @@ const LETTER_POOL = 'A B C D E F G I L M N O P R S T U V'.split(' '); // usata p
 // "sembra non avere soluzione" — lo stesso problema segnalato per gli anagrammi,
 // ma qui strutturale, non occasionale).
 const PHONEMIC_DB = {
-  // 2a e 4a lettera di una parola di 5 lettere. 10 coppie verificate, ciascuna con
-  // almeno 2 parole reali e comuni (fino a 5).
-  position2: [
-    { l1:'A', l2:'L', words:['PALLA','GALLO','VALLE','BALLO','CALLO'] },
+  // Vincolo di posizione (2a lettera ... penultima lettera), lunghezza della parola
+  // LIBERA — non più fissata a 5 o 6 lettere come nella versione precedente (da cui il
+  // formato con i puntini "-A...L-" al posto di "-A-L-": i puntini segnalano che nel
+  // mezzo può starci un numero qualsiasi di lettere). Fissare la lunghezza esatta era un
+  // vincolo aggiuntivo non necessario che restringeva molto le parole reali disponibili;
+  // lasciandola libera lo stesso identico vincolo di posizione ammette molte più parole
+  // (qui gli esempi restano solo dimostrativi, non è più necessario un elenco lunghissimo
+  // per garantire "almeno 10 parole": con lunghezza libera la soglia si supera quasi
+  // sempre per le coppie comuni elencate).
+  position: [
+    { l1:'A', l2:'L', words:['PALLA','GALLO','VALLE','BALLO','CALLO','TAVOLO','CASTELLO','CAPPELLO','MARTELLO'] },
     { l1:'A', l2:'T', words:['PARTE','CARTE','MATTO','PATTO','GATTO'] },
     { l1:'A', l2:'N', words:['CARNE','PANNO','CANNE'] },
     { l1:'A', l2:'S', words:['CASSA','MASSA','TASSO'] },
@@ -934,13 +999,6 @@ const PHONEMIC_DB = {
     { l1:'E', l2:'N', words:['LEONE','PENNE'] },
     { l1:'I', l2:'R', words:['TIGRE','FIORE'] },
     { l1:'O', l2:'N', words:['FORNO','SOGNO'] },
-  ],
-  // 3a e 5a lettera di una parola di 6 lettere. Solo 4 coppie verificate con
-  // sicurezza: il vincolo doppio su parole di 6 lettere è molto più raro in
-  // italiano — meglio 4 coppie sicure che 10 inventate. Segnalalo se serve più
-  // varietà: si può sostituire con un vincolo singolo (solo 3a lettera), molto
-  // più facile da popolare riccamente.
-  position3: [
     { l1:'U', l2:'L', words:['SCUOLA','AQUILA'] },
     { l1:'L', l2:'N', words:['BALENA','MULINO'] },
     { l1:'M', l2:'N', words:['CAMINO','LIMONE'] },
@@ -978,11 +1036,15 @@ const PHONEMIC_DB = {
     { l1:'F', l2:'R', words:['FRUTTA','FIORE','FREDDO','FERRO'] },
   ],
 };
+// Categorie "ampie" — usate SOLO nelle combinazioni lettera+categoria e
+// categoria+lunghezza, dove serve una categoria abbastanza generosa da avere
+// comunque almeno una decina di parole reali indipendentemente dalla lettera o
+// dalla lunghezza richiesta (le categorie più strette del blocco semantico vanno
+// bene da sole, ma non incrociate con un altro vincolo).
+const BROAD_CATEGORIES = ['Alimenti', 'Animali', 'Mobili', 'Indumenti', 'Mezzi di trasporto'];
 
-// Prompt per i blocchi di accesso lessicale vincolato per posizione/adiacenza
-// (schemi 1-4, settimane 1-4), fedeli ai modelli osservati negli originali:
-// posizione2  -> "-X-Y-"      (5 caselle, 2a e penultima lettera fissate)
-// posizione3  -> "--X\u2026Y-"    (6 caselle, 3a e penultima lettera fissate)
+// Prompt per i blocchi di accesso lessicale vincolato per posizione/adiacenza:
+// posizione   -> "-X...Y-"    (2a lettera X ... penultima lettera Y, lunghezza libera)
 // congiunte   -> "..XY.."     (2 lettere adiacenti in mezzo alla parola)
 // disgiunte   -> "X ; Y"      (2 lettere, posizione libera, non adiacenti)
 // Le coppie di lettere vengono SEMPRE dal database verificato sopra, mai generate a
@@ -993,17 +1055,60 @@ function buildPositionalPrompts(kind, rnd, count = 10, excludeKeys) {
   let effectiveBank = bank;
   if (excl && excl.size) {
     const fresh = bank.filter(e => !excl.has(e.l1 + e.l2));
-    if (fresh.length) effectiveBank = fresh; // il DB è piccolo (specie position3): si riammette solo se serve
+    if (fresh.length) effectiveBank = fresh; // il DB è piccolo: si riammette solo se serve
   }
   const order = [];
   while (order.length < count) order.push(...shuffleArr(rnd, effectiveBank));
   const chosen = order.slice(0, count);
   return chosen.map(({l1,l2}) => {
-    if (kind === 'position2') return `-${l1}-${l2}-`;
-    if (kind === 'position3') return `--${l1}\u2026${l2}-`;
+    if (kind === 'position') return `-${l1}...${l2}-`;
     if (kind === 'joined') return `..${l1}${l2}..`;
     if (kind === 'disjoint') return `${l1} ; ${l2}`;
   });
+}
+// Combinazioni a due vincoli — lettera+categoria, lettera+lunghezza, categoria+lunghezza.
+// Usano SOLO le categorie ampie sopra e lunghezze moderate (4-7), proprio per restare
+// sopra la soglia di "almeno 10 parole reali possibili" anche incrociando due vincoli.
+function buildCombinedPrompts(kind, rnd, count = 10, excludeKeys) {
+  const excl = excludeKeys ? new Set(excludeKeys) : null;
+  const rows = [];
+  const used = new Set();
+  let guard = 0;
+  while (rows.length < count && guard < 500) {
+    guard++;
+    let key, text;
+    if (kind === 'letterCategory') {
+      const letter = pick(rnd, LETTER_POOL), cat = pick(rnd, BROAD_CATEGORIES);
+      key = letter + '|' + cat;
+      text = `Lettera iniziale «${letter}», categoria: ${cat}`;
+    } else if (kind === 'letterLength') {
+      const letter = pick(rnd, LETTER_POOL), len = 4 + Math.floor(rnd() * 4); // 4-7
+      key = letter + '|' + len;
+      text = `Lettera iniziale «${letter}», ${len} lettere`;
+    } else { // categoryLength
+      const cat = pick(rnd, BROAD_CATEGORIES), len = 4 + Math.floor(rnd() * 5); // 4-8
+      key = cat + '|' + len;
+      text = `Categoria: ${cat}, ${len} lettere`;
+    }
+    if (used.has(key)) continue;
+    if (excl && excl.has(key)) continue; // preferisce combinazioni non usate di recente
+    used.add(key);
+    rows.push(text);
+  }
+  // se il vincolo "non ripetere quelle escluse" ha impedito di riempire tutto (pool
+  // esaurito), si completa riammettendo le combinazioni escluse piuttosto che lasciare
+  // meno righe del richiesto.
+  while (rows.length < count) rows.push(rows[rows.length % Math.max(1, rows.length)] || 'Lettera iniziale «A», 5 lettere');
+  return rows;
+}
+function combinedKeyFromPrompt(kind, promptStr) {
+  const m = promptStr.match(/«(.+?)»/);
+  const numMatch = promptStr.match(/(\d+) lettere/);
+  const catMatch = promptStr.match(/categoria: (.+?)$/i) || promptStr.match(/categoria: (.+?),/i);
+  if (kind === 'letterCategory') return (m ? m[1] : '') + '|' + (catMatch ? catMatch[1] : '');
+  if (kind === 'letterLength') return (m ? m[1] : '') + '|' + (numMatch ? numMatch[1] : '');
+  if (kind === 'categoryLength') return (catMatch ? catMatch[1] : '') + '|' + (numMatch ? numMatch[1] : '');
+  return promptStr;
 }
 function shuffleArr(rnd, arr){
   const a = [...arr];
@@ -1034,25 +1139,18 @@ function weekParams(week) {
   const mazeCols = clamp(18 + 2*w, 20, 50);
   const mazeRows = clamp(22 + 2*w, 24, 55);
 
-  // vincolo di accesso lessicale posizionale: 5 schemi osservati, poi si
-  // continua a variare la posizione richiesta mantenendo la stessa logica
-  const positionalSchemes = [
-    { kind: 'position2', desc: () => `seconda e penultima lettera`, minWords: 3 },
-    { kind: 'position3', desc: () => `terza e penultima lettera`, minWords: 3 },
-    { kind: 'joined', desc: () => `lettere congiunte`, minWords: 4 },
-    { kind: 'disjoint', desc: () => `lettere disgiunte`, minWords: 4 },
-  ];
-  const positionalScheme = w <= 4 ? positionalSchemes[w - 1] : null; // da w5 si passa allo schema "libero" sotto
-
-  const freeInitialLength = w >= 5 ? clamp(5 + Math.floor((w - 5) / 2), 5, 9) : null;
-  const freeInitialCount = clamp(6 + Math.floor(w / 3), 6, 10);
+  // Vincolo di accesso lessicale: 7 schemi che ciclano ogni 14 settimane (2 settimane
+  // ciascuno), dal più semplice (solo iniziale) alle combinazioni a due vincoli
+  // (lettera+categoria, lettera+lunghezza, categoria+lunghezza) — mai un criterio con
+  // meno di una decina di parole italiane reali possibili dietro (le combinazioni usano
+  // solo categorie ampie e lunghezze moderate apposta per questo).
+  const LEXICAL_SCHEME_SEQUENCE = ['initial','position','joined','disjoint','letterCategory','letterLength','categoryLength'];
+  const lexicalKind = LEXICAL_SCHEME_SEQUENCE[Math.floor((w-1)/2) % LEXICAL_SCHEME_SEQUENCE.length];
+  const lexicalInitialLength = clamp(5 + Math.floor((w - 1) / 8), 5, 9); // usata solo per lo schema 'initial'
 
   const categoryTier = w <= 2 ? 1 : (w <= 5 ? 2 : 3);
   const categoryMinWords = clamp(5 + Math.floor(w / 4), 5, 8);
   const categoryCount = 6;
-
-  const hasLengthCategoryBlock = w >= 4;
-  const lengthCategoryLen = hasLengthCategoryBlock ? clamp(3 + (w - 4), 3, 9) : null;
 
   const anagramLen = clamp(5 + Math.floor((w - 1) / 3), 5, 9);
   const calcTerms = clamp(4 + Math.floor((w - 1) / 2), 4, 7);
@@ -1065,10 +1163,8 @@ function weekParams(week) {
     hasCrucipuzzle, crucipuzzleMinWords,
     sequencingType, sequencingCount,
     mazeCols, mazeRows,
-    positionalScheme,
-    freeInitialLength, freeInitialCount,
+    lexicalKind, lexicalInitialLength,
     categoryTier, categoryMinWords, categoryCount,
-    hasLengthCategoryBlock, lengthCategoryLen,
     anagramLen, calcTerms, calcMax,
   };
 }
@@ -1079,7 +1175,7 @@ function weekParams(week) {
 // ---------------------------------------------------------------------------
 function escapeXml(s) { return String(s).replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;'); }
 
-function renderMazeSVG(maze, cellSize = 24) {
+function renderMazeSVG(maze, cellSize = 24, showSolution = false) {
   const { cols, rows, cells } = maze;
   const pad = 40;
   const w = cols * cellSize + pad * 2;
@@ -1100,12 +1196,22 @@ function renderMazeSVG(maze, cellSize = 24) {
   }
   const startX = pad, startY = pad + 20 + 0.5 * cellSize;
   const endX = pad + cols * cellSize, endY = pad + 20 + (rows - 0.5) * cellSize;
+  // Percorso soluzione: SOLO quando esplicitamente richiesto (mai nell'esportazione,
+  // solo nell'anteprima app con "Mostra risposta") — una linea colorata che passa per
+  // il centro di ogni cella del percorso più breve trovato con la BFS.
+  let solutionPath = '';
+  if (showSolution) {
+    const path = solveMaze(maze);
+    const pts = path.map(([x, y]) => `${pad + (x + 0.5) * cellSize},${pad + 20 + (y + 0.5) * cellSize}`).join(' ');
+    solutionPath = `<polyline points="${pts}" fill="none" stroke="#2F6F63" stroke-width="4" stroke-linecap="round" stroke-linejoin="round" opacity="0.8"/>`;
+  }
   // Niente titolo dentro l'SVG: sia l'app (section/fSection) sia il documento
   // esportato (heading() in docbuilder) aggiungono già il proprio titolo fuori
   // dall'immagine — prima comparivano entrambi, uno duplicato dell'altro.
   return `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 ${w} ${h}" width="${w}" height="${h}">
     <rect width="100%" height="100%" fill="white"/>
     ${lines}
+    ${solutionPath}
     <text x="${pad-6}" y="${startY-10}" font-size="14" font-weight="bold" text-anchor="start" font-family="Arial">INIZIO</text>
     <text x="${endX-6}" y="${endY+24}" font-size="14" font-weight="bold" text-anchor="end" font-family="Arial">FINE</text>
   </svg>`;
@@ -1135,7 +1241,7 @@ function buildFascicolo(week, seed, exclusions) {
 
   const grids = p.grids.map(g => generateSequenceGrid(16, 12, g.family.chars, rnd));
   const multi = generateMultiTargetGrid(16, 12, p.grids[0].family.chars, rnd, p.multiTargetCount);
-  const crucipuzzle = p.hasCrucipuzzle ? generateCrucipuzzle(16, 12, p.crucipuzzleMinWords, rnd) : null;
+  const crucipuzzle = p.hasCrucipuzzle ? generateCrucipuzzle(16, 12, p.crucipuzzleMinWords, rnd, excl.crucipuzzleLenMin, excl.crucipuzzleLenMax) : null;
   const sequencing = p.sequencingType === 'numeric'
     ? generateNumericSequencing(p.sequencingCount, 99, rnd)
     : generateAlphabeticSequencing(p.sequencingCount, rnd);
@@ -1151,19 +1257,50 @@ function buildFascicolo(week, seed, exclusions) {
     if (fresh.length >= p.categoryCount) catEffective = fresh;
   }
   const categories = pickN(rnd, catEffective, p.categoryCount);
-  const letters = p.positionalScheme ? null : pickN(rnd, LETTER_POOL, p.freeInitialCount);
-  const positionalPrompts = p.positionalScheme ? buildPositionalPrompts(p.positionalScheme.kind, rnd, 10, excl.phonemicKeys) : null;
-  const lengthCategoryList = p.hasLengthCategoryBlock ? pickN(rnd, ['Frutta', 'Ortaggio', 'Animale', 'Colore', 'Mobile', 'Mezzo di trasporto', 'Sport', 'Indumento'], 6) : null;
 
-  return { week, params: p, grids, multi, crucipuzzle, sequencing, maze, anagrams, calc, categories, letters, positionalPrompts, lengthCategoryList };
+  // Blocco lessicale unificato: un solo oggetto {label, prompts} qualunque sia lo schema
+  // di questa settimana — molto più semplice da consumare per chi visualizza (app,
+  // fascicolo web, .docx) di quattro campi diversi con logica if/else ripetuta 3 volte.
+  const lexicalLabels = {
+    initial: n => `Scrivere parole di ${n} lettere con la iniziale indicata (almeno 3 per schema)`,
+    position: () => `Scrivere parole che abbiano come seconda e penultima lettera quelle indicate (almeno 3 per riga, lunghezza libera)`,
+    joined: () => `Scrivere parole che abbiano le seguenti lettere congiunte (almeno 4 per riga)`,
+    disjoint: () => `Scrivere parole che abbiano le seguenti lettere disgiunte (almeno 4 per riga)`,
+    letterCategory: () => `Scrivere parole che rispettino lettera iniziale e categoria indicate (almeno 3 per riga)`,
+    letterLength: () => `Scrivere parole che rispettino lettera iniziale e numero di lettere indicati (almeno 3 per riga)`,
+    categoryLength: () => `Scrivere parole che rispettino categoria e numero di lettere indicati (almeno 3 per riga)`,
+  };
+  let lexicalPrompts, lexicalHistoryKeys;
+  if (p.lexicalKind === 'initial') {
+    const excludeLetters = excl.lexicalKeys ? excl.lexicalKeys.map(k => k.split(':')[1]).filter(Boolean) : [];
+    const freshLetters = LETTER_POOL.filter(l => !excludeLetters.includes(l));
+    const pool = freshLetters.length >= 8 ? freshLetters : LETTER_POOL;
+    lexicalPrompts = pickN(rnd, pool, 8);
+    lexicalHistoryKeys = lexicalPrompts.map(l => `initial:${l}`);
+  } else if (p.lexicalKind === 'position' || p.lexicalKind === 'joined' || p.lexicalKind === 'disjoint') {
+    const excludeKeys = excl.lexicalKeys ? excl.lexicalKeys.filter(k=>k.startsWith(p.lexicalKind+':')).map(k=>k.split(':')[1]) : [];
+    lexicalPrompts = buildPositionalPrompts(p.lexicalKind, rnd, 10, excludeKeys);
+    lexicalHistoryKeys = lexicalPrompts.map(pr => `${p.lexicalKind}:${phonemicKeyFromPrompt(p.lexicalKind, pr)}`);
+  } else {
+    const excludeKeys = excl.lexicalKeys ? excl.lexicalKeys.filter(k=>k.startsWith(p.lexicalKind+':')).map(k=>k.split(':').slice(1).join(':')) : [];
+    lexicalPrompts = buildCombinedPrompts(p.lexicalKind, rnd, 10, excludeKeys);
+    lexicalHistoryKeys = lexicalPrompts.map(pr => `${p.lexicalKind}:${combinedKeyFromPrompt(p.lexicalKind, pr)}`);
+  }
+  const lexicalBlock = {
+    kind: p.lexicalKind,
+    label: p.lexicalKind === 'initial' ? lexicalLabels.initial(p.lexicalInitialLength) : lexicalLabels[p.lexicalKind](),
+    prompts: lexicalPrompts,
+    historyKeys: lexicalHistoryKeys,
+  };
+
+  return { week, params: p, grids, multi, crucipuzzle, sequencing, maze, anagrams, calc, categories, lexicalBlock };
 }
 
 // Estrae la coppia di lettere (l1,l2) da un prompt fonemico già formattato, per poter
 // registrare nello storico condiviso QUALE coppia è stata usata (buildPositionalPrompts
 // restituisce solo la stringa visualizzata, non la coppia grezza).
 function phonemicKeyFromPrompt(kind, promptStr) {
-  if (kind === 'position2') return promptStr[1] + promptStr[3];       // "-X-Y-"
-  if (kind === 'position3') return promptStr[2] + promptStr[4];       // "--X…Y-"
+  if (kind === 'position') return promptStr[1] + promptStr[promptStr.length-2]; // "-X...Y-"
   if (kind === 'joined') return promptStr[2] + promptStr[3];          // "..XY.."
   if (kind === 'disjoint') return promptStr[0] + promptStr[4];        // "X ; Y"
   return promptStr;
@@ -1176,6 +1313,7 @@ return {
   generateAnagrams, generateCalcChain, generateCrucipuzzle,
   generateNumericSequencing, generateAlphabeticSequencing, generateMaze,
   CATEGORY_POOL, LETTER_POOL, WORD_BANK, buildPositionalPrompts, phonemicKeyFromPrompt,
+  buildCombinedPrompts, combinedKeyFromPrompt, BROAD_CATEGORIES,
   renderMazeSVG, renderSequencingSVG,
 };
 });
@@ -1320,7 +1458,7 @@ return {
 
     // 5: crucipuzzle
     if (data.crucipuzzle) {
-      children.push(heading(docx, 'Cerchiare le parole dotate di senso', `(in tutte le direzioni, almeno ${p.crucipuzzleMinWords}, di almeno 4 lettere)`));
+      children.push(heading(docx, 'Cerchiare le parole dotate di senso', `(orizzontale, verticale o obliquo, dritto o inverso — almeno ${p.crucipuzzleMinWords} parole, di almeno 4 lettere)`));
       children.push(symbolGridTable(docx, data.crucipuzzle.grid));
     }
 
@@ -1338,29 +1476,15 @@ return {
     const mazeWidth = 602;
     children.push(await imageParagraph(docx, rasterize, mazeSvg, mazeWidth, Math.round(mazeWidth / mazeAspect)));
 
-    // 8: accesso lessicale vincolato per posizione OPPURE libero per iniziale
-    if (p.positionalScheme) {
-      const kind = p.positionalScheme.kind;
-      const label = kind.startsWith('position')
-        ? `Scrivere parole che abbiano come ${p.positionalScheme.desc()} (almeno ${p.positionalScheme.minWords})`
-        : `Scrivere parole che abbiano le seguenti lettere ${kind === 'joined' ? 'congiunte' : 'disgiunte'} (almeno ${p.positionalScheme.minWords})`;
-      children.push(heading(docx, label));
-      children.push(promptAnswerTable(docx, data.positionalPrompts));
-    } else {
-      children.push(heading(docx, `Scrivere parole di ${p.freeInitialLength} lettere con la iniziale indicata (almeno 3 per schema)`));
-      children.push(promptAnswerTable(docx, data.letters));
-    }
+    // 8: accesso lessicale — un solo blocco unificato, qualunque sia lo schema di
+    // questa settimana (iniziale, posizione, congiunte/disgiunte, o combinazione a due
+    // vincoli lettera+categoria / lettera+lunghezza / categoria+lunghezza).
+    children.push(heading(docx, data.lexicalBlock.label));
+    children.push(promptAnswerTable(docx, data.lexicalBlock.prompts));
 
     // 9: accesso lessicale per categoria
     children.push(heading(docx, `Scrivere parole che appartengano alle categorie (almeno ${p.categoryMinWords})`));
     children.push(promptAnswerTable(docx, data.categories));
-
-    // 10: blocco lunghezza (+ categoria) — da settimana 4
-    if (p.hasLengthCategoryBlock) {
-      children.push(heading(docx, `Scrivere parole che rispettino le istruzioni (almeno 2-3)`));
-      const prompts = [`Parole di ${p.lengthCategoryLen} lettere:`, ...data.lengthCategoryList];
-      children.push(promptAnswerTable(docx, prompts));
-    }
 
     // 11: anagrammi — SOLO la parola mescolata va nel documento, mai la soluzione
     // (la soluzione si vede solo nell'anteprima dell'app con "Mostra risposta").
@@ -1624,7 +1748,7 @@ const CATEGORIZZAZIONE_LIBRARY = {
     },
     {
      "it": "chiave",
-     "en": "key"
+     "en": "house key"
     }
    ],
    "proposal": false
@@ -4330,7 +4454,7 @@ const CATEGORIZZAZIONE_LIBRARY = {
    "a": [
     {
      "it": "mela",
-     "en": "apple"
+     "en": "apple fruit"
     },
     {
      "it": "zucchina",
@@ -5034,7 +5158,7 @@ const CATEGORIZZAZIONE_LIBRARY = {
     },
     {
      "it": "pesca",
-     "en": "peach"
+     "en": "peach fruit"
     },
     {
      "it": "albicocca",
@@ -5042,7 +5166,7 @@ const CATEGORIZZAZIONE_LIBRARY = {
     },
     {
      "it": "prugna",
-     "en": "plum"
+     "en": "plum fruit"
     }
    ],
    "proposal": true
@@ -9090,7 +9214,7 @@ const CATEGORIZZAZIONE_LIBRARY = {
     },
     {
      "it": "chiave",
-     "en": "key"
+     "en": "house key"
     }
    ],
    "proposal": false
@@ -10961,9 +11085,12 @@ const state = {
   inversioneForceAlnum:false,
   intrusoScreensOverride:null,
   serieItemsOverride:null,
+  serieShowNextCriterion:false,
   categorizzazioneTrialsOverride:null,
   accessoWordsOverride:null,
   fascicoloWeek:1,
+  crucipuzzleLenMin:null,
+  crucipuzzleLenMax:null,
   deck:null,
   slideIndex:0,
   reveal:false,
@@ -11786,7 +11913,9 @@ function renderCategorizzazione(deck){
 
 /* ---------- FASCICOLO ESERCIZI A CASA ---------- */
 function genFascicolo(){
-  return window.Engine.buildFascicolo(state.fascicoloWeek, Math.floor(Math.random()*1e9));
+  return window.Engine.buildFascicolo(state.fascicoloWeek, Math.floor(Math.random()*1e9), {
+    crucipuzzleLenMin: state.crucipuzzleLenMin, crucipuzzleLenMax: state.crucipuzzleLenMax,
+  });
 }
 
 function fEl(tag, attrs, children){
@@ -11860,7 +11989,7 @@ function renderFascicolo(deck){
   if(deck.crucipuzzle){
     root.appendChild(fSection(
       "Cerchiare le parole dotate di senso",
-      `(in tutte le direzioni, almeno ${p.crucipuzzleMinWords}, di almeno 4 lettere)` +
+      `(orizzontale, verticale o obliquo, dritto o inverso — almeno ${p.crucipuzzleMinWords} parole, di almeno 4 lettere)` +
       (showSolutions ? ` — parole inserite: ${deck.crucipuzzle.placed.join(", ")}` : ""),
       fGridTable(deck.crucipuzzle.grid, "fasc-cruci")
     ));
@@ -11870,28 +11999,12 @@ function renderFascicolo(deck){
   const seqDiv = fEl("div",{class:"fasc-svg-wrap", html: E.renderSequencingSVG(deck.sequencing)});
   root.appendChild(fSection(seqTitle, showSolutions ? `Ordine corretto: ${deck.sequencing.order.join(" → ")}` : null, seqDiv));
 
-  const mazeDiv = fEl("div",{class:"fasc-svg-wrap", html: E.renderMazeSVG(deck.maze, 18)});
+  const mazeDiv = fEl("div",{class:"fasc-svg-wrap", html: E.renderMazeSVG(deck.maze, 18, showSolutions)});
   root.appendChild(fSection("Risolvere il labirinto", null, mazeDiv));
 
-  if(p.positionalScheme){
-    const kind = p.positionalScheme.kind;
-    const label = kind.startsWith("position")
-      ? `Scrivere parole che abbiano come ${p.positionalScheme.desc()} (almeno ${p.positionalScheme.minWords})`
-      : `Scrivere parole che abbiano le seguenti lettere ${kind==="joined"?"congiunte":"disgiunte"} (almeno ${p.positionalScheme.minWords})`;
-    root.appendChild(fSection(label, null, fPromptTable(deck.positionalPrompts, null, false)));
-  } else {
-    root.appendChild(fSection(
-      `Scrivere parole di ${p.freeInitialLength} lettere con la iniziale indicata (almeno 3 per schema)`,
-      null, fPromptTable(deck.letters, null, false)
-    ));
-  }
+  root.appendChild(fSection(deck.lexicalBlock.label, null, fPromptTable(deck.lexicalBlock.prompts, null, false)));
 
   root.appendChild(fSection(`Scrivere parole che appartengano alle categorie (almeno ${p.categoryMinWords})`, null, fPromptTable(deck.categories, null, false)));
-
-  if(p.hasLengthCategoryBlock){
-    root.appendChild(fSection("Scrivere parole che rispettino le istruzioni (almeno 2-3)", null,
-      fPromptTable([`Parole di ${p.lengthCategoryLen} lettere:`, ...deck.lengthCategoryList], null, false)));
-  }
 
   root.appendChild(fSection("Risolvere i seguenti anagrammi", null,
     fPromptTable(deck.anagrams.map(a=>a.scrambled), deck.anagrams.map(a=>a.solution), showSolutions)));
@@ -12068,8 +12181,21 @@ const EX_CONTROLS = {
     const wrap = document.createElement("div");
     const note = document.createElement("div");
     note.className = "level-note";
-    note.textContent = `24 livelli — solo per questo esercizio (gli altri restano a 16). Ogni livello ha una sola consegna; la schermata mostra anche un'anteprima della consegna del livello successivo.`;
+    note.textContent = `24 livelli — solo per questo esercizio (gli altri restano a 16). Ogni livello ha una sola consegna.`;
     wrap.appendChild(note);
+    const nextRow = document.createElement("label");
+    nextRow.style.cssText = "display:flex; align-items:center; gap:8px; margin-top:14px; font-weight:600;";
+    const nextCheck = document.createElement("input");
+    nextCheck.type = "checkbox";
+    nextCheck.checked = state.serieShowNextCriterion;
+    nextCheck.addEventListener("change", e=>{ state.serieShowNextCriterion = e.target.checked; render(); });
+    nextRow.appendChild(nextCheck);
+    nextRow.appendChild(document.createTextNode("Aggiungi anche la consegna del livello successivo (per gruppi più abili)"));
+    wrap.appendChild(nextRow);
+    const nextNote = document.createElement("div");
+    nextNote.className = "level-note";
+    nextNote.textContent = "Se attiva, compare come testo visibile e stampabile (non più solo nel commento nascosto del PowerPoint) — a schermo e nel file esportato.";
+    wrap.appendChild(nextNote);
     wrap.appendChild(numerosityControl("Numero di stimoli nella serie", "serieItemsOverride", 20, 300, 154));
     return wrap;
   },
@@ -12149,6 +12275,41 @@ const EX_CONTROLS = {
     note.className = "level-note";
     note.textContent = "Ogni settimana fa avanzare in modo coordinato tutti i 12 blocchi del fascicolo (alfabeti delle griglie, soglie minime, vincoli lessicali, lunghezza di anagrammi/labirinto/calcolo), riproducendo la stessa progressione osservata nei fascicoli originali. Oltre la settimana 8 la stessa logica continua ad aumentare la difficoltà. \"Mostra risposta / regola\" mostra qui le soluzioni di ogni blocco (mai incluse nel file .docx esportato).";
     wrap.appendChild(note);
+
+    const cruciLabel = document.createElement("label");
+    cruciLabel.style.marginTop = "14px";
+    cruciLabel.textContent = "Lunghezza delle parole cercate nel crucipuzzle";
+    wrap.appendChild(cruciLabel);
+    const cruciRow = document.createElement("div");
+    cruciRow.style.cssText = "display:flex; gap:10px; align-items:center; margin-top:6px;";
+    const minSel = document.createElement("select");
+    const maxSel = document.createElement("select");
+    [minSel, maxSel].forEach(sel=>{
+      for(let n=3;n<=10;n++){ const opt = document.createElement("option"); opt.value=n; opt.textContent=n; sel.appendChild(opt); }
+    });
+    minSel.value = state.crucipuzzleLenMin || 4;
+    maxSel.value = state.crucipuzzleLenMax || 10;
+    const applyRange = ()=>{
+      state.crucipuzzleLenMin = Number(minSel.value);
+      state.crucipuzzleLenMax = Number(maxSel.value);
+      if(state.crucipuzzleLenMin > state.crucipuzzleLenMax) state.crucipuzzleLenMax = state.crucipuzzleLenMin;
+      generate();
+    };
+    minSel.addEventListener("change", applyRange);
+    maxSel.addEventListener("change", applyRange);
+    cruciRow.appendChild(document.createTextNode("da"));
+    cruciRow.appendChild(minSel);
+    cruciRow.appendChild(document.createTextNode("a"));
+    cruciRow.appendChild(maxSel);
+    cruciRow.appendChild(document.createTextNode("lettere"));
+    wrap.appendChild(cruciRow);
+    const cruciReset = document.createElement("button");
+    cruciReset.className = "chip";
+    cruciReset.style.marginTop = "8px";
+    cruciReset.textContent = "Automatico (da settimana)";
+    cruciReset.onclick = ()=>{ state.crucipuzzleLenMin=null; state.crucipuzzleLenMax=null; renderExControls(); generate(); };
+    wrap.appendChild(cruciReset);
+
     return wrap;
   }
 };
@@ -12206,25 +12367,23 @@ async function generate(){
     appendUsed("accessoHistory", "usedWords", state.deck.words, 80);
   } else if(state.exercise==="fascicolo"){
     // Stessa logica anti-ripetizione già usata per Categorizzazione e Accesso lessicale,
-    // estesa alle tre parti del fascicolo con un pool finito: anagrammi, categorie
-    // semantiche, coppie fonemiche. Le altre parti (griglie, labirinto, calcolo,
-    // sequenziamento) restano procedurali e non ne hanno bisogno.
-    const [excludeAnagrams, excludeCategories, excludePhonemic] = await Promise.all([
+    // estesa alle parti del fascicolo con un pool finito: anagrammi, categorie
+    // semantiche, blocco lessicale (unificato, qualunque sia lo schema di quella
+    // settimana). Le altre parti (griglie, labirinto, calcolo, sequenziamento) restano
+    // procedurali e non ne hanno bisogno.
+    const [excludeAnagrams, excludeCategories, excludeLexical] = await Promise.all([
       fetchRecentUsed("fascicoloHistory", "usedAnagramWords"),
       fetchRecentUsed("fascicoloHistory", "usedCategories"),
-      fetchRecentUsed("fascicoloHistory", "usedPhonemicKeys"),
+      fetchRecentUsed("fascicoloHistory", "usedLexicalKeys"),
     ]);
     if(gen !== state._generationToken) return;
     state.deck = window.Engine.buildFascicolo(state.fascicoloWeek, Math.floor(Math.random()*1e9), {
-      anagramWords: excludeAnagrams, categories: excludeCategories, phonemicKeys: excludePhonemic,
+      anagramWords: excludeAnagrams, categories: excludeCategories, lexicalKeys: excludeLexical,
+      crucipuzzleLenMin: state.crucipuzzleLenMin, crucipuzzleLenMax: state.crucipuzzleLenMax,
     });
     appendUsed("fascicoloHistory", "usedAnagramWords", state.deck.anagrams.map(a=>a.solution), 60);
     appendUsed("fascicoloHistory", "usedCategories", state.deck.categories, 60);
-    if(state.deck.positionalPrompts && state.deck.params.positionalScheme){
-      const kind = state.deck.params.positionalScheme.kind;
-      const keys = state.deck.positionalPrompts.map(pr => window.Engine.phonemicKeyFromPrompt(kind, pr));
-      appendUsed("fascicoloHistory", "usedPhonemicKeys", keys, 40);
-    }
+    appendUsed("fascicoloHistory", "usedLexicalKeys", state.deck.lexicalBlock.historyKeys, 60);
   } else {
     state.deck = GENERATORS[state.exercise](state.level);
   }
@@ -12278,7 +12437,9 @@ function render(){
   } else if(state.exercise==="serie"){
     ruleBox.style.display = "block";
     ruleBox.innerHTML = `<b>Regola (livello ${state.level}/${SERIE_MAX_LEVEL}):</b> ${state.deck.rule}` +
-      (state.deck.nextRule ? `<br><span class="level-note" style="margin-top:6px;"><b>Al livello successivo:</b> ${state.deck.nextRule}</span>` : `<br><span class="level-note" style="margin-top:6px;">Ultimo livello disponibile.</span>`);
+      (state.serieShowNextCriterion
+        ? (state.deck.nextRule ? `<br><span class="level-note" style="margin-top:6px;"><b>Al livello successivo:</b> ${state.deck.nextRule}</span>` : `<br><span class="level-note" style="margin-top:6px;">Ultimo livello disponibile.</span>`)
+        : "");
   } else if(state.deck.rule){
     ruleBox.style.display = "block";
     ruleBox.innerHTML = `<b>Regola:</b> ${state.deck.rule}` + (state.reveal && state.deck.answer ? `<br><b>Risposta:</b> ${state.deck.answer}` : "");
@@ -12350,7 +12511,7 @@ function exportIntruso(deck, level){
   deck.slides.forEach((s,si)=>{
     const slide = p.addSlide();
     slide.background = {color:"FFFFFF"};
-    slide.addNotes(`Livello ${level}. Schermata ${si+1}/${deck.slides.length} (${s.familyLabel}). ${s.rule} Risposta: ${s.answer}.`);
+    slide.addNotes(`Livello ${level}. Schermata ${si+1}/${deck.slides.length} (${s.familyLabel}). ${s.rule}`);
     const n = s.items.length;
     // Cerca il numero di colonne che rende le celle più vicine possibile al quadrato,
     // per massimizzare la dimensione del testo — nessun riquadro, solo gli elementi.
@@ -12410,9 +12571,8 @@ function exportInversione(deck, level){
         else { cur = {text:ch, options:{fontSize:110,bold:true,color:col}}; runs.push(cur); }
       });
       stim.addText(runs, {x:0,y:0,w:13.33,h:7.5,align:"center",valign:"middle",isTextBox:true});
-      // Tutte le trasformazioni valide per QUESTO stimolo, pronte nel commento —
-      // non serve più scegliere una regola sola prima di esportare.
-      stim.addNotes(applicable.map(r=>`${r.label}: ${r.apply(item.text)}`).join("\n"));
+      // Niente soluzioni nel commento: si vedono solo nell'app con "Mostra risposta",
+      // mai nel file esportato (vale per tutti gli esercizi, non solo questo).
     });
   });
   return p.writeFile({fileName:`Inversione-e-riordino_L${level}.pptx`});
@@ -12423,18 +12583,20 @@ function exportSerie(deck, level){
   p.layout = "LAYOUT_WIDE";
   const title = p.addSlide();
   title.background={color:"FFFFFF"};
-  title.addText(`Serie attentive alternate — Livello ${level}`, {x:0.5,y:2.8,w:12.3,h:1.2,align:"center",fontSize:32,bold:true,color:"1E2A26",isTextBox:true});
-  const noteText = `Regola: ${deck.rule}` + (deck.nextRule ? `\n\nAl livello successivo (${level+1}): ${deck.nextRule}` : "\n\nUltimo livello disponibile.");
-  title.addNotes(noteText);
-  // La regola (e l'anteprima di quella del livello successivo) va ripetuta nel commento
-  // di OGNI schermata, non solo della prima — altrimenti si perde di vista scorrendo
-  // le 154 slide una alla volta durante la somministrazione.
+  title.addText(`Serie attentive alternate — Livello ${level}`, {x:0.5,y:2.5,w:12.3,h:1.2,align:"center",fontSize:32,bold:true,color:"1E2A26",isTextBox:true});
+  title.addText(`Regola: ${deck.rule}`, {x:0.5,y:3.8,w:12.3,h:0.7,align:"center",fontSize:18,color:"4B5A55",isTextBox:true});
+  // Il criterio del livello successivo è testo VISIBILE e stampabile sulla slide del
+  // titolo (non più nascosto nel commento, mai visibile stampando normalmente) — solo
+  // se la spunta è attiva: di default resta nascosto per non anticipare la difficoltà.
+  if(state.serieShowNextCriterion){
+    const nextText = deck.nextRule ? `Al livello successivo: ${deck.nextRule}` : "Ultimo livello disponibile.";
+    title.addText(nextText, {x:0.5,y:4.6,w:12.3,h:0.7,align:"center",fontSize:14,italic:true,color:"A6503A",isTextBox:true});
+  }
   deck.seq.forEach(st=>{
     const s = p.addSlide();
     s.background={color:"FFFFFF"};
     s.addText(st.char,{x:0,y:0,w:13.33,h:7.5,align:"center",valign:"middle",fontSize:220,bold:true,
       color: st.color==="black" ? "000000":"FF0000", isTextBox:true});
-    s.addNotes(noteText);
   });
   return p.writeFile({fileName:`Serie-attentive-alternate_L${level}.pptx`});
 }
@@ -12464,9 +12626,9 @@ async function exportCategorizzazione(deck, level){
     Object.assign(s0, s); s0._imagesResolved = true; // riusa la cache anche per l'anteprima a schermo
     const slide = p.addSlide();
     slide.background={color:"FFFFFF"};
-    const groupA = s.items.filter(it=>it.group==="A").map(it=>it.it).join(", ");
-    const groupB = s.items.filter(it=>it.group==="B").map(it=>it.it).join(", ");
-    slide.addNotes(`Livello ${level}. Schermata ${si+1}/${deck.slides.length}. Criterio: ${s.label}. Gruppo 1: ${groupA}. Gruppo 2: ${groupB}.`);
+    // Niente gruppi/soluzione nel commento: solo il criterio (l'istruzione), mai quali
+    // 3+3 immagini formano la risposta — quello resta visibile solo nell'app.
+    slide.addNotes(`Livello ${level}. Schermata ${si+1}/${deck.slides.length}. Criterio: ${s.label}.`);
     const cols=3, rows=2, cellW=12.6/cols, cellH=6.6/rows;
     const fitFontSize = Math.floor(Math.min(cellW, cellH) * 30);
     s.items.forEach((it,i)=>{
