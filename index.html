@@ -415,10 +415,14 @@
   table.fasc-grid td{border:1px solid var(--line);width:24px;height:24px;text-align:center;padding:0;
     font-family:"DejaVu Sans","Noto Sans Symbols2",monospace;}
   table.fasc-grid.fasc-cruci td{font-family:Georgia,serif;}
+  table.fasc-grid td.fasc-cell-hi{background:#FFE9A8;color:#8A5A00;font-weight:700;}
   .fasc-legend-grid{display:flex;flex-wrap:wrap;gap:8px;margin-top:10px;}
   .fasc-legend-item{border:1px solid var(--line);border-radius:6px;padding:5px 10px;font-size:12.5px;background:#fff;}
   .fasc-legend-seq{font-weight:700;letter-spacing:2px;}
   .fasc-legend-count{color:var(--accent);}
+  .fasc-wordlist{display:flex;flex-wrap:wrap;gap:6px 10px;margin-top:10px;}
+  .fasc-wordlist-item{border:1px solid var(--line);border-radius:6px;padding:3px 9px;font-size:12.5px;
+    background:#FFF8E6;color:#8A5A00;font-weight:600;letter-spacing:0.5px;}
   table.fasc-prompt{border-collapse:collapse;width:100%;max-width:520px;}
   table.fasc-prompt td{border:1px solid var(--line);padding:5px 10px;font-size:13px;}
   .fasc-prompt-cell{width:45%;background:#FAFBFA;}
@@ -669,6 +673,35 @@ function countDirectionalOccurrences(grid, target) {
   return { h, v };
 }
 
+// Trova TUTTE le posizioni in cui `target` compare in `grid`, lungo le direzioni date —
+// usata per far vedere al foglio delle soluzioni ESATTAMENTE dove sono le occorrenze
+// (non solo quante sono). Ogni direzione è un vettore [dr, dc]; per avere anche il verso
+// invertito basta includere il vettore opposto nell'elenco (es. [0,1] e [0,-1]).
+function findSequencePositions(grid, target, directions) {
+  const rows = grid.length, cols = grid[0].length, len = target.length;
+  const matches = [];
+  for (const [dr, dc] of directions) {
+    for (let r = 0; r < rows; r++) {
+      for (let c = 0; c < cols; c++) {
+        const rEnd = r + dr * (len - 1), cEnd = c + dc * (len - 1);
+        if (rEnd < 0 || rEnd >= rows || cEnd < 0 || cEnd >= cols) continue;
+        let ok = true;
+        for (let k = 0; k < len; k++) {
+          if (grid[r + dr * k][c + dc * k] !== target[k]) { ok = false; break; }
+        }
+        if (ok) matches.push(Array.from({ length: len }, (_, k) => [r + dr * k, c + dc * k]));
+      }
+    }
+  }
+  return matches;
+}
+// Stessi assi usati dai rispettivi contatori: le prime 3 griglie sono solo orizzontale
+// (sinistra→destra) e verticale (alto→basso), la griglia mista aggiunge le due diagonali
+// discendenti — nessuna delle due include il verso invertito (vedi countDirectionalOccurrences
+// e countAllDirections qui sopra/sotto).
+const DIR_HV = [[0, 1], [1, 0]];
+const DIR_HV_DIAG = [[0, 1], [1, 0], [1, 1], [1, -1]];
+
 // Genera una griglia in cui il bersaglio compare ESATTAMENTE 8 volte in
 // orizzontale e 8 in verticale (16 in totale) — non "almeno", un numero
 // fisso e verificato, così la difficoltà è la stessa ad ogni generazione e
@@ -746,7 +779,7 @@ function generateSequenceGrid(rows, cols, alphabet, rnd, opts = {}) {
     guard++;
   }
 
-  return { grid, target, count: counts.h + counts.v, countH: counts.h, countV: counts.v, seqLen, distractorCount, placedH, placedV };
+  return { grid, target, count: counts.h + counts.v, countH: counts.h, countV: counts.v, seqLen, distractorCount, placedH, placedV, occurrences: findSequencePositions(grid, target, DIR_HV) };
 }
 
 function shuffleInPlaceArr(rnd, arr) {
@@ -869,8 +902,9 @@ function generateMultiTargetGrid(rows, cols, alphabet, rnd, nTargets, seqLen = 4
   // tutte le occorrenze), quindi qui non serve alcuna correzione — a
   // differenza delle prime 3 griglie, qui non serve un conteggio ESATTO.
   const counts = targets.map(t => countAllDirections(grid, t));
+  const positions = targets.map(t => findSequencePositions(grid, t, DIR_HV_DIAG));
 
-  return { grid, targets, counts };
+  return { grid, targets, counts, positions };
 }
 
 // ---------------------------------------------------------------------------
@@ -1111,6 +1145,129 @@ function generateSymbolCrucipuzzle(rows, cols, alphabet, rnd, nTargets, seqLen) 
 
   const counts = targets.map(t => countAllDirectionsSym(grid, t));
   return { grid, targets, counts, seqLen };
+}
+
+// ---------------------------------------------------------------------------
+// 7b. CRUCIPUZZLE ITALIANO A RICERCA LIBERA — sostituisce, come seconda griglia
+//     con legenda, il crucipuzzle a simboli qui sopra (che resta definito ma non
+//     più usato in buildFascicolo): qui le parole nascoste sono italiane reali,
+//     di senso compiuto, e NON viene fornito alcun elenco bersaglio — il
+//     paziente le cerca da solo, in tutte le direzioni (compreso il verso
+//     invertito). La difficoltà cresce con la settimana su tre assi: quante
+//     parole sono garantite in griglia, quanto sono lunghe, e quanto sono
+//     frequenti/comuni (finestra di frequenza come per gli anagrammi — vedi
+//     anagramWordPool). Il foglio delle soluzioni evidenzia TUTTE le parole
+//     realmente presenti nella griglia finale, non solo quelle piazzate di
+//     proposito: il rumore di fondo può averne creata qualcuna in più per
+//     puro caso, ed è comunque una parola valida da trovare.
+// ---------------------------------------------------------------------------
+const ITALIAN_FILLER_LETTERS = "ABCDEFGHILMNOPQRSTUVZ".split("");
+
+function italianWordPool(minLen, maxLen, week) {
+  let combined = [];
+  for (let len = minLen; len <= maxLen; len++) {
+    const bank = WORD_BANK_SCORED[len];
+    if (bank) combined = combined.concat(bank);
+  }
+  combined = combined.slice().sort((a, b) => b[1] - a[1]); // frequenza decrescente
+  const n = combined.length;
+  const windowSize = Math.max(8, Math.ceil(n * 0.4));
+  const pct = (Math.max(1, Math.min(12, week)) - 1) / 11;
+  const maxStart = Math.max(0, n - windowSize);
+  const start = Math.round(pct * maxStart);
+  return combined.slice(start, start + windowSize).map(([w]) => w);
+}
+
+// Scansiona l'INTERA griglia contro tutto il vocabolario disponibile (ogni lunghezza
+// 3-10), in tutte e 8 le direzioni: trova ogni parola reale davvero presente, piazzata
+// di proposito o comparsa per caso nel rumore di fondo.
+function findAllDictionaryWords(grid) {
+  const rows = grid.length, cols = grid[0].length;
+  const results = [];
+  const seen = new Set();
+  Object.keys(WORD_BANK_SCORED).map(Number).forEach(len => {
+    const bank = WORD_BANK_SCORED[len];
+    bank.forEach(([word]) => {
+      const letters = word.split("");
+      DIRECTIONS.forEach(([dr, dc]) => {
+        for (let r = 0; r < rows; r++) for (let c = 0; c < cols; c++) {
+          const rEnd = r + dr * (len - 1), cEnd = c + dc * (len - 1);
+          if (rEnd < 0 || rEnd >= rows || cEnd < 0 || cEnd >= cols) continue;
+          let ok = true;
+          for (let k = 0; k < len; k++) if (grid[r + dr * k][c + dc * k] !== letters[k]) { ok = false; break; }
+          if (!ok) continue;
+          const cells = Array.from({ length: len }, (_, k) => [r + dr * k, c + dc * k]);
+          const key = word + "@" + cells.map(p => p.join(",")).join("|");
+          if (seen.has(key)) continue;
+          seen.add(key);
+          results.push({ word, cells });
+        }
+      });
+    });
+  });
+  return results;
+}
+
+function generateItalianCrucipuzzle(rows, cols, rnd, week) {
+  week = week || 1;
+  const w = Math.max(1, Math.min(12, week));
+  // Quante parole garantire in griglia: 6 alla settimana 1, 12 alla settimana 12.
+  const nWords = Math.round(6 + (w - 1) / 11 * 6);
+  // Lunghezza delle parole: cresce ogni 3 settimane (4-5 all'inizio, fino a 7-9 in fondo).
+  const minLen = Math.min(8, 4 + Math.floor((w - 1) / 3));
+  const maxLen = Math.min(9, minLen + 2);
+  const pool = italianWordPool(minLen, maxLen, w);
+  const chosen = pickN(rnd, pool, Math.min(nWords, pool.length));
+
+  const grid = Array.from({ length: rows }, () => Array.from({ length: cols }, () => pick(rnd, ITALIAN_FILLER_LETTERS)));
+  const occupied = new Set();
+
+  function candidatesFor(dir, len) {
+    const [dr, dc] = dir;
+    const out = [];
+    for (let r = 0; r < rows; r++) for (let c = 0; c < cols; c++) {
+      const rEnd = r + dr * (len - 1), cEnd = c + dc * (len - 1);
+      if (rEnd < 0 || rEnd >= rows || cEnd < 0 || cEnd >= cols) continue;
+      out.push([r, c]);
+    }
+    shuffleInPlaceArr(rnd, out);
+    return out;
+  }
+
+  // Piazzamento greedy in una delle 8 direzioni: a differenza delle altre griglie qui la
+  // sovrapposizione tra parole è ammessa quando le lettere coincidono (come in un vero
+  // cruciverba), il che aumenta di molto quante parole entrano davvero sulla griglia.
+  const placedWords = [];
+  chosen.forEach(word => {
+    const letters = word.split("");
+    const len = letters.length;
+    const dirsShuffled = shuffleInPlaceArr(rnd, DIRECTIONS.slice());
+    for (const dir of dirsShuffled) {
+      const [dr, dc] = dir;
+      let done = false;
+      for (const [r, c] of candidatesFor(dir, len)) {
+        const cells = Array.from({ length: len }, (_, k) => [r + dr * k, c + dc * k]);
+        const compatible = cells.every(([rr, cc], k) => {
+          const key = rr + "," + cc;
+          return !occupied.has(key) || grid[rr][cc] === letters[k];
+        });
+        if (!compatible) continue;
+        cells.forEach(([rr, cc], k) => { grid[rr][cc] = letters[k]; occupied.add(rr + "," + cc); });
+        done = true;
+        break;
+      }
+      if (done) { placedWords.push(word); break; }
+    }
+  });
+
+  const foundWords = findAllDictionaryWords(grid);
+
+  return {
+    grid, rows, cols,
+    minWordsToFind: placedWords.length,
+    plantedWords: placedWords,
+    foundWords, // [{word, cells}] — TUTTE le parole realmente presenti, per il foglio soluzioni
+  };
 }
 
 // ---------------------------------------------------------------------------
@@ -1638,7 +1795,10 @@ function buildFascicolo(week, seed, exclusions) {
   // Crucipuzzle (5°): stessa famiglia/lunghezza della settimana, ma piazzato
   // in tutte e 8 le direzioni (non solo H/V/obliqua) — è questo a crescere in
   // complessità, non più solo la ricerca di parole italiane reali.
-  const crucipuzzle = generateSymbolCrucipuzzle(16, 12, p.grids[0].family.chars, rnd, p.crucipuzzleTargetCount, p.seqLen);
+  // Crucipuzzle (5°): a differenza delle altre griglie, qui NON c'è materiale a simboli
+  // né un elenco bersaglio — parole italiane reali, ricerca libera (vedi
+  // generateItalianCrucipuzzle qui sopra in engine.js).
+  const crucipuzzle = generateItalianCrucipuzzle(16, 12, rnd, week);
   const sequencing = generateSequencingV2(p.sequencing, rnd);
   const maze = generateMaze(p.mazeCols, p.mazeRows, rnd);
   const anagrams = generateAnagrams(10, p.anagramLen, rnd, excl.anagramWords, p.week);
@@ -1695,7 +1855,7 @@ return {
   buildFascicolo,
   SYMBOL_FAMILIES, gridProfileForWeek, weekParams, mulberry32,
   generateSequenceGrid, generateMultiTargetGrid, countSequenceOccurrences,
-  generateAnagrams, generateCalcChain, generateSymbolCrucipuzzle,
+  generateAnagrams, generateCalcChain, generateSymbolCrucipuzzle, generateItalianCrucipuzzle,
   generateSequencingV2, sequencingInstructionText, generateMaze,
   CATEGORY_POOL, LETTER_POOL, WORD_BANK, WORD_BANK_SCORED, buildPositionalPrompts, phonemicKeyFromPrompt,
   buildCombinedPrompts, combinedKeyFromPrompt, BROAD_CATEGORIES,
@@ -1755,14 +1915,22 @@ return {
     // pagina): la griglia mista (4ª) resta volutamente più piccola e continua
     // ad auto-dimensionarsi sul contenuto, per lasciare spazio alla legenda sotto.
     const rowHeight = opts.fillPage ? GRID_ROW_H : null;
-    const rows = grid.map(rowArr => new TableRow({
+    // opts.highlight: Set di "riga,colonna" da evidenziare — SOLO nel fascicolo delle
+    // soluzioni (vedi buildFascicoloDocument), per mostrare esattamente dove sono le
+    // occorrenze/parole, non solo quante sono.
+    const highlight = opts.highlight || null;
+    const rows = grid.map((rowArr, r) => new TableRow({
       height: rowHeight ? { value: rowHeight, rule: 'atLeast' } : undefined,
-      children: rowArr.map(sym => new TableCell({
-        width: { size: GRID_CELL_W, type: WidthType.DXA },
-        verticalAlign: VerticalAlign.CENTER,
-        margins: { top: 100, bottom: 100, left: 100, right: 100 },
-        children: [new Paragraph({ alignment: AlignmentType.CENTER, children: [new TextRun({ text: sym, size: 24, bold: true, font: 'Arial' })] })],
-      })),
+      children: rowArr.map((sym, c) => {
+        const isHi = highlight && highlight.has(r + ',' + c);
+        return new TableCell({
+          width: { size: GRID_CELL_W, type: WidthType.DXA },
+          verticalAlign: VerticalAlign.CENTER,
+          margins: { top: 100, bottom: 100, left: 100, right: 100 },
+          shading: isHi ? { fill: 'FFE9A8' } : undefined,
+          children: [new Paragraph({ alignment: AlignmentType.CENTER, children: [new TextRun({ text: sym, size: 24, bold: true, font: 'Arial', color: isHi ? '8A5A00' : undefined })] })],
+        });
+      }),
     }));
     return new Table({
       rows,
@@ -1770,6 +1938,18 @@ return {
       columnWidths: grid[0].map(() => GRID_CELL_W),
       borders: thinBorders(docx),
     });
+  }
+
+  // Costruisce l'insieme "riga,colonna" da evidenziare a partire da uno o più elenchi di
+  // occorrenze nella forma [[r,c],[r,c],...] (una per match) — usata per le griglie 1-3
+  // (un solo bersaglio, `occurrences`), per la griglia mista e per il crucipuzzle italiano
+  // (più bersagli/parole, ciascuno con il proprio elenco di celle).
+  function highlightSetFrom(occurrenceLists) {
+    const set = new Set();
+    occurrenceLists.forEach(cellsList => {
+      cellsList.forEach(([r, c]) => set.add(r + ',' + c));
+    });
+    return set;
   }
 
   function legendTable(docx, sequences, counts) {
@@ -1909,25 +2089,42 @@ return {
     children.push(new Paragraph({ alignment: AlignmentType.CENTER, children: [new TextRun({ text: `Fascicolo ${data.week}`, size: 180, font: 'Times New Roman' })] }));
     children.push(new Paragraph({ alignment: AlignmentType.CENTER, spacing: { after: 160 }, children: [new TextRun({ text: `${data.week}°settimana${withSolutions ? ' — soluzioni' : ''}`, size: 180, font: 'Times New Roman' })] }));
 
-    // 1-3: griglie ricerca-sequenza singola — 25 righe × 12 colonne come l'originale
+    // 1-3: griglie ricerca-sequenza singola — 25 righe × 12 colonne come l'originale.
+    // Nel fascicolo delle soluzioni le celle delle occorrenze sono evidenziate
+    // direttamente nella griglia, non solo contate.
     data.grids.forEach((g) => {
       children.push(heading(docx, `Cerchiare e contare tutte le sequenze ${g.target.join('')}`, '(orizzontale e verticale)'));
-      children.push(symbolGridTable(docx, g.grid, { fillPage: true }));
-      if (withSolutions) children.push(solutionParagraph(`Soluzione: ${g.count} occorrenze (${g.countH} orizzontali, ${g.countV} verticali).`));
+      children.push(symbolGridTable(docx, g.grid, { fillPage: true, highlight: withSolutions ? highlightSetFrom(g.occurrences) : null }));
+      if (withSolutions) children.push(solutionParagraph(`Soluzione: ${g.count} occorrenze (${g.countH} orizzontali, ${g.countV} verticali) — evidenziate in griglia.`));
     });
 
-    // 4: griglia multi-bersaglio (16 righe, volutamente più piccola) + legenda
+    // 4: griglia multi-bersaglio (16 righe, volutamente più piccola) + legenda. Nelle
+    // soluzioni, oltre al conteggio in legenda, le celle di ogni occorrenza sono
+    // evidenziate direttamente in griglia (tutti i bersagli con lo stesso colore: la
+    // legenda sotto dice già quale sequenza conta quanto).
     children.push(heading(docx, 'Cerchiare tutte le sequenze indicate', '(orizzontale, verticale e obliqua — 12 sequenze da trovare)'));
-    children.push(symbolGridTable(docx, data.multi.grid));
+    children.push(symbolGridTable(docx, data.multi.grid, { highlight: withSolutions ? highlightSetFrom(data.multi.positions.flat()) : null }));
     children.push(new Paragraph({ spacing: { before: 160 }, children: [] }));
     children.push(legendTable(docx, data.multi.targets, withSolutions ? data.multi.counts : null));
 
-    // 5: crucipuzzle — stessa logica delle griglie di ricerca (materiale della
-    // settimana, lunghezza bersaglio crescente), piazzato in tutte le 8 direzioni.
-    children.push(heading(docx, 'Cerchiare tutte le sequenze indicate nel crucipuzzle', '(tutte le direzioni, dritto o inverso — 12 sequenze da trovare)'));
-    children.push(symbolGridTable(docx, data.crucipuzzle.grid));
-    children.push(new Paragraph({ spacing: { before: 160 }, children: [] }));
-    children.push(legendTable(docx, data.crucipuzzle.targets, withSolutions ? data.crucipuzzle.counts : null));
+    // 5: crucipuzzle italiano a ricerca libera — a differenza della griglia mista qui
+    // NON c'è alcun elenco bersaglio nel fascicolo bianco: il paziente cerca da solo
+    // parole italiane di senso compiuto, in tutte le direzioni e in entrambi i versi.
+    // Nel fascicolo delle soluzioni si evidenziano TUTTE le parole realmente presenti
+    // (quelle piazzate di proposito e le eventuali extra comparse per caso nel rumore
+    // di fondo), non solo quelle piazzate — "tutte le potenziali", come richiesto — con
+    // il relativo elenco sotto la griglia.
+    children.push(heading(docx, 'Cerca nella griglia tutte le parole italiane di senso compiuto che riesci a trovare',
+      `(almeno ${data.crucipuzzle.minWordsToFind} — orizzontale, verticale e obliquo, in avanti e all'indietro)`));
+    children.push(symbolGridTable(docx, data.crucipuzzle.grid, { highlight: withSolutions ? highlightSetFrom(data.crucipuzzle.foundWords.map(f => f.cells)) : null }));
+    if (withSolutions) {
+      // Stesso trattamento dell'anteprima a schermo: una parola corta trovata due volte in
+      // griglia (frequente, es. "ORO") compare una sola volta con il conteggio, non ripetuta.
+      const wordCounts = {};
+      data.crucipuzzle.foundWords.forEach(f => { wordCounts[f.word] = (wordCounts[f.word] || 0) + 1; });
+      const wordList = Object.keys(wordCounts).sort().map(w => wordCounts[w] > 1 ? `${w} (×${wordCounts[w]})` : w).join(', ');
+      children.push(solutionParagraph(`Parole presenti in griglia (${data.crucipuzzle.foundWords.length}): ${wordList}.`));
+    }
 
     // 6: sequenziamento + immagine (quasi a piena pagina, come l'originale)
     const seqTitle = engine.sequencingInstructionText(data.sequencing.mode);
@@ -11304,12 +11501,7 @@ async function resolveTrialImages(trial) {
    funziona esattamente come prima, solo senza memoria tra un dispositivo e l'altro.
    ========================================================= */
 const firebaseConfig = {
-  apiKey: "AIzaSyCEFMdVHdANv1PsVlb-Wo65JHe4IKMtk3o",
-    authDomain: "pdmgenerator.firebaseapp.com",
-    projectId: "pdmgenerator",
-    storageBucket: "pdmgenerator.firebasestorage.app",
-    messagingSenderId: "203067967755",
-    appId: "1:203067967755:web:6ec8266c59798c852e3a0e"
+  // apiKey: "...", authDomain: "...", projectId: "...", ...
 };
 
 let sharedHistoryReady = false;
@@ -11512,22 +11704,49 @@ function pickBalanced(pool, n){
 function randCase(str){
   return str.split("").map(c=>Math.random()<0.5?c.toUpperCase():c.toLowerCase()).join("");
 }
+// Restituisce true se `s` contiene lo stesso carattere (case-insensitive) più di una volta.
+function hasDuplicateChars(s){
+  const seen = new Set();
+  for(const ch of s.toUpperCase()){
+    if(seen.has(ch)) return true;
+    seen.add(ch);
+  }
+  return false;
+}
 function randDigits(len){
-  let s="";
-  for(let i=0;i<len;i++) s+= (i===0? (1+rnd(9)) : rnd(10));
-  return s;
+  // Cifre sempre tutte diverse tra loro (mai la stessa cifra ripetuta nello stesso numero):
+  // si pesca senza reinserimento da una permutazione di 0-9 invece di estrarre ogni
+  // posizione indipendentemente. Il primo carattere non è mai 0.
+  const digits = shuffle([0,1,2,3,4,5,6,7,8,9]);
+  if(digits[0]===0){
+    const swapIdx = 1 + rnd(digits.length-1);
+    [digits[0], digits[swapIdx]] = [digits[swapIdx], digits[0]];
+  }
+  return digits.slice(0, len).join("");
 }
 function randLetters(len,pool=ALPHABET){
-  let s="";
-  for(let i=0;i<len;i++) s+=pick(pool);
-  return s;
+  // Lettere sempre tutte diverse tra loro (mai la stessa lettera ripetuta nella stessa
+  // stringa), stesso principio delle cifre: pescate senza reinserimento.
+  return shuffle(pool).slice(0, len).join("");
 }
 function randAlnum(len){
-  let s="";
-  for(let i=0;i<len;i++){
-    s += Math.random()<0.5 ? pick(ALPHABET) : String(rnd(10));
+  // Quando lettere e cifre convivono nella stessa stringa devono essercene sempre almeno 2
+  // di entrambe (mai una sola cifra sperduta tra le lettere, o viceversa), e nessun
+  // carattere — lettera o cifra — ripetuto all'interno della stessa stringa.
+  const DIGIT_CHARS = ["0","1","2","3","4","5","6","7","8","9"];
+  if(len<4){
+    // Sotto i 4 caratteri non è possibile garantire almeno 2+2: resta comunque garantita
+    // l'assenza di ripetizioni.
+    const mixedPool = shuffle([...ALPHABET, ...DIGIT_CHARS]);
+    return randCase(mixedPool.slice(0, len).join(""));
   }
-  return randCase(s);
+  const minEach = 2;
+  const extra = len - 2*minEach; // 0 per len=4, 1 per len=5
+  const nLetters = minEach + (extra>0 && Math.random()<0.5 ? extra : 0);
+  const nDigits = len - nLetters;
+  const letters = shuffle(ALPHABET).slice(0, nLetters);
+  const digits = shuffle(DIGIT_CHARS).slice(0, nDigits);
+  return randCase(shuffle([...letters, ...digits]).join(""));
 }
 function tierFromLevel(level, nTiers){
   return Math.min(nTiers-1, Math.floor((level-1)/(16/nTiers)));
@@ -12069,9 +12288,18 @@ function nonwordFor(len, level){
   // livelli bassi (non-parole "iniziali"): sempre pronunciabile.
   // livelli alti: introduce gradualmente combinazioni meno pronunciabili (in linea col
   // gradiente generale "riduzione del supporto fonologico"), ma mai al livello 1.
+  // In ogni caso, mai una lettera ripetuta nella stessa stringa: pronounceableNonword
+  // costruisce per sillabe e può ripetere una lettera per caso, quindi si ritenta un
+  // numero limitato di volte e poi si ripiega su randLetters, che è già garantito senza
+  // ripetizioni per costruzione.
   const pronounceProb = level<=9 ? 1 : level<=12 ? 0.6 : 0.35;
-  const w = Math.random()<pronounceProb ? pronounceableNonword(len) : randLetters(len);
-  return w;
+  if(Math.random()<pronounceProb){
+    for(let tries=0; tries<30; tries++){
+      const w = pronounceableNonword(len);
+      if(!hasDuplicateChars(w)) return w;
+    }
+  }
+  return randLetters(len);
 }
 
 // Numero totale di elementi nell'intera sessione (somma di tutti i blocchi/consegne), non
@@ -12137,7 +12365,10 @@ function genInversione(level){
     if(spec.kind==="letters"){
       let raw;
       if(lexical && REAL_WORDS[len]){
-        raw = pickN(REAL_WORDS[len], Math.min(itemsPer, REAL_WORDS[len].length));
+        // Mai una lettera ripetuta nella stessa parola: filtra il pool prima di pescare
+        // (es. "AIA", "ALA", "ORO", "NANO" restano fuori).
+        const pool = REAL_WORDS[len].filter(w=>!hasDuplicateChars(w));
+        raw = pickN(pool, Math.min(itemsPer, pool.length));
       } else {
         raw = Array.from({length:itemsPer},()=>{
           let w = nonwordFor(len, level);
@@ -12592,14 +12823,37 @@ function fEl(tag, attrs, children){
   });
   return e;
 }
-function fGridTable(grid, cls){
+// Costruisce l'insieme "riga,colonna" da evidenziare a partire da uno o più elenchi di
+// occorrenze nella forma [[r,c],[r,c],...] — stessa logica del gemello in docbuilder.js,
+// qui per l'anteprima a schermo (celle <td> colorate invece di celle di tabella Word).
+function highlightSetFromJS(occurrenceLists){
+  const set = new Set();
+  occurrenceLists.forEach(cellsList=>{ cellsList.forEach(([r,c])=>set.add(r+","+c)); });
+  return set;
+}
+function fGridTable(grid, cls, highlight){
   const table = fEl("table", {class:"fasc-grid " + (cls||"")});
-  grid.forEach(row=>{
+  grid.forEach((row,r)=>{
     const tr = fEl("tr");
-    row.forEach(sym=>tr.appendChild(fEl("td",{},sym)));
+    row.forEach((sym,c)=>{
+      const isHi = highlight && highlight.has(r+","+c);
+      tr.appendChild(fEl("td",{class: isHi ? "fasc-cell-hi" : ""}, sym));
+    });
     table.appendChild(tr);
   });
   return table;
+}
+function fWordList(words){
+  // Se la stessa parola compare più volte in griglia (frequente per le corte, tipo "ORO"),
+  // la si elenca una sola volta con il numero di occorrenze, invece di ripeterla identica.
+  const counts = {};
+  words.forEach(w=>{ counts[w] = (counts[w]||0)+1; });
+  const wrap = fEl("div",{class:"fasc-wordlist"});
+  Object.keys(counts).sort().forEach(w=>{
+    const label = counts[w]>1 ? `${w} (×${counts[w]})` : w;
+    wrap.appendChild(fEl("span",{class:"fasc-wordlist-item"}, label));
+  });
+  return wrap;
 }
 function fLegend(targets, counts, showSolutions){
   const wrap = fEl("div",{class:"fasc-legend-grid"});
@@ -12659,21 +12913,29 @@ function renderFascicolo(deck){
   deck.grids.forEach((g,i)=>{
     root.appendChild(fSection(
       `Cerchiare e contare tutte le sequenze ${g.target.join("")} (orizzontale e verticale)`,
-      showSolutions ? `Occorrenze presenti nella griglia: ${g.count}` : null,
-      fGridTable(g.grid),
+      showSolutions ? `Occorrenze presenti nella griglia: ${g.count} — evidenziate in griglia.` : null,
+      fGridTable(g.grid, null, showSolutions ? highlightSetFromJS(g.occurrences) : null),
       `grid${i}`
     ));
   });
 
   const multiWrap = fEl("div");
-  multiWrap.appendChild(fGridTable(deck.multi.grid));
+  multiWrap.appendChild(fGridTable(deck.multi.grid, null, showSolutions ? highlightSetFromJS(deck.multi.positions.flat()) : null));
   multiWrap.appendChild(fLegend(deck.multi.targets, deck.multi.counts, showSolutions));
   root.appendChild(fSection("Cerchiare tutte le sequenze indicate", null, multiWrap, "multi"));
 
+  // Crucipuzzle italiano a ricerca libera: nessun elenco bersaglio nel fascicolo bianco —
+  // il paziente cerca da solo parole di senso compiuto. Nelle soluzioni si evidenziano
+  // TUTTE le parole realmente presenti in griglia (piazzate di proposito o comparse per
+  // caso nel rumore di fondo), con l'elenco sotto.
   const cruciWrap = fEl("div");
-  cruciWrap.appendChild(fGridTable(deck.crucipuzzle.grid, "fasc-cruci"));
-  cruciWrap.appendChild(fLegend(deck.crucipuzzle.targets, deck.crucipuzzle.counts, showSolutions));
-  root.appendChild(fSection("Cerchiare tutte le sequenze indicate nel crucipuzzle", "(tutte le direzioni, dritto o inverso — 12 sequenze da trovare)", cruciWrap, "crucipuzzle"));
+  cruciWrap.appendChild(fGridTable(deck.crucipuzzle.grid, "fasc-cruci", showSolutions ? highlightSetFromJS(deck.crucipuzzle.foundWords.map(f=>f.cells)) : null));
+  if(showSolutions) cruciWrap.appendChild(fWordList(deck.crucipuzzle.foundWords.map(f=>f.word)));
+  root.appendChild(fSection(
+    "Cerca nella griglia tutte le parole italiane di senso compiuto che riesci a trovare",
+    `(almeno ${deck.crucipuzzle.minWordsToFind} — orizzontale, verticale e obliquo, in avanti e all'indietro)`,
+    cruciWrap, "crucipuzzle"
+  ));
 
   const seqTitle = E.sequencingInstructionText(deck.sequencing.mode);
   const seqDiv = fEl("div",{class:"fasc-svg-wrap", html: E.renderSequencingSVG(deck.sequencing)});
