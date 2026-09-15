@@ -672,33 +672,72 @@ function generateSequenceGrid(rows, cols, alphabet, rnd, opts = {}) {
   const target = opts.target || pickN(rnd, alphabet, seqLen);
   const hTarget = opts.hTarget || 8;
   const vTarget = opts.vTarget || 8;
+  const distractorCount = opts.distractorCount || 0;
 
-  let grid, counts;
-  let attempt = 0;
-  do {
-    grid = Array.from({ length: rows }, () => Array.from({ length: cols }, () => pick(rnd, alphabet)));
+  function nearMissVariant() {
+    const variant = target.slice();
+    const pos = Math.floor(rnd() * variant.length);
+    let ch;
+    do { ch = pick(rnd, alphabet); } while (ch === variant[pos]);
+    variant[pos] = ch;
+    return variant;
+  }
 
-    const hCells = [];
-    for (let r = 0; r < rows; r++) for (let c = 0; c <= cols - seqLen; c++) hCells.push([r, c]);
-    shuffleInPlaceArr(rnd, hCells);
-    for (let i = 0; i < Math.min(hTarget, hCells.length); i++) {
-      const [r, c] = hCells[i];
-      for (let k = 0; k < seqLen; k++) grid[r][c + k] = target[k];
+  // Piazzamento GREEDY senza sovrapposizioni (non più "a caso e poi riconta e
+  // rigenera se non torna"): con sequenze lunghe (5-6 caratteri) su una griglia
+  // stretta (12 colonne) il piazzamento casuale collideva così spesso che anche
+  // 400 tentativi non bastavano a raggiungere per caso 8+8 esatti — bug trovato
+  // testando seqLen 5-6, non presente con la lunghezza 4 originale. Ora si
+  // scelgono posizioni libere una alla volta, marcando le celle occupate, così
+  // il conteggio finale è sempre esatto al primo colpo.
+  function place(rows, cols, seqLen, horizontal, need, occupied, chars, rnd) {
+    const candidates = [];
+    if (horizontal) for (let r = 0; r < rows; r++) for (let c = 0; c <= cols - seqLen; c++) candidates.push([r, c]);
+    else for (let c = 0; c < cols; c++) for (let r = 0; r <= rows - seqLen; r++) candidates.push([r, c]);
+    shuffleInPlaceArr(rnd, candidates);
+    let placed = 0;
+    for (const [r, c] of candidates) {
+      if (placed >= need) break;
+      const cells = [];
+      let free = true;
+      for (let k = 0; k < seqLen; k++) {
+        const rr = horizontal ? r : r + k, cc = horizontal ? c + k : c;
+        const key = rr + ',' + cc;
+        if (occupied.has(key)) { free = false; break; }
+        cells.push([rr, cc, key]);
+      }
+      if (!free) continue;
+      cells.forEach(([rr, cc, key], k) => { grid[rr][cc] = chars(k); occupied.add(key); });
+      placed++;
     }
+    return placed;
+  }
 
-    const vCells = [];
-    for (let c = 0; c < cols; c++) for (let r = 0; r <= rows - seqLen; r++) vCells.push([r, c]);
-    shuffleInPlaceArr(rnd, vCells);
-    for (let i = 0; i < Math.min(vTarget, vCells.length); i++) {
-      const [r, c] = vCells[i];
-      for (let k = 0; k < seqLen; k++) grid[r + k][c] = target[k];
+  const grid = Array.from({ length: rows }, () => Array.from({ length: cols }, () => pick(rnd, alphabet)));
+  const occupied = new Set();
+  const placedH = place(rows, cols, seqLen, true, hTarget, occupied, k => target[k], rnd);
+  const placedV = place(rows, cols, seqLen, false, vTarget, occupied, k => target[k], rnd);
+  for (let i = 0; i < distractorCount; i++) {
+    const variant = nearMissVariant();
+    place(rows, cols, seqLen, i % 2 === 0, 1, occupied, k => variant[k], rnd);
+  }
+
+  // Il rumore di fondo (celle non occupate da bersaglio/distrattori) è casuale:
+  // in rarissimi casi può ricreare per puro caso un'occorrenza extra del
+  // bersaglio. Se succede, si rimescola SOLO il rumore di fondo (le celle
+  // intenzionali restano ferme) finché il conteggio non torna esattamente
+  // quello voluto — molto più economico che rigenerare l'intera griglia.
+  let counts = countDirectionalOccurrences(grid, target);
+  let guard = 0;
+  while ((counts.h !== placedH || counts.v !== placedV) && guard < 30) {
+    for (let r = 0; r < rows; r++) for (let c = 0; c < cols; c++) {
+      if (!occupied.has(r + ',' + c)) grid[r][c] = pick(rnd, alphabet);
     }
-
     counts = countDirectionalOccurrences(grid, target);
-    attempt++;
-  } while ((counts.h !== hTarget || counts.v !== vTarget) && attempt < 60);
+    guard++;
+  }
 
-  return { grid, target, count: counts.h + counts.v, countH: counts.h, countV: counts.v, seqLen };
+  return { grid, target, count: counts.h + counts.v, countH: counts.h, countV: counts.v, seqLen, distractorCount, placedH, placedV };
 }
 
 function shuffleInPlaceArr(rnd, arr) {
@@ -755,6 +794,13 @@ function countAllDirections(grid, target) {
 // durante la verifica in browser. Un'occorrenza in più non è comunque un
 // problema per l'esercizio: il paziente cerchia tutte le occorrenze di ogni
 // sequenza indicata, una in più si cerchia e basta.)
+// Griglia "mista": 12 bersagli distinti, distribuiti 4 orizzontali + 4
+// verticali + 4 in obliquo (2 discendenti a destra, 2 a sinistra). Piazzamento
+// GREEDY senza sovrapposizioni (stesso principio di generateSequenceGrid):
+// il vecchio "pianta a caso e ripara se manca" falliva spesso con sequenze da
+// 6 caratteri su una griglia piccola (16×12) — un bersaglio finiva
+// sistematicamente sovrascritto da un altro. Trovato testando tutte le 12
+// settimane, non visibile con la lunghezza 4 originale.
 function generateMultiTargetGrid(rows, cols, alphabet, rnd, nTargets, seqLen = 4) {
   nTargets = nTargets || 12;
   const perDir = { H: 4, V: 4, DR: 2, DL: 2 };
@@ -771,37 +817,49 @@ function generateMultiTargetGrid(rows, cols, alphabet, rnd, nTargets, seqLen = 4
   for (let i = 0; i < perDir.V; i++) dirs.push('V');
   for (let i = 0; i < perDir.DR; i++) dirs.push('DR');
   for (let i = 0; i < perDir.DL; i++) dirs.push('DL');
+  shuffleInPlaceArr(rnd, dirs);
 
   const grid = Array.from({ length: rows }, () => Array.from({ length: cols }, () => pick(rnd, alphabet)));
+  const occupied = new Set();
 
-  function plantAt(target, dir) {
-    if (dir === 'H') {
-      const r = Math.floor(rnd() * rows), c = Math.floor(rnd() * (cols - seqLen + 1));
-      for (let k = 0; k < seqLen; k++) grid[r][c + k] = target[k];
-    } else if (dir === 'V') {
-      const c = Math.floor(rnd() * cols), r = Math.floor(rnd() * (rows - seqLen + 1));
-      for (let k = 0; k < seqLen; k++) grid[r + k][c] = target[k];
-    } else if (dir === 'DR') {
-      const r = Math.floor(rnd() * (rows - seqLen + 1)), c = Math.floor(rnd() * (cols - seqLen + 1));
-      for (let k = 0; k < seqLen; k++) grid[r + k][c + k] = target[k];
-    } else { // DL
-      const r = Math.floor(rnd() * (rows - seqLen + 1)), c = seqLen - 1 + Math.floor(rnd() * (cols - seqLen + 1));
-      for (let k = 0; k < seqLen; k++) grid[r + k][c - k] = target[k];
+  function candidatesFor(dir) {
+    const out = [];
+    if (dir === 'H') for (let r = 0; r < rows; r++) for (let c = 0; c <= cols - seqLen; c++) out.push([r, c]);
+    else if (dir === 'V') for (let c = 0; c < cols; c++) for (let r = 0; r <= rows - seqLen; r++) out.push([r, c]);
+    else if (dir === 'DR') for (let r = 0; r <= rows - seqLen; r++) for (let c = 0; c <= cols - seqLen; c++) out.push([r, c]);
+    else for (let r = 0; r <= rows - seqLen; r++) for (let c = seqLen - 1; c < cols; c++) out.push([r, c]);
+    shuffleInPlaceArr(rnd, out);
+    return out;
+  }
+  function cellsFor(dir, r, c) {
+    const out = [];
+    for (let k = 0; k < seqLen; k++) {
+      if (dir === 'H') out.push([r, c + k]);
+      else if (dir === 'V') out.push([r + k, c]);
+      else if (dir === 'DR') out.push([r + k, c + k]);
+      else out.push([r + k, c - k]);
     }
+    return out;
   }
 
-  targets.forEach((t, i) => plantAt(t, dirs[i]));
+  const placedOk = targets.map((target, i) => {
+    const tryDirs = [dirs[i], ...['H', 'V', 'DR', 'DL'].filter(d => d !== dirs[i])];
+    for (const dir of tryDirs) {
+      for (const [r, c] of candidatesFor(dir)) {
+        const cells = cellsFor(dir, r, c);
+        if (cells.some(([rr, cc]) => occupied.has(rr + ',' + cc))) continue;
+        cells.forEach(([rr, cc], k) => { grid[rr][cc] = target[k]; occupied.add(rr + ',' + cc); });
+        return true;
+      }
+    }
+    return false; // nessuna cella libera in nessuna direzione (grid troppo piccola/affollata)
+  });
 
-  // riparazione: se il rumore di fondo ha per caso cancellato un bersaglio
-  // (count 0), lo ripianta nella stessa direzione prevista, finché non
-  // compare almeno una volta.
-  let counts = targets.map(t => countAllDirections(grid, t));
-  let round = 0;
-  while (counts.some(c => c === 0) && round < nTargets * 6) {
-    targets.forEach((t, i) => { if (counts[i] === 0) plantAt(t, dirs[i]); });
-    counts = targets.map(t => countAllDirections(grid, t));
-    round++;
-  }
+  // Il rumore di fondo (celle non occupate) potrebbe per puro caso ricreare
+  // un'occorrenza extra: non è un problema (il paziente cerchia comunque
+  // tutte le occorrenze), quindi qui non serve alcuna correzione — a
+  // differenza delle prime 3 griglie, qui non serve un conteggio ESATTO.
+  const counts = targets.map(t => countAllDirections(grid, t));
 
   return { grid, targets, counts };
 }
@@ -811,62 +869,156 @@ function generateMultiTargetGrid(rows, cols, alphabet, rnd, nTargets, seqLen = 4
 //    Prima infarinatura curata a mano, pensata per essere ampliata: ogni
 //    parola è un sostantivo comune, maiuscolo, senza accenti/spazi.
 // ---------------------------------------------------------------------------
-const WORD_BANK = {
-  3: ['ORO', 'ZIO', 'SCI', 'GAS', 'RIO', 'DIO', 'ALA', 'UVA', 'USO', 'ORA', 'ERA', 'ARA', 'OCA', 'EGO', 'ODA'],
-  4: ['CANE', 'LUNA', 'CASA', 'PANE', 'MARE', 'TORO', 'LUPO', 'ORSO', 'VELA', 'PALO', 'ALBA', 'NAVE', 'ROSA', 'FATO', 'LAGO', 'MELA', 'PERA', 'RANA', 'FOCA', 'GUFO', 'IDEA', 'ONDA', 'NIDO', 'SOLE', 'LUCE', 'VITA', 'PACE', 'VOCE', 'DOTE', 'NOME', 'BASE', 'DUNA'],
-  5: ['TIGRE', 'VOLPE', 'CIGNO', 'FIUME', 'MONTE', 'PONTE', 'CAMPO', 'FORNO', 'SEDIA', 'PORTA', 'FIORE', 'TRENO', 'AEREO', 'BARCA', 'LEONE', 'GATTO', 'CAVIA', 'OMBRA', 'CIELO', 'VERME', 'TRAVE', 'PRATO', 'LADRO', 'GHIRO', 'COLPO', 'FIATO', 'SALTO', 'VETRO', 'SASSO'],
-  6: ['TAVOLO', 'CHIESA', 'SCUOLA', 'STRADA', 'CUCINA', 'AQUILA', 'BALENA', 'CAMINO', 'GABBIA', 'PIATTO', 'MULINO', 'SEDANO', 'LIMONE', 'PIRATA', 'CORONA', 'BANANA', 'PATATA', 'OCEANO', 'FIGURA', 'NUVOLA', 'FRUTTO', 'GIACCA', 'CAMERA', 'VELENO', 'FINALE', 'FARINA', 'MARINA'],
-  7: ['GIRAFFA', 'DELFINO', 'CAVALLO', 'FONTANA', 'ARANCIA', 'PANTERA', 'VULCANO', 'PATTINO', 'CUSCINO', 'BALCONE', 'ARMADIO', 'SALOTTO', 'STIVALE', 'BOTTONE', 'SCIARPA', 'CORNICE'],
-  8: ['FARFALLA', 'MONTAGNA', 'OMBRELLO', 'LEOPARDO', 'COLTELLO', 'CASTELLO', 'ELEFANTE', 'GABBIANO', 'PINGUINO', 'GIARDINO', 'MARTELLO', 'SPECCHIO', 'CAMMELLO', 'SERPENTE', 'FINESTRA', 'OSPEDALE', 'CAPPELLO', 'OROLOGIO'],
-  9: ['GHIRLANDA', 'FORCHETTA', 'BICCHIERE', 'CAVALIERE', 'PANTOFOLA', 'BURATTINO', 'FALEGNAME'],
-  10: ['SCOIATTOLO', 'PETTIROSSO', 'ARCOBALENO', 'CIOCCOLATO'],
+// Banca reale delle parole per gli anagrammi: ogni parola è annotata con il suo
+// punteggio Zipf di frequenza reale nell'italiano (fonte: corpus ItWaC, lista di
+// frequenza di franfranz/Word_Frequency_Lists_ITA, licenza MIT — non più solo
+// parole scelte a mano senza dato di frequenza). Più alto il punteggio, più la
+// parola è comune. Le parole senza riscontro nel corpus (rare o non presenti)
+// hanno un punteggio convenzionale basso (2.0), così finiscono comunque in coda.
+const WORD_BANK_SCORED = {
+  3: [['ORO',2.0], ['ZIO',2.0], ['SCI',2.0], ['GAS',2.0], ['RIO',2.0], ['DIO',2.0], ['ALA',2.0], ['UVA',2.0], ['USO',2.0], ['ORA',2.0], ['ERA',2.0], ['ARA',2.0], ['OCA',2.0], ['EGO',2.0], ['ODA',2.0]],
+  4: [['VITA',5.76], ['BASE',5.613], ['CASA',5.465], ['NOME',5.34], ['IDEA',5.168], ['LUCE',5.159], ['PACE',5.141], ['VOCE',5.099], ['MARE',5.052], ['SOLE',4.828], ['ONDA',4.454], ['CANE',4.45], ['PANE',4.438], ['NAVE',4.335], ['LAGO',4.294], ['LUNA',4.282], ['ALBA',4.175], ['LUPO',4.109], ['VELA',3.816], ['PALO',3.725], ['NIDO',3.704], ['MELA',3.603], ['DOTE',3.541], ['ORSO',3.526], ['TORO',3.472], ['FATO',3.343], ['RANA',3.317], ['PERA',3.115], ['FOCA',2.906], ['GUFO',2.841], ['DUNA',2.792], ['ROSA',2.0]],
+  5: [['CAMPO',5.319], ['CIELO',4.776], ['PORTA',4.768], ['COLPO',4.642], ['FIUME',4.514], ['OMBRA',4.46], ['PONTE',4.421], ['TRENO',4.397], ['BARCA',4.373], ['MONTE',4.325], ['SALTO',4.249], ['AEREO',4.221], ['VETRO',4.205], ['FORNO',4.082], ['FIORE',4.079], ['GATTO',4.066], ['FIATO',3.999], ['SEDIA',3.969], ['LEONE',3.792], ['PRATO',3.784], ['SASSO',3.605], ['LADRO',3.581], ['VOLPE',3.534], ['TIGRE',3.483], ['TRAVE',3.198], ['VERME',3.191], ['CIGNO',3.057], ['CAVIA',2.834], ['GHIRO',2.292]],
+  6: [['SCUOLA',5.456], ['STRADA',5.235], ['FIGURA',4.817], ['CHIESA',4.731], ['FRUTTO',4.624], ['CAMERA',4.558], ['CUCINA',4.547], ['TAVOLO',4.525], ['FINALE',4.506], ['PIATTO',4.189], ['FARINA',4.041], ['CORONA',3.892], ['MARINA',3.857], ['OCEANO',3.85], ['LIMONE',3.847], ['GIACCA',3.745], ['GABBIA',3.72], ['VELENO',3.688], ['CAMINO',3.595], ['AQUILA',3.477], ['NUVOLA',3.461], ['MULINO',3.358], ['PATATA',3.299], ['BANANA',3.257], ['PIRATA',3.234], ['BALENA',3.215], ['SEDANO',2.0]],
+  7: [['TERRENO',4.694], ['CANZONE',4.467], ['CAVALLO',4.402], ['BRACCIO',4.37], ['VEICOLO',4.359], ['COLONNA',4.352], ['CORNICE',4.07], ['FORESTA',4.036], ['PISCINA',4.035], ['STOMACO',3.96], ['PIANURA',3.953], ['COLLINA',3.952], ['VETTURA',3.936], ['SCATOLA',3.927], ['CARBONE',3.833], ['TAPPETO',3.821], ['CANTINA',3.796], ['SALOTTO',3.751], ['BALCONE',3.684], ['FONTANA',3.613], ['BOTTONE',3.613], ['ARMADIO',3.574], ['VULCANO',3.47], ['ARANCIA',3.455], ['CUSCINO',3.387], ['DELFINO',3.22], ['SCIARPA',3.099], ['STIVALE',2.905], ['PANTERA',2.877], ['PATTINO',2.204], ['GIRAFFA',2.0]],
+  8: [['MACCHINA',4.823], ['OSPEDALE',4.588], ['TELEFONO',4.56], ['FINESTRA',4.517], ['MONTAGNA',4.486], ['GIARDINO',4.375], ['SPIAGGIA',4.347], ['CASTELLO',4.275], ['BANDIERA',4.238], ['CHITARRA',4.211], ['SPECCHIO',4.179], ['CANTIERE',4.173], ['ZUCCHERO',4.153], ['BATTERIA',4.095], ['CARTELLA',4.083], ['GHIACCIO',4.062], ['PALESTRA',3.994], ['TASTIERA',3.955], ['OSSIGENO',3.933], ['OROLOGIO',3.93], ['CAPPELLO',3.834], ['COLTELLO',3.811], ['POMODORO',3.786], ['SERPENTE',3.642], ['FARFALLA',3.483], ['MARTELLO',3.46], ['ELEFANTE',3.367], ['OMBRELLO',3.352], ['GABBIANO',3.144], ['CAMMELLO',3.123], ['LEOPARDO',3.06], ['PINGUINO',2.906]],
+  9: [['AEROPORTO',4.264], ['BICCHIERE',4.063], ['BOTTIGLIA',3.995], ['GINOCCHIO',3.95], ['CAVALIERE',3.881], ['MAGAZZINO',3.851], ['PANTALONI',3.804], ['MONASTERO',3.801], ['DISCOTECA',3.798], ['SERBATOIO',3.771], ['TRIANGOLO',3.746], ['SCRIVANIA',3.736], ['CUCCHIAIO',3.73], ['CRISTALLO',3.659], ['MICROFONO',3.652], ['MAGLIETTA',3.65], ['FORCHETTA',3.27], ['BURATTINO',3.128], ['FALEGNAME',3.076], ['GHIRLANDA',2.504], ['PANTOFOLA',2.009]],
+  10: [['AUTOSTRADA',4.095], ['BICICLETTA',4.045], ['AUTOMOBILE',3.95], ['CIOCCOLATO',3.914], ['PIANOFORTE',3.914], ['ELICOTTERO',3.716], ['CATTEDRALE',3.681], ['PREZZEMOLO',3.679], ['TELESCOPIO',3.667], ['TELEVISORE',3.652], ['ARCOBALENO',3.623], ['VIDEOGIOCO',3.502], ['FOTOCAMERA',3.501], ['GIOCATTOLO',3.438], ['SCOIATTOLO',2.746], ['PETTIROSSO',2.45]],
 };
+// Compatibilità: alcune parti del codice si aspettano solo l'elenco delle parole,
+// senza il punteggio (es. se in futuro serve altrove).
+const WORD_BANK = Object.fromEntries(Object.entries(WORD_BANK_SCORED).map(([k, v]) => [k, v.map(([w]) => w)]));
 
 // ---------------------------------------------------------------------------
-// 5. ANAGRAMMI — mescola parole reali della lunghezza richiesta
+// 5. ANAGRAMMI — parole reali, frequenza decrescente E scramble via via più
+//    scomposto man mano che la settimana avanza (non più uno scramble sempre
+//    completo su parole senza dato di frequenza).
 // ---------------------------------------------------------------------------
-function scramble(word, rnd) {
-  let letters = word.split('');
+
+// Sillabazione euristica dell'italiano: non perfetta (le regole complete
+// dell'italiano hanno eccezioni), ma sufficiente per lo scopo — dare uno
+// scramble "a blocchi" riconoscibile invece che lettera per lettera.
+const ITA_VOWELS = new Set('AEIOU');
+const ITA_KEEP_TOGETHER = new Set(['BR','CR','DR','FR','GR','PR','TR','VR','BL','CL','FL','GL','PL','GN','SC','CH','GH','QU']);
+function syllabifyItalian(word) {
+  const letters = word.split('');
+  const vpos = [];
+  letters.forEach((c, i) => { if (ITA_VOWELS.has(c)) vpos.push(i); });
+  if (vpos.length <= 1) return [word];
+  const syll = [];
+  let start = 0;
+  for (let k = 0; k < vpos.length - 1; k++) {
+    const v1 = vpos[k], v2 = vpos[k + 1];
+    const cons = word.slice(v1 + 1, v2);
+    let cut;
+    if (cons.length === 0) cut = v1 + 1;
+    else if (cons.length === 1) cut = v1 + 1;
+    else if (ITA_KEEP_TOGETHER.has(cons.slice(0, 2)) || ITA_KEEP_TOGETHER.has(cons)) cut = v1 + 1;
+    else cut = v1 + 1 + Math.floor(cons.length / 2);
+    syll.push(word.slice(start, cut));
+    start = cut;
+  }
+  syll.push(word.slice(start));
+  return syll;
+}
+
+function shuffleLettersWithin(s, rnd) {
+  if (s.length <= 1) return s;
+  const arr = s.split('');
+  let out;
   let attempts = 0;
+  do { out = shuffleInPlaceArr(rnd, arr.slice()).join(''); attempts++; } while (out === s && attempts < 6);
+  return out;
+}
+
+function fullScramble(word, rnd) {
+  const letters = word.split('');
   let scrambled;
-  do {
-    scrambled = pickN(rnd, letters, letters.length).join('');
-    attempts++;
-  } while (scrambled === word && attempts < 10);
+  let attempts = 0;
+  do { scrambled = shuffleInPlaceArr(rnd, letters.slice()).join(''); attempts++; } while (scrambled === word && attempts < 10);
   return scrambled;
 }
 
-function generateAnagrams(count, wordLen, rnd, excludeWords) {
-  const bank = WORD_BANK[wordLen] || WORD_BANK[Math.max(...Object.keys(WORD_BANK).map(Number))];
-  const excl = excludeWords ? new Set(excludeWords) : null;
-  let effectiveBank = bank;
-  if (excl && excl.size) {
-    const fresh = bank.filter(w => !excl.has(w));
-    if (fresh.length >= Math.min(count, bank.length)) effectiveBank = fresh; // solo se restano abbastanza parole "fresche"
+// Tre gradi di scomposizione, dal più semplice al più difficile — vedi
+// richiesta di Rodrigo: "sillabe in parte lasciate integre e rimescolate" per
+// i primi livelli, via via meno riconoscibile.
+// grado 1 (settimane 1-4): si mescola solo l'ORDINE delle sillabe, ciascuna
+//          resta intatta al suo interno (es. CANE -> NECA, non lettere sparse).
+// grado 2 (settimane 5-8): sillabe mescolate di ordine E internamente.
+// grado 3 (settimane 9-12): scramble completo lettera per lettera, come prima.
+function scrambleGraded(word, week, rnd) {
+  const syll = syllabifyItalian(word);
+  if (syll.length <= 1) return fullScramble(word, rnd); // parola troppo corta per avere sillabe multiple
+  if (week <= 4) {
+    let out, attempts = 0;
+    do { out = shuffleInPlaceArr(rnd, syll.slice()).join(''); attempts++; } while (out === word && attempts < 6);
+    return out;
   }
-  const words = pickN(rnd, effectiveBank, Math.min(count, effectiveBank.length));
-  while (words.length < count) words.push(pick(rnd, effectiveBank)); // ripesca se la banca è più piccola del richiesto
-  return words.map(w => ({ solution: w, scrambled: scramble(w, rnd) }));
+  if (week <= 8) {
+    const scrambledSyll = syll.map(s => shuffleLettersWithin(s, rnd));
+    let out, attempts = 0;
+    do { out = shuffleInPlaceArr(rnd, scrambledSyll.slice()).join(''); attempts++; } while (out === word && attempts < 6);
+    return out;
+  }
+  return fullScramble(word, rnd);
+}
+
+// Finestra di frequenza: le settimane iniziali pescano SOLO dalle parole più
+// comuni di quella lunghezza (Zipf più alto), le settimane avanzate includono
+// anche la coda meno frequente — sempre parole reali, mai a caso.
+function anagramWordPool(wordLen, week) {
+  const bank = WORD_BANK_SCORED[wordLen] || WORD_BANK_SCORED[Math.max(...Object.keys(WORD_BANK_SCORED).map(Number))];
+  const n = bank.length;
+  const windowSize = Math.max(6, Math.ceil(n * 0.4));
+  const pct = (Math.max(1, Math.min(12, week)) - 1) / 11;
+  const maxStart = Math.max(0, n - windowSize);
+  const start = Math.round(pct * maxStart);
+  return bank.slice(start, start + windowSize).map(([w]) => w);
+}
+
+function generateAnagrams(count, wordLen, rnd, excludeWords, week) {
+  week = week || 1;
+  const pool = anagramWordPool(wordLen, week);
+  const excl = excludeWords ? new Set(excludeWords) : null;
+  let effectivePool = pool;
+  if (excl && excl.size) {
+    const fresh = pool.filter(w => !excl.has(w));
+    if (fresh.length >= Math.min(count, pool.length)) effectivePool = fresh;
+  }
+  const words = pickN(rnd, effectivePool, Math.min(count, effectivePool.length));
+  while (words.length < count) words.push(pick(rnd, effectivePool));
+  return words.map(w => ({ solution: w, scrambled: scrambleGraded(w, week, rnd) }));
 }
 
 // ---------------------------------------------------------------------------
-// 6. CALCOLO — catena di addizioni/sottrazioni
+// 6. CALCOLO — catena di addizioni/sottrazioni. I numeri hanno una lunghezza
+//    in cifre precisa (non un tetto massimo generico), secondo il piano
+//    settimanale — vedi WEEK_PLAN.calc.
 // ---------------------------------------------------------------------------
-function generateCalcChain(count, nTerms, maxNum, rnd) {
+function randNumWithDigits(len, rnd) {
+  if (len <= 1) return 1 + Math.floor(rnd() * 9);
+  const min = Math.pow(10, len - 1), max = Math.pow(10, len) - 1;
+  return min + Math.floor(rnd() * (max - min + 1));
+}
+
+function generateCalcChain(count, nTerms, digitLens, rnd) {
   const rows = [];
   for (let i = 0; i < count; i++) {
     const used = new Set();
-    let result = 1 + Math.floor(rnd() * maxNum);
+    let result = randNumWithDigits(pick(rnd, digitLens), rnd);
     used.add(result);
     let expr = String(result);
     for (let t = 1; t < nTerms; t++) {
       const op = rnd() < 0.5 ? '+' : '-';
       let val, guard = 0;
       do {
-        val = 1 + Math.floor(rnd() * maxNum);
-        if (op === '-' && val > result) val = 1 + Math.floor(rnd() * result || 1);
+        val = randNumWithDigits(pick(rnd, digitLens), rnd);
         guard++;
-      } while (used.has(val) && guard < 30); // mai lo stesso numero due volte nella stessa riga
+      } while ((used.has(val) || (op === '-' && val > result)) && guard < 60);
+      // se dopo 60 tentativi non si trova un numero di lunghezza corretta che non porti
+      // sotto zero, si forza un valore sicuro (mai sotto zero, mai già usato se possibile)
+      if (op === '-' && val > result) val = result;
+      if (used.has(val) && result > 0) { val = 1; while (used.has(val) && val < result) val++; }
       used.add(val);
       result = op === '+' ? result + val : result - val;
       expr += ` ${op} ${val}`;
@@ -877,56 +1029,87 @@ function generateCalcChain(count, nTerms, maxNum, rnd) {
 }
 
 // ---------------------------------------------------------------------------
-// 7. CRUCIPUZZLE (ricerca di parole di senso compiuto)
+// 7. CRUCIPUZZLE — stessa logica delle griglie di ricerca-sequenza (famiglia di
+//    simboli/materiale che si fa via via meno comune, lunghezza bersaglio che
+//    cresce 4→5→6), ma con piazzamento in tutte e 8 le direzioni (orizzontale,
+//    verticale, diagonale, e i relativi versi invertiti) invece delle sole
+//    orizzontale/verticale/diagonale della griglia mista — è questo, non la
+//    ricerca di parole italiane reali, a crescere in complessità settimana per
+//    settimana. Il controllo manuale "lunghezza parole" non serve più: la
+//    lunghezza è decisa dalla settimana, non impostabile a mano.
 // ---------------------------------------------------------------------------
 const DIRECTIONS = [
   [0, 1], [0, -1], [1, 0], [-1, 0], [1, 1], [1, -1], [-1, 1], [-1, -1],
 ];
 
-function generateCrucipuzzle(rows, cols, minWords, rnd, lenMin, lenMax) {
-  const grid = Array.from({ length: rows }, () => Array.from({ length: cols }, () => null));
-  const alphabet = 'ABCDEFGHILMNOPQRSTUVZ'.split('');
-  const maxFit = Math.min(rows, cols);
-  const loMin = Math.max(3, lenMin || 3), hiMax = Math.min(maxFit, lenMax || maxFit);
-  const allWords = Object.values(WORD_BANK).flat().filter(w => w.length >= loMin && w.length <= hiMax);
-  const candidates = pickN(rnd, allWords, allWords.length);
-  const placed = [];
+function generateSymbolCrucipuzzle(rows, cols, alphabet, rnd, nTargets, seqLen) {
+  nTargets = nTargets || 12;
+  const targets = [];
+  const seen = new Set();
+  while (targets.length < nTargets) {
+    const t = pickN(rnd, alphabet, seqLen);
+    const key = t.join('');
+    if (!seen.has(key)) { seen.add(key); targets.push(t); }
+  }
+  const grid = Array.from({ length: rows }, () => Array.from({ length: cols }, () => pick(rnd, alphabet)));
+  const occupied = new Set();
 
-  for (const word of candidates) {
-    if (placed.length >= minWords + 4) break; // qualche parola in più del minimo richiesto
-    const dir = pick(rnd, DIRECTIONS);
-    let ok = false;
-    for (let attempt = 0; attempt < 30 && !ok; attempt++) {
-      const r0 = Math.floor(rnd() * rows);
-      const c0 = Math.floor(rnd() * cols);
-      const rEnd = r0 + dir[0] * (word.length - 1);
-      const cEnd = c0 + dir[1] * (word.length - 1);
+  // Piazzamento greedy senza sovrapposizioni, come per la griglia mista —
+  // stesso bug (bersagli che si sovrascrivevano a vicenda con seqLen alto)
+  // trovato e corretto qui allo stesso modo.
+  function candidatesFor(dir) {
+    const [dr, dc] = dir;
+    const out = [];
+    for (let r = 0; r < rows; r++) for (let c = 0; c < cols; c++) {
+      const rEnd = r + dr * (seqLen - 1), cEnd = c + dc * (seqLen - 1);
       if (rEnd < 0 || rEnd >= rows || cEnd < 0 || cEnd >= cols) continue;
-      let fits = true;
-      for (let i = 0; i < word.length; i++) {
-        const r = r0 + dir[0] * i, c = c0 + dir[1] * i;
-        const existing = grid[r][c];
-        if (existing !== null && existing !== word[i]) { fits = false; break; }
-      }
-      if (!fits) continue;
-      for (let i = 0; i < word.length; i++) {
-        const r = r0 + dir[0] * i, c = c0 + dir[1] * i;
-        grid[r][c] = word[i];
-      }
-      placed.push(word);
-      ok = true;
+      out.push([r, c]);
     }
+    shuffleInPlaceArr(rnd, out);
+    return out;
   }
 
-  for (let r = 0; r < rows; r++) for (let c = 0; c < cols; c++) {
-    if (grid[r][c] === null) grid[r][c] = pick(rnd, alphabet);
+  const dirs = targets.map(() => pick(rnd, DIRECTIONS));
+  targets.forEach((target, i) => {
+    const tryDirs = [dirs[i], ...DIRECTIONS.filter(d => d !== dirs[i])];
+    for (const dir of tryDirs) {
+      const [dr, dc] = dir;
+      let done = false;
+      for (const [r, c] of candidatesFor(dir)) {
+        const cells = Array.from({ length: seqLen }, (_, k) => [r + dr * k, c + dc * k]);
+        if (cells.some(([rr, cc]) => occupied.has(rr + ',' + cc))) continue;
+        cells.forEach(([rr, cc], k) => { grid[rr][cc] = target[k]; occupied.add(rr + ',' + cc); });
+        done = true;
+        break;
+      }
+      if (done) break;
+    }
+  });
+
+  function countAllDirectionsSym(grid, target) {
+    let count = 0;
+    for (const [dr, dc] of DIRECTIONS) {
+      for (let r = 0; r < rows; r++) for (let c = 0; c < cols; c++) {
+        const rEnd = r + dr * (seqLen - 1), cEnd = c + dc * (seqLen - 1);
+        if (rEnd < 0 || rEnd >= rows || cEnd < 0 || cEnd >= cols) continue;
+        let ok = true;
+        for (let i = 0; i < seqLen; i++) if (grid[r + dr * i][c + dc * i] !== target[i]) { ok = false; break; }
+        if (ok) count++;
+      }
+    }
+    return count;
   }
-  return { grid, placed, minWords };
+
+  const counts = targets.map(t => countAllDirectionsSym(grid, t));
+  return { grid, targets, counts, seqLen };
 }
 
 // ---------------------------------------------------------------------------
-// 8. SEQUENZIAMENTO — "unire i numeri in ordine crescente" (settimane 1-4)
-//    e "unire le lettere in ordine alfabetico" (settimane 5+)
+// 8. SEQUENZIAMENTO — "unire in ordine" — numeri, lettere o misto a seconda
+//    della settimana (vedi WEEK_PLAN). Sostituisce le vecchie funzioni separate
+//    generateNumericSequencing/generateAlphabeticSequencing: ora un'unica
+//    funzione copre tutte e 3 le modalità richieste, comprese le sequenze
+//    miste numero+lettera delle settimane 11-12.
 // ---------------------------------------------------------------------------
 function scatterPositions(n, rnd, width = 700, height = 950, minDist = 70) {
   const pts = [];
@@ -937,10 +1120,6 @@ function scatterPositions(n, rnd, width = 700, height = 950, minDist = 70) {
     const y = 40 + rnd() * (height - 80);
     if (pts.every(p => Math.hypot(p.x - x, p.y - y) >= minDist)) pts.push({ x, y });
   }
-  // Se lo spazio è saturo, invece di rinunciare del tutto al distanziamento (rischio di
-  // due cerchi sovrapposti, che sembrerebbero "un numero sparito o duplicato" a chi
-  // guarda), si riprova con una distanza minima ridotta gradualmente — sempre qualche
-  // margine, mai zero.
   let relax = minDist;
   while (pts.length < n && relax > 20) {
     relax -= 10;
@@ -952,42 +1131,86 @@ function scatterPositions(n, rnd, width = 700, height = 950, minDist = 70) {
       if (pts.every(p => Math.hypot(p.x - x, p.y - y) >= relax)) pts.push({ x, y });
     }
   }
-  while (pts.length < n) pts.push({ x: 40 + rnd() * (width - 80), y: 40 + rnd() * (height - 80) }); // ultimissima spiaggia, praticamente mai raggiunta
+  while (pts.length < n) pts.push({ x: 40 + rnd() * (width - 80), y: 40 + rnd() * (height - 80) });
   return pts;
 }
 
-function generateNumericSequencing(count, maxVal, rnd) {
-  const values = new Set();
-  // Esclude anche i numeri con cifre ripetute al proprio interno (11, 22, 77...): non
-  // sono duplicati tra loro, ma potrebbero sembrare "ripetizioni" a prima vista.
-  const hasRepeatedDigit = n => { const s = String(n); return new Set(s).size !== s.length; };
+const SEQ_LETTERS = 'ABCDEFGHILMNOPRSTUVZ'.split(''); // esclude lettere facilmente confondibili (es. niente Q, K, J, X, Y, W)
+
+function randNoRepeatDigits(len, rnd) {
+  // Un numero di `len` cifre senza cifre ripetute al suo interno (mai "11", "232"...).
+  const digits = '0123456789'.split('');
+  let n;
   let guard = 0;
-  while (values.size < count && guard < count * 300) {
+  do {
+    const chosen = pickN(rnd, digits, len);
+    if (chosen[0] === '0' && len > 1) { guard++; continue; }
+    n = Number(chosen.join(''));
     guard++;
-    const v = 1 + Math.floor(rnd() * maxVal);
-    if (!hasRepeatedDigit(v)) values.add(v);
-  }
-  while (values.size < count) values.add(1 + Math.floor(rnd() * maxVal)); // se il pool senza cifre ripetute non basta, si completa senza il filtro
-  const sorted = [...values].sort((a, b) => a - b);
-  const positions = scatterPositions(count, rnd);
-  const shuffled = pickN(rnd, sorted.map((v, i) => ({ value: v, ...positions[i] })), count);
-  return { order: sorted, points: shuffled };
+  } while (guard < 60 && String(n).length !== len);
+  return n;
 }
 
-const CONSONANTS = 'BCDFGLMNPRSTV'.split('');
-const VOWELS = 'AEIOU'.split('');
-function pseudoCode(rnd) {
-  // codice di 3 lettere pronunciabile (consonante-vocale-consonante o simile)
-  const pattern = rnd() < 0.5 ? 'CVC' : 'CVV';
-  return pattern.split('').map(p => p === 'C' ? pick(rnd, CONSONANTS) : pick(rnd, VOWELS)).join('');
+function randLetterCode(len, rnd) {
+  const letters = pickN(rnd, SEQ_LETTERS, Math.min(len, SEQ_LETTERS.length));
+  while (letters.length < len) letters.push(pick(rnd, SEQ_LETTERS));
+  return letters.slice(0, len).join('');
 }
-function generateAlphabeticSequencing(count, rnd) {
-  const codes = new Set();
-  while (codes.size < count) codes.add(pseudoCode(rnd));
-  const sorted = [...codes].sort();
+
+// spec.mode: 'digits' | 'letters' | 'mixed'
+// spec.digitLens: es. [1,2] — lunghezza (in cifre) di ciascun numero, pescata a caso ad ogni elemento
+// spec.letterLen: 2 o 3 — lunghezza fissa dei codici-lettera
+// spec.count: numero di elementi totali nella sequenza
+function generateSequencingV2(spec, rnd) {
+  const count = spec.count;
   const positions = scatterPositions(count, rnd);
-  const shuffled = pickN(rnd, sorted.map((v, i) => ({ value: v, ...positions[i] })), count);
-  return { order: sorted, points: shuffled };
+
+  if (spec.mode === 'digits') {
+    const values = new Set();
+    let guard = 0;
+    while (values.size < count && guard < count * 300) {
+      guard++;
+      values.add(randNoRepeatDigits(pick(rnd, spec.digitLens), rnd));
+    }
+    while (values.size < count) values.add(randNoRepeatDigits(pick(rnd, spec.digitLens), rnd));
+    const sorted = [...values].sort((a, b) => a - b);
+    const shuffled = pickN(rnd, sorted.map((v, i) => ({ value: String(v), ...positions[i] })), count);
+    return { order: sorted.map(String), points: shuffled, mode: 'digits' };
+  }
+
+  if (spec.mode === 'letters') {
+    const codes = new Set();
+    while (codes.size < count) codes.add(randLetterCode(spec.letterLen, rnd));
+    const sorted = [...codes].sort();
+    const shuffled = pickN(rnd, sorted.map((v, i) => ({ value: v, ...positions[i] })), count);
+    return { order: sorted, points: shuffled, mode: 'letters' };
+  }
+
+  // mode === 'mixed': metà numeri (2-3 cifre) metà codici-lettera (2-3 lettere), poi
+  // fusi alternati (1° numero, 1° lettera, 2° numero, 2° lettera...) — stesso principio
+  // del Trail Making Test parte B: l'ordine da seguire alterna i due insiemi invece di
+  // trattarli come un'unica sequenza ordinabile insieme (numeri e lettere non sono
+  // confrontabili tra loro in un unico ordine naturale).
+  const nNums = Math.ceil(count / 2), nLetters = count - nNums;
+  const numSet = new Set();
+  while (numSet.size < nNums) numSet.add(randNoRepeatDigits(2 + Math.floor(rnd() * 2), rnd));
+  const letterSet = new Set();
+  while (letterSet.size < nLetters) letterSet.add(randLetterCode(2 + Math.floor(rnd() * 2), rnd));
+  const numsSorted = [...numSet].sort((a, b) => a - b).map(String);
+  const lettersSorted = [...letterSet].sort();
+  const merged = [];
+  for (let i = 0; i < Math.max(numsSorted.length, lettersSorted.length); i++) {
+    if (i < numsSorted.length) merged.push(numsSorted[i]);
+    if (i < lettersSorted.length) merged.push(lettersSorted[i]);
+  }
+  const shuffled = pickN(rnd, merged.map((v, i) => ({ value: v, ...positions[i] })), count);
+  return { order: merged, points: shuffled, mode: 'mixed' };
+}
+
+function sequencingInstructionText(mode) {
+  if (mode === 'letters') return "Unire le lettere in ordine alfabetico";
+  if (mode === 'mixed') return "Unire numeri e lettere alternati, seguendo l'ordine numerico e alfabetico di ciascun insieme (1° numero, 1° codice, 2° numero, 2° codice...)";
+  return "Unire i numeri in ordine crescente";
 }
 
 // ---------------------------------------------------------------------------
@@ -1058,97 +1281,134 @@ function solveMaze(maze) {
 //     aperta: qui servono solo i PROMPT, non una banca di parole-risposta)
 // ---------------------------------------------------------------------------
 const CATEGORY_POOL = {
-  1: ['Alimenti', 'Bevande', 'Frutta', 'Verdura', 'Animali', 'Colori', 'Mobili', 'Indumenti', 'Mezzi di trasporto', 'Giochi', 'Utensili', 'Edifici', 'Parti del corpo', 'Strumenti musicali', 'Sport', 'Frutti di mare', 'Dolci', 'Fiori', 'Alberi', 'Uccelli', 'Insetti', 'Elettrodomestici', 'Metalli', 'Pianeti', 'Frutti tropicali', 'Ortaggi a radice', 'Formaggi', 'Salumi', 'Scarpe', 'Gioielli', 'Strumenti da scrivania', 'Dispositivi elettronici', 'Giochi da tavolo', 'Festività'],
-  2: ['Pesci', 'Frutta secca', 'Combustibili', 'Contenitori per liquidi', 'Edifici pubblici', 'Attrezzi in officina', 'Oggetti per scrivere', 'Attrezzi in campagna', 'Materiale da costruzione', 'Organi', 'Animali esotici', 'Province italiane', 'Strumenti da cucina', 'Materiali tessili', 'Capitali europee', 'Fiumi italiani', 'Razze di cani', 'Pietre preziose', 'Professioni sanitarie', 'Strumenti da giardinaggio', 'Mezzi di soccorso', 'Strumenti da disegno', 'Parti dell’auto', 'Negozi', 'Stanze della casa', 'Materiali tessili industriali', 'Strumenti da falegname', 'Monumenti famosi', 'Insegne stradali'],
-  3: ['Oggetti che richiedono precisione nell’uso', 'Cose che si trovano in cucina ma non si mangiano', 'Strumenti che tagliano', 'Mestieri artigianali', 'Oggetti che producono luce', 'Strumenti di misura', 'Cose che si trovano in un ufficio ma non su una scrivania', 'Oggetti che emettono un suono', 'Strumenti usati in giardinaggio', 'Oggetti che si trovano in una valigia da viaggio', 'Cose che si indossano solo in inverno', 'Mestieri che richiedono una divisa', 'Oggetti che contengono un liquido', 'Strumenti musicali a corda', 'Attrezzi da disegno tecnico', 'Oggetti che si usano per pulire', 'Cose che si trovano in una cassetta degli attrezzi', 'Animali che vivono in tana', 'Oggetti che fanno rumore quando cadono', 'Cose fredde', 'Strumenti a fiato', 'Animali a sangue freddo', 'Oggetti rotondi', 'Mestieri che si svolgono all’aperto', 'Cose a righe', 'Mestieri notturni'],
+  // 12 fasce (una per settimana), stesse 89 categorie di prima ma redistribuite
+  // in gradini più fini invece di 3 blocchi larghi — dalla più comune/concreta
+  // alla più stretta/insolita.
+  1: ['Alimenti', 'Animali', 'Colori', 'Mobili', 'Indumenti', 'Mezzi di trasporto', 'Giochi', 'Frutta'],
+  2: ['Verdura', 'Bevande', 'Utensili', 'Edifici', 'Parti del corpo', 'Strumenti musicali', 'Sport', 'Dolci'],
+  3: ['Fiori', 'Alberi', 'Uccelli', 'Insetti', 'Elettrodomestici', 'Metalli', 'Pianeti', 'Scarpe'],
+  4: ['Frutti di mare', 'Frutti tropicali', 'Ortaggi a radice', 'Formaggi', 'Salumi', 'Gioielli', 'Giochi da tavolo', 'Festività'],
+  5: ['Pesci', 'Frutta secca', 'Combustibili', 'Contenitori per liquidi', 'Edifici pubblici', 'Organi', 'Animali esotici', 'Strumenti da scrivania'],
+  6: ['Province italiane', 'Strumenti da cucina', 'Materiali tessili', 'Capitali europee', 'Fiumi italiani', 'Razze di cani', 'Pietre preziose', 'Dispositivi elettronici'],
+  7: ['Professioni sanitarie', 'Strumenti da giardinaggio', 'Mezzi di soccorso', 'Strumenti da disegno', 'Parti dell\u2019auto', 'Negozi', 'Attrezzi in officina'],
+  8: ['Stanze della casa', 'Materiali tessili industriali', 'Strumenti da falegname', 'Monumenti famosi', 'Insegne stradali', 'Attrezzi in campagna', 'Materiale da costruzione'],
+  9: ['Oggetti che richiedono precisione nell\u2019uso', 'Cose che si trovano in cucina ma non si mangiano', 'Strumenti che tagliano', 'Mestieri artigianali', 'Oggetti che producono luce', 'Strumenti di misura'],
+  10: ['Cose che si trovano in un ufficio ma non su una scrivania', 'Oggetti che emettono un suono', 'Strumenti usati in giardinaggio', 'Oggetti che si trovano in una valigia da viaggio', 'Cose che si indossano solo in inverno', 'Mestieri che richiedono una divisa'],
+  11: ['Oggetti che contengono un liquido', 'Strumenti musicali a corda', 'Attrezzi da disegno tecnico', 'Oggetti che si usano per pulire', 'Cose che si trovano in una cassetta degli attrezzi', 'Animali che vivono in tana'],
+  12: ['Oggetti che fanno rumore quando cadono', 'Cose fredde', 'Strumenti a fiato', 'Animali a sangue freddo', 'Oggetti rotondi', 'Mestieri che si svolgono all\u2019aperto', 'Cose a righe', 'Mestieri notturni'],
 };
-const LETTER_POOL = 'A B C D E F G I L M N O P R S T U V'.split(' '); // usata per l'iniziale libera (schema 5+): già esclude lettere rare come inizio (H,Q,X,Y,W,J,K,Z)
+const LETTER_POOL = 'A B C D E F G I L M N O P R S T U V'.split(' '); // usata per l'iniziale libera: già esclude lettere rare come inizio (H,Q,X,Y,W,J,K,Z)
+
+// ---------------------------------------------------------------------------
+// ACCESSO LESSICALE FONEMICO — 12 schemi fissi, uno per settimana (non più un
+// ciclo di 7 schemi ogni 2 settimane). Ordine concordato con Rodrigo:
+// 1 iniziale, 2 iniziale+penultima, 3 seconda+penultima, 4 terza+penultima,
+// 5 congiunte, 6 disgiunte, 7 iniziale+categoria, 8 seconda+categoria,
+// 9 terza+categoria, 10 iniziale+lunghezza, 11 seconda+lunghezza,
+// 12 terza+lunghezza.
+// Ogni banca posizionale (tranne le 3 "+categoria", vedi nota sotto) è
+// verificata contro un dizionario italiano reale di ~60.000 forme di parola:
+// tenuta solo se la combinazione ha almeno 15 parole realmente esistenti.
 const PHONEMIC_DB = {
-  // Coppia posizionale (2a lettera ... penultima lettera), lunghezza libera. 60 coppie
-  // per schema (prima erano 10-14): ognuna verificata contro un dizionario italiano
-  // reale di ~60.000 forme di parola, tenuta solo se supera una soglia minima di parole
-  // realmente esistenti — non più solo un pugno di esempi scritti a mano.
-  position: [{l1:'I',l2:'T'}, {l1:'O',l2:'T'}, {l1:'E',l2:'T'}, {l1:'A',l2:'T'}, {l1:'R',l2:'T'}, {l1:'N',l2:'T'}, {l1:'A',l2:'N'}, {l1:'I',l2:'N'}, {l1:'O',l2:'N'}, {l1:'E',l2:'N'}, {l1:'U',l2:'T'}, {l1:'I',l2:'R'}, {l1:'E',l2:'R'}, {l1:'C',l2:'T'}, {l1:'O',l2:'R'}, {l1:'I',l2:'V'}, {l1:'R',l2:'N'}, {l1:'A',l2:'R'}, {l1:'P',l2:'T'}, {l1:'O',l2:'V'}, {l1:'I',l2:'M'}, {l1:'I',l2:'S'}, {l1:'A',l2:'M'}, {l1:'R',l2:'V'}, {l1:'E',l2:'M'}, {l1:'M',l2:'T'}, {l1:'O',l2:'S'}, {l1:'E',l2:'V'}, {l1:'O',l2:'M'}, {l1:'S',l2:'T'}, {l1:'A',l2:'V'}, {l1:'E',l2:'S'}, {l1:'R',l2:'M'}, {l1:'U',l2:'N'}, {l1:'B',l2:'T'}, {l1:'A',l2:'S'}, {l1:'A',l2:'L'}, {l1:'F',l2:'T'}, {l1:'N',l2:'R'}, {l1:'L',l2:'T'}, {l1:'I',l2:'A'}, {l1:'R',l2:'S'}, {l1:'I',l2:'D'}, {l1:'E',l2:'L'}, {l1:'I',l2:'L'}, {l1:'U',l2:'R'}, {l1:'V',l2:'T'}, {l1:'N',l2:'V'}, {l1:'U',l2:'M'}, {l1:'O',l2:'L'}, {l1:'R',l2:'A'}, {l1:'D',l2:'T'}, {l1:'O',l2:'A'}, {l1:'I',l2:'E'}, {l1:'C',l2:'N'}, {l1:'P',l2:'N'}, {l1:'O',l2:'D'}, {l1:'A',l2:'I'}, {l1:'C',l2:'V'}, {l1:'U',l2:'V'}],
-  // due lettere adiacenti (digramma) in un punto qualsiasi della parola — stessa
-  // validazione, soglia più alta (>=40 parole) perché qui il vincolo è più debole.
+  firstPenultimate: [{l1:'S',l2:'T'}, {l1:'A',l2:'T'}, {l1:'R',l2:'T'}, {l1:'S',l2:'N'}, {l1:'C',l2:'T'}, {l1:'P',l2:'T'}, {l1:'D',l2:'T'}, {l1:'I',l2:'T'}, {l1:'S',l2:'V'}, {l1:'S',l2:'M'}, {l1:'A',l2:'R'}, {l1:'A',l2:'N'}, {l1:'S',l2:'R'}, {l1:'A',l2:'V'}, {l1:'C',l2:'R'}, {l1:'C',l2:'N'}, {l1:'S',l2:'A'}, {l1:'R',l2:'N'}, {l1:'S',l2:'E'}, {l1:'P',l2:'N'}, {l1:'R',l2:'V'}, {l1:'A',l2:'M'}, {l1:'D',l2:'R'}, {l1:'E',l2:'T'}, {l1:'V',l2:'T'}, {l1:'D',l2:'N'}, {l1:'T',l2:'N'}, {l1:'S',l2:'I'}, {l1:'I',l2:'R'}, {l1:'M',l2:'T'}, {l1:'F',l2:'T'}, {l1:'C',l2:'V'}, {l1:'S',l2:'D'}, {l1:'A',l2:'S'}, {l1:'I',l2:'N'}, {l1:'S',l2:'L'}, {l1:'P',l2:'V'}, {l1:'R',l2:'M'}, {l1:'D',l2:'V'}, {l1:'P',l2:'R'}, {l1:'R',l2:'S'}, {l1:'B',l2:'T'}, {l1:'O',l2:'T'}, {l1:'G',l2:'T'}, {l1:'P',l2:'S'}, {l1:'C',l2:'M'}, {l1:'I',l2:'V'}, {l1:'P',l2:'M'}, {l1:'C',l2:'S'}, {l1:'D',l2:'M'}, {l1:'T',l2:'V'}, {l1:'S',l2:'C'}, {l1:'L',l2:'T'}, {l1:'D',l2:'S'}, {l1:'T',l2:'R'}, {l1:'T',l2:'M'}, {l1:'M',l2:'N'}, {l1:'R',l2:'E'}, {l1:'R',l2:'A'}, {l1:'I',l2:'S'}],
+  secondPenultimate: [{l1:'I',l2:'T'}, {l1:'O',l2:'T'}, {l1:'E',l2:'T'}, {l1:'A',l2:'T'}, {l1:'R',l2:'T'}, {l1:'N',l2:'T'}, {l1:'A',l2:'N'}, {l1:'I',l2:'N'}, {l1:'O',l2:'N'}, {l1:'E',l2:'N'}, {l1:'U',l2:'T'}, {l1:'I',l2:'R'}, {l1:'E',l2:'R'}, {l1:'C',l2:'T'}, {l1:'O',l2:'R'}, {l1:'I',l2:'V'}, {l1:'R',l2:'N'}, {l1:'A',l2:'R'}, {l1:'P',l2:'T'}, {l1:'O',l2:'V'}, {l1:'I',l2:'M'}, {l1:'I',l2:'S'}, {l1:'A',l2:'M'}, {l1:'R',l2:'V'}, {l1:'E',l2:'M'}, {l1:'M',l2:'T'}, {l1:'O',l2:'S'}, {l1:'E',l2:'V'}, {l1:'O',l2:'M'}, {l1:'S',l2:'T'}, {l1:'A',l2:'V'}, {l1:'E',l2:'S'}, {l1:'R',l2:'M'}, {l1:'U',l2:'N'}, {l1:'A',l2:'S'}, {l1:'B',l2:'T'}, {l1:'A',l2:'L'}, {l1:'F',l2:'T'}, {l1:'N',l2:'R'}, {l1:'L',l2:'T'}, {l1:'I',l2:'A'}, {l1:'R',l2:'S'}, {l1:'I',l2:'D'}, {l1:'E',l2:'L'}, {l1:'I',l2:'L'}, {l1:'U',l2:'R'}, {l1:'V',l2:'T'}, {l1:'N',l2:'V'}, {l1:'U',l2:'M'}, {l1:'O',l2:'L'}, {l1:'R',l2:'A'}, {l1:'D',l2:'T'}, {l1:'O',l2:'A'}, {l1:'I',l2:'E'}, {l1:'C',l2:'N'}, {l1:'P',l2:'N'}, {l1:'O',l2:'D'}, {l1:'A',l2:'I'}, {l1:'C',l2:'V'}, {l1:'U',l2:'V'}],
+  thirdPenultimate: [{l1:'R',l2:'T'}, {l1:'A',l2:'T'}, {l1:'S',l2:'T'}, {l1:'N',l2:'T'}, {l1:'O',l2:'T'}, {l1:'C',l2:'T'}, {l1:'L',l2:'T'}, {l1:'E',l2:'T'}, {l1:'I',l2:'T'}, {l1:'P',l2:'T'}, {l1:'R',l2:'N'}, {l1:'M',l2:'T'}, {l1:'A',l2:'N'}, {l1:'G',l2:'T'}, {l1:'N',l2:'R'}, {l1:'S',l2:'N'}, {l1:'U',l2:'T'}, {l1:'A',l2:'V'}, {l1:'S',l2:'R'}, {l1:'L',l2:'N'}, {l1:'R',l2:'V'}, {l1:'O',l2:'N'}, {l1:'R',l2:'M'}, {l1:'A',l2:'M'}, {l1:'C',l2:'N'}, {l1:'F',l2:'T'}, {l1:'A',l2:'R'}, {l1:'S',l2:'V'}, {l1:'C',l2:'R'}, {l1:'T',l2:'N'}, {l1:'D',l2:'T'}, {l1:'V',l2:'T'}, {l1:'O',l2:'V'}, {l1:'R',l2:'S'}, {l1:'N',l2:'V'}, {l1:'I',l2:'N'}, {l1:'C',l2:'V'}, {l1:'E',l2:'N'}, {l1:'L',l2:'R'}, {l1:'B',l2:'T'}, {l1:'N',l2:'M'}, {l1:'O',l2:'M'}, {l1:'S',l2:'M'}, {l1:'T',l2:'R'}, {l1:'O',l2:'R'}, {l1:'M',l2:'N'}, {l1:'G',l2:'N'}, {l1:'L',l2:'M'}, {l1:'P',l2:'N'}, {l1:'L',l2:'V'}, {l1:'P',l2:'R'}, {l1:'I',l2:'M'}, {l1:'A',l2:'S'}, {l1:'N',l2:'S'}, {l1:'M',l2:'R'}, {l1:'E',l2:'M'}, {l1:'E',l2:'R'}, {l1:'P',l2:'V'}, {l1:'O',l2:'S'}, {l1:'E',l2:'V'}],
   joined: [{l1:'E',l2:'R'}, {l1:'R',l2:'E'}, {l1:'A',l2:'T'}, {l1:'T',l2:'E'}, {l1:'R',l2:'A'}, {l1:'T',l2:'A'}, {l1:'T',l2:'I'}, {l1:'S',l2:'T'}, {l1:'R',l2:'I'}, {l1:'A',l2:'N'}, {l1:'A',l2:'V'}, {l1:'A',l2:'S'}, {l1:'I',l2:'N'}, {l1:'I',l2:'A'}, {l1:'N',l2:'O'}, {l1:'V',l2:'A'}, {l1:'M',l2:'O'}, {l1:'O',l2:'N'}, {l1:'A',l2:'R'}, {l1:'C',l2:'O'}, {l1:'A',l2:'M'}, {l1:'R',l2:'O'}, {l1:'C',l2:'A'}, {l1:'T',l2:'O'}, {l1:'E',l2:'N'}, {l1:'D',l2:'I'}, {l1:'O',l2:'R'}, {l1:'S',l2:'E'}, {l1:'S',l2:'I'}, {l1:'L',l2:'A'}, {l1:'L',l2:'I'}, {l1:'E',l2:'S'}, {l1:'N',l2:'A'}, {l1:'N',l2:'T'}, {l1:'S',l2:'C'}, {l1:'A',l2:'L'}, {l1:'V',l2:'I'}, {l1:'D',l2:'E'}, {l1:'I',l2:'S'}, {l1:'O',l2:'L'}, {l1:'T',l2:'R'}, {l1:'N',l2:'D'}, {l1:'C',l2:'I'}, {l1:'I',l2:'T'}, {l1:'A',l2:'I'}, {l1:'L',l2:'E'}, {l1:'E',l2:'T'}, {l1:'S',l2:'A'}, {l1:'I',l2:'C'}, {l1:'P',l2:'R'}, {l1:'D',l2:'O'}, {l1:'P',l2:'E'}, {l1:'M',l2:'A'}, {l1:'N',l2:'I'}, {l1:'P',l2:'A'}, {l1:'V',l2:'O'}, {l1:'I',l2:'M'}, {l1:'S',l2:'P'}, {l1:'N',l2:'E'}, {l1:'O',l2:'S'}],
-  // due lettere presenti in un punto qualsiasi, non necessariamente vicine.
   disjoint: [{l1:'R',l2:'T'}, {l1:'S',l2:'T'}, {l1:'R',l2:'S'}, {l1:'N',l2:'R'}, {l1:'N',l2:'T'}, {l1:'N',l2:'S'}, {l1:'C',l2:'R'}, {l1:'P',l2:'R'}, {l1:'C',l2:'S'}, {l1:'M',l2:'R'}, {l1:'C',l2:'T'}, {l1:'D',l2:'R'}, {l1:'R',l2:'V'}, {l1:'C',l2:'N'}, {l1:'P',l2:'S'}, {l1:'L',l2:'T'}, {l1:'L',l2:'R'}, {l1:'D',l2:'N'}, {l1:'M',l2:'T'}, {l1:'L',l2:'S'}, {l1:'P',l2:'T'}, {l1:'T',l2:'V'}, {l1:'G',l2:'R'}, {l1:'S',l2:'V'}, {l1:'M',l2:'S'}, {l1:'M',l2:'N'}, {l1:'D',l2:'T'}, {l1:'N',l2:'V'}, {l1:'D',l2:'S'}, {l1:'L',l2:'N'}, {l1:'G',l2:'N'}, {l1:'C',l2:'L'}, {l1:'N',l2:'P'}, {l1:'G',l2:'S'}, {l1:'C',l2:'M'}, {l1:'B',l2:'R'}, {l1:'G',l2:'T'}, {l1:'L',l2:'V'}, {l1:'F',l2:'R'}, {l1:'L',l2:'M'}, {l1:'C',l2:'P'}, {l1:'M',l2:'P'}, {l1:'C',l2:'V'}, {l1:'G',l2:'L'}, {l1:'C',l2:'D'}, {l1:'L',l2:'P'}, {l1:'B',l2:'T'}, {l1:'F',l2:'T'}, {l1:'M',l2:'V'}, {l1:'D',l2:'M'}, {l1:'B',l2:'S'}, {l1:'D',l2:'V'}, {l1:'F',l2:'N'}, {l1:'F',l2:'S'}, {l1:'D',l2:'L'}, {l1:'P',l2:'V'}, {l1:'G',l2:'V'}, {l1:'D',l2:'P'}, {l1:'B',l2:'L'}, {l1:'B',l2:'N'}],
 };
+const LETTER_LENGTH_BANK = [{l:'A',n:4}, {l:'A',n:5}, {l:'A',n:6}, {l:'A',n:7}, {l:'B',n:4}, {l:'B',n:5}, {l:'B',n:6}, {l:'B',n:7}, {l:'C',n:4}, {l:'C',n:5}, {l:'C',n:6}, {l:'C',n:7}, {l:'D',n:4}, {l:'D',n:5}, {l:'D',n:6}, {l:'D',n:7}, {l:'E',n:4}, {l:'E',n:5}, {l:'E',n:6}, {l:'E',n:7}, {l:'F',n:4}, {l:'F',n:5}, {l:'F',n:6}, {l:'F',n:7}, {l:'G',n:4}, {l:'G',n:5}, {l:'G',n:6}, {l:'G',n:7}, {l:'I',n:5}, {l:'I',n:6}, {l:'I',n:7}, {l:'L',n:4}, {l:'L',n:5}, {l:'L',n:6}, {l:'L',n:7}, {l:'M',n:4}, {l:'M',n:5}, {l:'M',n:6}, {l:'M',n:7}, {l:'N',n:4}, {l:'N',n:5}, {l:'N',n:6}, {l:'N',n:7}, {l:'O',n:4}, {l:'O',n:5}, {l:'O',n:6}, {l:'O',n:7}, {l:'P',n:4}, {l:'P',n:5}, {l:'P',n:6}, {l:'P',n:7}, {l:'R',n:4}, {l:'R',n:5}, {l:'R',n:6}, {l:'R',n:7}, {l:'S',n:4}, {l:'S',n:5}, {l:'S',n:6}, {l:'S',n:7}, {l:'T',n:4}, {l:'T',n:5}, {l:'T',n:6}, {l:'T',n:7}, {l:'U',n:4}, {l:'U',n:5}, {l:'U',n:6}, {l:'U',n:7}, {l:'V',n:4}, {l:'V',n:5}, {l:'V',n:6}, {l:'V',n:7}];
+const SECOND_LENGTH_BANK = [{l:'A',n:7}, {l:'I',n:7}, {l:'O',n:7}, {l:'E',n:7}, {l:'R',n:7}, {l:'A',n:6}, {l:'E',n:6}, {l:'U',n:7}, {l:'I',n:6}, {l:'O',n:6}, {l:'A',n:5}, {l:'R',n:6}, {l:'E',n:5}, {l:'O',n:5}, {l:'N',n:7}, {l:'U',n:6}, {l:'I',n:5}, {l:'C',n:7}, {l:'P',n:7}, {l:'T',n:7}, {l:'U',n:5}, {l:'S',n:7}, {l:'R',n:5}, {l:'L',n:7}, {l:'T',n:6}, {l:'M',n:7}, {l:'A',n:4}, {l:'C',n:6}, {l:'P',n:6}, {l:'N',n:6}, {l:'B',n:7}, {l:'E',n:4}, {l:'L',n:6}, {l:'O',n:4}, {l:'F',n:7}, {l:'V',n:7}, {l:'D',n:7}, {l:'M',n:6}, {l:'S',n:6}, {l:'I',n:4}, {l:'U',n:4}, {l:'G',n:7}, {l:'V',n:6}, {l:'D',n:6}, {l:'P',n:5}, {l:'C',n:5}, {l:'T',n:5}, {l:'B',n:6}, {l:'F',n:6}, {l:'S',n:5}, {l:'M',n:5}, {l:'R',n:4}, {l:'G',n:6}, {l:'L',n:5}, {l:'N',n:5}, {l:'V',n:5}, {l:'B',n:5}, {l:'D',n:5}, {l:'F',n:5}, {l:'N',n:4}];
+const THIRD_LENGTH_BANK = [{l:'R',n:7}, {l:'S',n:7}, {l:'N',n:7}, {l:'L',n:7}, {l:'A',n:7}, {l:'T',n:7}, {l:'O',n:7}, {l:'I',n:7}, {l:'E',n:7}, {l:'R',n:6}, {l:'C',n:7}, {l:'A',n:6}, {l:'G',n:7}, {l:'L',n:6}, {l:'E',n:6}, {l:'R',n:5}, {l:'P',n:7}, {l:'M',n:7}, {l:'U',n:7}, {l:'N',n:6}, {l:'I',n:6}, {l:'T',n:6}, {l:'O',n:6}, {l:'C',n:6}, {l:'N',n:5}, {l:'G',n:6}, {l:'D',n:7}, {l:'L',n:5}, {l:'S',n:6}, {l:'D',n:6}, {l:'A',n:5}, {l:'S',n:5}, {l:'V',n:7}, {l:'M',n:6}, {l:'I',n:5}, {l:'V',n:6}, {l:'O',n:5}, {l:'E',n:5}, {l:'P',n:6}, {l:'U',n:6}, {l:'T',n:5}, {l:'F',n:7}, {l:'B',n:7}, {l:'Z',n:7}, {l:'R',n:4}, {l:'G',n:5}, {l:'U',n:5}, {l:'S',n:4}, {l:'B',n:6}, {l:'L',n:4}, {l:'T',n:4}, {l:'N',n:4}, {l:'C',n:5}, {l:'P',n:5}, {l:'F',n:6}, {l:'M',n:5}, {l:'Z',n:5}, {l:'D',n:4}, {l:'D',n:5}, {l:'M',n:4}];
 const BROAD_CATEGORIES = ['Alimenti', 'Animali', 'Mobili', 'Indumenti', 'Mezzi di trasporto', 'Strumenti', 'Edifici', 'Giochi', 'Elettrodomestici', 'Frutta'];
+// Lettere usate per gli schemi "seconda/terza lettera + categoria" (7-9): non
+// verificabili con un dizionario generico incrociate a una categoria (nessuna
+// lista pubblica di parole italiane taggate per categoria disponibile qui),
+// quindi si usano le lettere già confermate frequenti in quella posizione
+// dagli schemi puramente fonemici sopra — un'approssimazione ragionevole, non
+// una validazione piena come le altre banche.
+const SECOND_LETTERS_COMMON = ['A','B','C','D','E','F','I','L','M','N','O','P','R','S','U','V'];
+const THIRD_LETTERS_COMMON = ['A','B','C','D','E','F','G','I','L','M','N','O','P','R','S','T','U','V'];
 
-// Prompt per i blocchi di accesso lessicale vincolato per posizione/adiacenza:
-// posizione   -> "-X...Y-"    (2a lettera X ... penultima lettera Y, lunghezza libera)
-// congiunte   -> "..XY.."     (2 lettere adiacenti in mezzo alla parola)
-// disgiunte   -> "X ; Y"      (2 lettere, posizione libera, non adiacenti)
-// Le coppie di lettere vengono SEMPRE dal database verificato sopra, mai generate a
-// caso: ogni prompt che il paziente vede ha almeno una parola reale e comune dietro.
+// I 12 schemi, uno per settimana (non più un ciclo di 7 ogni 2 settimane).
+const LEXICAL_SCHEME_BY_WEEK = [null,
+  'initial', 'firstPenultimate', 'secondPenultimate', 'thirdPenultimate',
+  'joined', 'disjoint',
+  'initialCategory', 'secondCategory', 'thirdCategory',
+  'initialLength', 'secondLength', 'thirdLength',
+];
+
+const LEXICAL_LABELS = {
+  initial: n => `Scrivere parole di ${n} lettere con l'iniziale indicata (almeno 3 per riga)`,
+  firstPenultimate: () => `Scrivere parole che abbiano come iniziale e penultima lettera quelle indicate (almeno 3 per riga)`,
+  secondPenultimate: () => `Scrivere parole che abbiano come seconda e penultima lettera quelle indicate (almeno 3 per riga)`,
+  thirdPenultimate: () => `Scrivere parole che abbiano come terza e penultima lettera quelle indicate (almeno 3 per riga)`,
+  joined: () => `Scrivere parole che abbiano le seguenti lettere congiunte (almeno 4 per riga)`,
+  disjoint: () => `Scrivere parole che abbiano le seguenti lettere disgiunte (almeno 4 per riga)`,
+  initialCategory: () => `Scrivere parole che rispettino lettera iniziale e categoria indicate (almeno 3 per riga)`,
+  secondCategory: () => `Scrivere parole che rispettino la seconda lettera e la categoria indicate (almeno 3 per riga)`,
+  thirdCategory: () => `Scrivere parole che rispettino la terza lettera e la categoria indicate (almeno 3 per riga)`,
+  initialLength: () => `Scrivere parole che rispettino lettera iniziale e numero di lettere indicati (almeno 3 per riga)`,
+  secondLength: () => `Scrivere parole che rispettino la seconda lettera e il numero di lettere indicati (almeno 3 per riga)`,
+  thirdLength: () => `Scrivere parole che rispettino la terza lettera e il numero di lettere indicati (almeno 3 per riga)`,
+};
+
+// Prompt "posizione+penultima" (schemi 2-4): stessa idea di prima ma con
+// un'etichetta esplicita della posizione, così i tre schemi restano
+// distinguibili invece di condividere lo stesso formato ambiguo "-X...Y-".
 function buildPositionalPrompts(kind, rnd, count = 10, excludeKeys) {
   const bank = PHONEMIC_DB[kind];
   const excl = excludeKeys ? new Set(excludeKeys) : null;
   let effectiveBank = bank;
   if (excl && excl.size) {
     const fresh = bank.filter(e => !excl.has(e.l1 + e.l2));
-    if (fresh.length) effectiveBank = fresh; // il DB è piccolo: si riammette solo se serve
+    if (fresh.length) effectiveBank = fresh;
   }
   const order = [];
   while (order.length < count) order.push(...shuffleArr(rnd, effectiveBank));
   const chosen = order.slice(0, count);
+  const posLabel = { firstPenultimate: 'iniziale', secondPenultimate: 'seconda lettera', thirdPenultimate: 'terza lettera' };
   return chosen.map(({l1,l2}) => {
-    if (kind === 'position') return `-${l1}...${l2}-`;
     if (kind === 'joined') return `..${l1}${l2}..`;
     if (kind === 'disjoint') return `${l1} ; ${l2}`;
+    return `${posLabel[kind]} «${l1}», penultima «${l2}»`;
   });
 }
-// Combinazioni a due vincoli — lettera+categoria, lettera+lunghezza, categoria+lunghezza.
-// «letterLength» (iniziale + numero di lettere) è verificata contro lo stesso
-// dizionario italiano reale usato per le banche fonemiche: 71 combinazioni su 72
-// hanno almeno 15 parole reali (l'unica scartata — iniziale «I», 4 lettere — ne
-// ha solo 8). «letterCategory» e «categoryLength» usano invece le categorie
-// semantiche ampie sopra: non sono verificabili allo stesso modo con un
-// dizionario generico (nessuna lista pubblica di parole taggate per categoria
-// disponibile in questo ambiente), quindi restano su lunghezze moderate (4-8)
-// scelte per prudenza, non verificate parola per parola come le altre.
-const LETTER_LENGTH_BANK = [{l:'A',n:4}, {l:'A',n:5}, {l:'A',n:6}, {l:'A',n:7}, {l:'B',n:4}, {l:'B',n:5}, {l:'B',n:6}, {l:'B',n:7}, {l:'C',n:4}, {l:'C',n:5}, {l:'C',n:6}, {l:'C',n:7}, {l:'D',n:4}, {l:'D',n:5}, {l:'D',n:6}, {l:'D',n:7}, {l:'E',n:4}, {l:'E',n:5}, {l:'E',n:6}, {l:'E',n:7}, {l:'F',n:4}, {l:'F',n:5}, {l:'F',n:6}, {l:'F',n:7}, {l:'G',n:4}, {l:'G',n:5}, {l:'G',n:6}, {l:'G',n:7}, {l:'I',n:5}, {l:'I',n:6}, {l:'I',n:7}, {l:'L',n:4}, {l:'L',n:5}, {l:'L',n:6}, {l:'L',n:7}, {l:'M',n:4}, {l:'M',n:5}, {l:'M',n:6}, {l:'M',n:7}, {l:'N',n:4}, {l:'N',n:5}, {l:'N',n:6}, {l:'N',n:7}, {l:'O',n:4}, {l:'O',n:5}, {l:'O',n:6}, {l:'O',n:7}, {l:'P',n:4}, {l:'P',n:5}, {l:'P',n:6}, {l:'P',n:7}, {l:'R',n:4}, {l:'R',n:5}, {l:'R',n:6}, {l:'R',n:7}, {l:'S',n:4}, {l:'S',n:5}, {l:'S',n:6}, {l:'S',n:7}, {l:'T',n:4}, {l:'T',n:5}, {l:'T',n:6}, {l:'T',n:7}, {l:'U',n:4}, {l:'U',n:5}, {l:'U',n:6}, {l:'U',n:7}, {l:'V',n:4}, {l:'V',n:5}, {l:'V',n:6}, {l:'V',n:7}];
+
 function buildCombinedPrompts(kind, rnd, count = 10, excludeKeys) {
   const excl = excludeKeys ? new Set(excludeKeys) : null;
   const rows = [];
   const used = new Set();
   let guard = 0;
+  const catLetterPool = { initialCategory: LETTER_POOL, secondCategory: SECOND_LETTERS_COMMON, thirdCategory: THIRD_LETTERS_COMMON };
+  const catLabel = { initialCategory: 'Lettera iniziale', secondCategory: 'Seconda lettera', thirdCategory: 'Terza lettera' };
+  const lenBank = { initialLength: LETTER_LENGTH_BANK, secondLength: SECOND_LENGTH_BANK, thirdLength: THIRD_LENGTH_BANK };
+  const lenLabel = { initialLength: 'Lettera iniziale', secondLength: 'Seconda lettera', thirdLength: 'Terza lettera' };
   while (rows.length < count && guard < 500) {
     guard++;
     let key, text;
-    if (kind === 'letterCategory') {
-      const letter = pick(rnd, LETTER_POOL), cat = pick(rnd, BROAD_CATEGORIES);
+    if (kind === 'initialCategory' || kind === 'secondCategory' || kind === 'thirdCategory') {
+      const letter = pick(rnd, catLetterPool[kind]), cat = pick(rnd, BROAD_CATEGORIES);
       key = letter + '|' + cat;
-      text = `Lettera iniziale «${letter}», categoria: ${cat}`;
-    } else if (kind === 'letterLength') {
-      const { l: letter, n: len } = pick(rnd, LETTER_LENGTH_BANK);
+      text = `${catLabel[kind]} «${letter}», categoria: ${cat}`;
+    } else { // initialLength / secondLength / thirdLength
+      const { l: letter, n: len } = pick(rnd, lenBank[kind]);
       key = letter + '|' + len;
-      text = `Lettera iniziale «${letter}», ${len} lettere`;
-    } else { // categoryLength
-      const cat = pick(rnd, BROAD_CATEGORIES), len = 4 + Math.floor(rnd() * 5); // 4-8
-      key = cat + '|' + len;
-      text = `Categoria: ${cat}, ${len} lettere`;
+      text = `${lenLabel[kind]} «${letter}», ${len} lettere`;
     }
     if (used.has(key)) continue;
-    if (excl && excl.has(key)) continue; // preferisce combinazioni non usate di recente
+    if (excl && excl.has(key)) continue;
     used.add(key);
     rows.push(text);
   }
-  // se il vincolo "non ripetere quelle escluse" ha impedito di riempire tutto (pool
-  // esaurito), si completa riammettendo le combinazioni escluse piuttosto che lasciare
-  // meno righe del richiesto.
   while (rows.length < count) rows.push(rows[rows.length % Math.max(1, rows.length)] || 'Lettera iniziale «A», 5 lettere');
   return rows;
 }
 function combinedKeyFromPrompt(kind, promptStr) {
   const m = promptStr.match(/«(.+?)»/);
   const numMatch = promptStr.match(/(\d+) lettere/);
-  const catMatch = promptStr.match(/categoria: (.+?)$/i) || promptStr.match(/categoria: (.+?),/i);
-  if (kind === 'letterCategory') return (m ? m[1] : '') + '|' + (catMatch ? catMatch[1] : '');
-  if (kind === 'letterLength') return (m ? m[1] : '') + '|' + (numMatch ? numMatch[1] : '');
-  if (kind === 'categoryLength') return (catMatch ? catMatch[1] : '') + '|' + (numMatch ? numMatch[1] : '');
+  const catMatch = promptStr.match(/categoria: (.+?)$/i);
+  if (kind === 'initialCategory' || kind === 'secondCategory' || kind === 'thirdCategory') return (m ? m[1] : '') + '|' + (catMatch ? catMatch[1] : '');
+  if (kind === 'initialLength' || kind === 'secondLength' || kind === 'thirdLength') return (m ? m[1] : '') + '|' + (numMatch ? numMatch[1] : '');
   return promptStr;
 }
 function shuffleArr(rnd, arr){
@@ -1164,49 +1424,121 @@ function shuffleArr(rnd, arr){
 // ---------------------------------------------------------------------------
 function clamp(v, min, max) { return Math.max(min, Math.min(max, v)); }
 
+// ---------------------------------------------------------------------------
+// PIANO SETTIMANALE FISSO (settimane 1-12) — sostituisce le vecchie formule
+// aperte (che continuavano oltre la settimana 16-20): il fascicolo ora ha una
+// durata totale fissata a 12 settimane, con una progressione precisa
+// settimana per settimana concordata con Rodrigo, non più estrapolata.
+// ---------------------------------------------------------------------------
+const FASCICOLO_MAX_WEEK = 12;
+
+// Griglie di ricerca-sequenza: SEMPRE 3 (non scendono più a 2), materiale che
+// diventa via via meno comune. Le famiglie sono quelle già definite in
+// SYMBOL_FAMILIES; dalla settimana 9 si usano combinazioni miste (mixKey) per
+// restare comunque diverse settimana per settimana anche esaurite le famiglie
+// "pure".
+const WEEK_GRID_FAMILIES = [
+  null,
+  ['digits', 'latin', 'shapes'],
+  ['latin', 'shapes', 'cyrillic'],
+  ['shapes', 'cyrillic', 'arrows'],
+  ['cyrillic', 'arrows', 'mathSymbols'],
+  ['arrows', 'mathSymbols', 'linesMixed'],
+  ['mathSymbols', 'linesMixed', 'runes'],
+  ['linesMixed', 'runes', 'syllabics'],
+  ['runes', 'syllabics', mixKeyLazy('w8mix', 'mathSymbols', 'linesMixed')],
+  ['syllabics', mixKeyLazy('w9mixA', 'runes', 'cyrillic'), mixKeyLazy('w9mixB', 'shapes', 'arrows')],
+  [mixKeyLazy('w10mixA', 'runes', 'syllabics'), mixKeyLazy('w10mixB', 'linesMixed', 'mathSymbols'), mixKeyLazy('w10mixC', 'cyrillic', 'arrows')],
+  [mixKeyLazy('w11mixA', 'syllabics', 'runes'), mixKeyLazy('w11mixB', 'mathSymbols', 'cyrillic'), mixKeyLazy('w11mixC', 'shapes', 'linesMixed')],
+  [mixKeyLazy('w12mixA', 'runes', 'mathSymbols'), mixKeyLazy('w12mixB', 'syllabics', 'linesMixed'), mixKeyLazy('w12mixC', 'cyrillic', 'arrows')],
+];
+// mixKey() viene chiamata a runtime (non in fase di definizione dell'array,
+// che gira prima che mixKey sia utilizzabile su alcune combinazioni) tramite
+// questo wrapper pigro.
+function mixKeyLazy(name, a, b) { return () => mixKey(name, a, b); }
+function resolveWeekFamilies(week) {
+  return WEEK_GRID_FAMILIES[week].map(k => (typeof k === 'function' ? k() : k));
+}
+
+// Lunghezza del bersaglio nelle 3 griglie principali, nella griglia mista e nel
+// crucipuzzle: 4 caratteri fino alla settimana 3, 5 dalla 4ª, 6 dall'8ª.
+function gridSeqLenForWeek(w) { return w >= 8 ? 6 : (w >= 4 ? 5 : 4); }
+
+// Distrattori (sequenze simili ma non identiche al bersaglio, per aumentare la
+// discriminazione richiesta): assenti nelle prime 2 settimane, poi crescono
+// gradualmente. Numero scelto come proposta di default — modificabile.
+function distractorCountForWeek(w) {
+  if (w <= 2) return 0;
+  if (w <= 4) return 1;
+  if (w <= 6) return 2;
+  if (w <= 8) return 3;
+  if (w <= 10) return 4;
+  return 5;
+}
+
+// Labirinto: stessa crescita di prima (2 celle per lato a settimana) ma tarata
+// per fermarsi esattamente alla settimana 12 invece di continuare oltre.
+function mazeSizeForWeek(w) {
+  return { cols: 18 + 2 * Math.min(w, FASCICOLO_MAX_WEEK), rows: 22 + 2 * Math.min(w, FASCICOLO_MAX_WEEK) };
+}
+
+// Sequenziamento ("unire in ordine"): 21 elementi alla settimana 1, +2 a
+// settimana fino all'8ª (35), poi stabile. Tipo di elemento secondo la
+// settimana — vedi sequencingInstructionText() per il testo dell'istruzione.
+function sequencingSpecForWeek(w) {
+  const count = 21 + 2 * (Math.min(w, 8) - 1);
+  if (w <= 2) return { mode: 'digits', digitLens: [1, 2], count };
+  if (w <= 4) return { mode: 'digits', digitLens: [2], count };
+  if (w <= 6) return { mode: 'digits', digitLens: [2, 3], count };
+  if (w <= 8) return { mode: 'letters', letterLen: 2, count };
+  if (w <= 10) return { mode: 'letters', letterLen: 3, count };
+  return { mode: 'mixed', count };
+}
+
+// Calcolo: sempre addizioni/sottrazioni, mai un numero ripetuto nella stessa
+// riga, mai un totale negativo. Lunghezza della catena NON cresce in modo
+// lineare: si allunga fino a 6 termini poi si accorcia di nuovo quando i
+// numeri diventano a 3 cifre (altrimenti sarebbe irragionevolmente difficile).
+function calcSpecForWeek(w) {
+  if (w <= 2) return { terms: 4, digitLens: [1, 2] };
+  if (w <= 4) return { terms: 4, digitLens: [2] };
+  if (w <= 6) return { terms: 5, digitLens: [2] };
+  if (w <= 8) return { terms: 6, digitLens: [2] };
+  if (w <= 10) return { terms: 5, digitLens: [2, 3] };
+  return { terms: 4, digitLens: [3] };
+}
+
 function weekParams(week) {
-  const w = week;
-  const profile = gridProfileForWeek(w);
-  const nGrids = profile.slots.length; // 3 fino a w5, 2 da w6 in poi
+  const w = Math.max(1, Math.min(FASCICOLO_MAX_WEEK, week));
+  const familyKeys = resolveWeekFamilies(w);
+  const seqLen = gridSeqLenForWeek(w);
+  const distractorCount = distractorCountForWeek(w);
+  const maze = mazeSizeForWeek(w);
+  const sequencing = sequencingSpecForWeek(w);
+  const calc = calcSpecForWeek(w);
 
-  const hasCrucipuzzle = w >= 3;
-  const crucipuzzleMinWords = hasCrucipuzzle ? clamp(10 + 2 * Math.ceil((w - 2) / 2), 12, 20) : 0;
-
-  const sequencingType = w >= 5 ? 'alphabetic' : 'numeric';
-  const sequencingCount = sequencingType === 'numeric' ? clamp(24 + w, 24, 32) : clamp(24 + (w - 4), 26, 40);
-
-  // Difficoltà quadruplicata su richiesta di Rodrigo (erano troppo facili): a parità di
-  // settimana, circa il doppio delle celle per lato = 4 volte l'area/il numero di celle.
-  const mazeCols = clamp(18 + 2*w, 20, 50);
-  const mazeRows = clamp(22 + 2*w, 24, 55);
-
-  // Vincolo di accesso lessicale: 7 schemi che ciclano ogni 14 settimane (2 settimane
-  // ciascuno), dal più semplice (solo iniziale) alle combinazioni a due vincoli
-  // (lettera+categoria, lettera+lunghezza, categoria+lunghezza) — mai un criterio con
-  // meno di una decina di parole italiane reali possibili dietro (le combinazioni usano
-  // solo categorie ampie e lunghezze moderate apposta per questo).
-  const LEXICAL_SCHEME_SEQUENCE = ['initial','position','joined','disjoint','letterCategory','letterLength','categoryLength'];
-  const lexicalKind = LEXICAL_SCHEME_SEQUENCE[Math.floor((w-1)/2) % LEXICAL_SCHEME_SEQUENCE.length];
-  const lexicalInitialLength = clamp(5 + Math.floor((w - 1) / 8), 5, 9); // usata solo per lo schema 'initial'
-
-  const categoryTier = w <= 2 ? 1 : (w <= 5 ? 2 : 3);
+  // Accesso lessicale: ora 12 schemi fissi, uno per settimana (vedi
+  // LEXICAL_SCHEME_BY_WEEK), non più un ciclo di 7 ogni 2 settimane.
+  const lexicalKind = LEXICAL_SCHEME_BY_WEEK[w];
+  const lexicalInitialLength = clamp(5 + Math.floor((w - 1) / 8), 5, 9);
+  // Categoria semantica: 12 fasce fisse, una per settimana (non più 3 fasce larghe).
+  const categoryTier = w;
   const categoryMinWords = clamp(5 + Math.floor(w / 4), 5, 8);
   const categoryCount = 6;
-
   const anagramLen = clamp(5 + Math.floor((w - 1) / 3), 5, 9);
-  const calcTerms = clamp(4 + Math.floor((w - 1) / 2), 4, 7);
-  const calcMax = w <= 4 ? 99 : (w <= 6 ? 199 : 299);
 
   return {
     week: w,
-    grids: profile.slots.map(key => ({ familyKey: key, family: SYMBOL_FAMILIES[key] })),
+    grids: familyKeys.map(key => ({ familyKey: key, family: SYMBOL_FAMILIES[key] })),
+    seqLen, distractorCount,
     multiTargetCount: 12,
-    hasCrucipuzzle, crucipuzzleMinWords,
-    sequencingType, sequencingCount,
-    mazeCols, mazeRows,
+    crucipuzzleTargetCount: 12,
+    sequencing,
+    mazeCols: maze.cols, mazeRows: maze.rows,
+    calc,
     lexicalKind, lexicalInitialLength,
     categoryTier, categoryMinWords, categoryCount,
-    anagramLen, calcTerms, calcMax,
+    anagramLen,
   };
 }
 
@@ -1286,18 +1618,22 @@ function buildFascicolo(week, seed, exclusions) {
   const p = weekParams(week);
   const excl = exclusions || {};
 
-  // Le prime 3 griglie occupano l'intera pagina (25 righe, come nell'originale
-  // di Rodrigo); la griglia mista (4ª) resta più piccola apposta (16 righe) per
-  // lasciare spazio alla tabella dei 12 bersagli sotto.
-  const grids = p.grids.map(g => generateSequenceGrid(25, 12, g.family.chars, rnd));
-  const multi = generateMultiTargetGrid(16, 12, p.grids[0].family.chars, rnd, p.multiTargetCount);
-  const crucipuzzle = p.hasCrucipuzzle ? generateCrucipuzzle(16, 12, p.crucipuzzleMinWords, rnd, excl.crucipuzzleLenMin, excl.crucipuzzleLenMax) : null;
-  const sequencing = p.sequencingType === 'numeric'
-    ? generateNumericSequencing(p.sequencingCount, 99, rnd)
-    : generateAlphabeticSequencing(p.sequencingCount, rnd);
+  // Le prime 3 griglie occupano l'intera pagina (25 righe): sempre 3, mai 2,
+  // con lunghezza del bersaglio e distrattori secondo la settimana.
+  const grids = p.grids.map(g => generateSequenceGrid(25, 12, g.family.chars, rnd, {
+    seqLen: p.seqLen, distractorCount: p.distractorCount,
+  }));
+  // Griglia mista (4ª, volutamente più piccola): stessa lunghezza bersaglio
+  // delle prime 3, sempre 12 bersagli su orizzontale/verticale/obliquo.
+  const multi = generateMultiTargetGrid(16, 12, p.grids[0].family.chars, rnd, p.multiTargetCount, p.seqLen);
+  // Crucipuzzle (5°): stessa famiglia/lunghezza della settimana, ma piazzato
+  // in tutte e 8 le direzioni (non solo H/V/obliqua) — è questo a crescere in
+  // complessità, non più solo la ricerca di parole italiane reali.
+  const crucipuzzle = generateSymbolCrucipuzzle(16, 12, p.grids[0].family.chars, rnd, p.crucipuzzleTargetCount, p.seqLen);
+  const sequencing = generateSequencingV2(p.sequencing, rnd);
   const maze = generateMaze(p.mazeCols, p.mazeRows, rnd);
-  const anagrams = generateAnagrams(10, p.anagramLen, rnd, excl.anagramWords);
-  const calc = generateCalcChain(10, p.calcTerms, p.calcMax, rnd);
+  const anagrams = generateAnagrams(10, p.anagramLen, rnd, excl.anagramWords, p.week);
+  const calc = generateCalcChain(10, p.calc.terms, p.calc.digitLens, rnd);
 
   const catPool = CATEGORY_POOL[p.categoryTier];
   const catExcl = exclusions && exclusions.categories ? new Set(exclusions.categories) : null;
@@ -1308,18 +1644,6 @@ function buildFascicolo(week, seed, exclusions) {
   }
   const categories = pickN(rnd, catEffective, p.categoryCount);
 
-  // Blocco lessicale unificato: un solo oggetto {label, prompts} qualunque sia lo schema
-  // di questa settimana — molto più semplice da consumare per chi visualizza (app,
-  // fascicolo web, .docx) di quattro campi diversi con logica if/else ripetuta 3 volte.
-  const lexicalLabels = {
-    initial: n => `Scrivere parole di ${n} lettere con la iniziale indicata (almeno 3 per schema)`,
-    position: () => `Scrivere parole che abbiano come seconda e penultima lettera quelle indicate (almeno 3 per riga, lunghezza libera)`,
-    joined: () => `Scrivere parole che abbiano le seguenti lettere congiunte (almeno 4 per riga)`,
-    disjoint: () => `Scrivere parole che abbiano le seguenti lettere disgiunte (almeno 4 per riga)`,
-    letterCategory: () => `Scrivere parole che rispettino lettera iniziale e categoria indicate (almeno 3 per riga)`,
-    letterLength: () => `Scrivere parole che rispettino lettera iniziale e numero di lettere indicati (almeno 3 per riga)`,
-    categoryLength: () => `Scrivere parole che rispettino categoria e numero di lettere indicati (almeno 3 per riga)`,
-  };
   let lexicalPrompts, lexicalHistoryKeys;
   if (p.lexicalKind === 'initial') {
     const excludeLetters = excl.lexicalKeys ? excl.lexicalKeys.map(k => k.split(':')[1]).filter(Boolean) : [];
@@ -1327,7 +1651,7 @@ function buildFascicolo(week, seed, exclusions) {
     const pool = freshLetters.length >= 8 ? freshLetters : LETTER_POOL;
     lexicalPrompts = pickN(rnd, pool, 8);
     lexicalHistoryKeys = lexicalPrompts.map(l => `initial:${l}`);
-  } else if (p.lexicalKind === 'position' || p.lexicalKind === 'joined' || p.lexicalKind === 'disjoint') {
+  } else if (p.lexicalKind === 'firstPenultimate' || p.lexicalKind === 'secondPenultimate' || p.lexicalKind === 'thirdPenultimate' || p.lexicalKind === 'joined' || p.lexicalKind === 'disjoint') {
     const excludeKeys = excl.lexicalKeys ? excl.lexicalKeys.filter(k=>k.startsWith(p.lexicalKind+':')).map(k=>k.split(':')[1]) : [];
     lexicalPrompts = buildPositionalPrompts(p.lexicalKind, rnd, 10, excludeKeys);
     lexicalHistoryKeys = lexicalPrompts.map(pr => `${p.lexicalKind}:${phonemicKeyFromPrompt(p.lexicalKind, pr)}`);
@@ -1338,7 +1662,7 @@ function buildFascicolo(week, seed, exclusions) {
   }
   const lexicalBlock = {
     kind: p.lexicalKind,
-    label: p.lexicalKind === 'initial' ? lexicalLabels.initial(p.lexicalInitialLength) : lexicalLabels[p.lexicalKind](),
+    label: p.lexicalKind === 'initial' ? LEXICAL_LABELS.initial(p.lexicalInitialLength) : LEXICAL_LABELS[p.lexicalKind](),
     prompts: lexicalPrompts,
     historyKeys: lexicalHistoryKeys,
   };
@@ -1350,9 +1674,11 @@ function buildFascicolo(week, seed, exclusions) {
 // registrare nello storico condiviso QUALE coppia è stata usata (buildPositionalPrompts
 // restituisce solo la stringa visualizzata, non la coppia grezza).
 function phonemicKeyFromPrompt(kind, promptStr) {
-  if (kind === 'position') return promptStr[1] + promptStr[promptStr.length-2]; // "-X...Y-"
   if (kind === 'joined') return promptStr[2] + promptStr[3];          // "..XY.."
   if (kind === 'disjoint') return promptStr[0] + promptStr[4];        // "X ; Y"
+  // firstPenultimate / secondPenultimate / thirdPenultimate: "<label> «X», penultima «Y»"
+  const m = [...promptStr.matchAll(/«(.)»/g)];
+  if (m.length >= 2) return m[0][1] + m[1][1];
   return promptStr;
 }
 
@@ -1360,9 +1686,9 @@ return {
   buildFascicolo,
   SYMBOL_FAMILIES, gridProfileForWeek, weekParams, mulberry32,
   generateSequenceGrid, generateMultiTargetGrid, countSequenceOccurrences,
-  generateAnagrams, generateCalcChain, generateCrucipuzzle,
-  generateNumericSequencing, generateAlphabeticSequencing, generateMaze,
-  CATEGORY_POOL, LETTER_POOL, WORD_BANK, buildPositionalPrompts, phonemicKeyFromPrompt,
+  generateAnagrams, generateCalcChain, generateSymbolCrucipuzzle,
+  generateSequencingV2, sequencingInstructionText, generateMaze,
+  CATEGORY_POOL, LETTER_POOL, WORD_BANK, WORD_BANK_SCORED, buildPositionalPrompts, phonemicKeyFromPrompt,
   buildCombinedPrompts, combinedKeyFromPrompt, BROAD_CATEGORIES,
   renderMazeSVG, renderSequencingSVG,
 };
@@ -1437,35 +1763,54 @@ return {
     });
   }
 
-  function legendTable(docx, sequences) {
+  function legendTable(docx, sequences, counts) {
     const { Table, TableRow, TableCell, Paragraph, TextRun, WidthType, AlignmentType } = docx;
     const perRow = 6; // come nell'originale: sequenze disposte 6 per riga
     const rowsData = [];
-    for (let i = 0; i < sequences.length; i += perRow) rowsData.push(sequences.slice(i, i + perRow));
-    const rows = rowsData.map(rowArr => {
-      const cells = rowArr.map(seq => new TableCell({
-        width: { size: LEGEND_CELL_W, type: WidthType.DXA },
-        margins: { top: 100, bottom: 100, left: 80, right: 80 },
-        children: [new Paragraph({ alignment: AlignmentType.CENTER, children: [new TextRun({ text: seq.join(' '), bold: true, size: 30, font: 'Arial' })] })],
-      }));
+    const countsRowsData = [];
+    for (let i = 0; i < sequences.length; i += perRow) {
+      rowsData.push(sequences.slice(i, i + perRow));
+      if (counts) countsRowsData.push(counts.slice(i, i + perRow));
+    }
+    const rows = rowsData.map((rowArr, ri) => {
+      const cells = rowArr.map((seq, ci) => {
+        // Nel fascicolo delle soluzioni il conteggio va accanto a ogni sequenza (stesso
+        // dato già mostrato nell'anteprima a schermo con "Mostra risposta"), mai nel
+        // fascicolo bianco destinato al paziente.
+        const text = counts ? `${seq.join(' ')} (${countsRowsData[ri][ci]})` : seq.join(' ');
+        return new TableCell({
+          width: { size: LEGEND_CELL_W, type: WidthType.DXA },
+          margins: { top: 100, bottom: 100, left: 80, right: 80 },
+          children: [new Paragraph({ alignment: AlignmentType.CENTER, children: [new TextRun({ text, bold: true, size: 30, font: 'Arial' })] })],
+        });
+      });
       while (cells.length < perRow) cells.push(new TableCell({ width: { size: LEGEND_CELL_W, type: WidthType.DXA }, children: [new Paragraph({ children: [] })] }));
       return new TableRow({ children: cells });
     });
     return new Table({ rows, width: { size: LEGEND_CELL_W * perRow, type: WidthType.DXA }, columnWidths: Array(perRow).fill(LEGEND_CELL_W), borders: thinBorders(docx) });
   }
 
-  function promptAnswerTable(docx, prompts) {
+  function promptAnswerTable(docx, prompts, answers) {
     const { Table, TableRow, TableCell, Paragraph, TextRun, WidthType, AlignmentType, VerticalAlign } = docx;
-    const rows = prompts.map(p => new TableRow({
+    const rows = prompts.map((pr, i) => new TableRow({
       height: { value: PROMPT_ROW_H, rule: 'atLeast' },
       children: [
         new TableCell({
           width: { size: PROMPT_LABEL_W, type: WidthType.DXA }, verticalAlign: VerticalAlign.CENTER,
-          children: [new Paragraph({ alignment: AlignmentType.CENTER, children: [new TextRun({ text: String(p), bold: true, size: 50, font: 'Arial' })] })],
+          children: [new Paragraph({ alignment: AlignmentType.CENTER, children: [new TextRun({ text: String(pr), bold: true, size: 50, font: 'Arial' })] })],
         }),
         new TableCell({
-          width: { size: PROMPT_ANSWER_W, type: WidthType.DXA },
-          children: [new Paragraph({ children: [new TextRun({ text: '' })] })],
+          width: { size: PROMPT_ANSWER_W, type: WidthType.DXA }, verticalAlign: VerticalAlign.CENTER,
+          // Nel fascicolo bianco la cella resta vuota (spazio per la risposta del
+          // paziente); nel fascicolo delle soluzioni riporta la risposta corretta,
+          // quando ne esiste una univoca (anagrammi, calcolo — non i prompt aperti
+          // come categorie o accesso lessicale, per cui non c'è un'unica risposta giusta).
+          children: [new Paragraph({
+            alignment: AlignmentType.CENTER,
+            children: (answers && answers[i] != null)
+              ? [new TextRun({ text: String(answers[i]), bold: true, italics: true, size: 44, font: 'Arial', color: '2F6F63' })]
+              : [new TextRun({ text: '' })]
+          })],
         }),
       ],
     }));
@@ -1537,66 +1882,81 @@ return {
     });
   }
 
-  async function buildFascicoloDocument(docx, data, rasterize, engine) {
+  async function buildFascicoloDocument(docx, data, rasterize, engine, withSolutions) {
     const { Document, Paragraph, TextRun, AlignmentType } = docx;
     const children = [];
     const p = data.params;
 
+    // Paragrafo di soluzione: stessa informazione già mostrata nell'anteprima a schermo
+    // con "Mostra risposta" (occorrenze, ordine corretto...), qui in corsivo/verde sotto
+    // l'esercizio corrispondente — presente SOLO nel fascicolo gemello delle soluzioni,
+    // mai in quello bianco per il paziente.
+    function solutionParagraph(text) {
+      return new Paragraph({ spacing: { before: 120 }, children: [new TextRun({ text, italics: true, bold: true, size: 24, font: 'Calibri', color: '2F6F63' })] });
+    }
+
     // Titolo: Times New Roman 90pt centrato, come nell'originale — occupa la
     // prima pagina quasi per intero, il primo esercizio comincia da solo.
     children.push(new Paragraph({ alignment: AlignmentType.CENTER, children: [new TextRun({ text: `Fascicolo ${data.week}`, size: 180, font: 'Times New Roman' })] }));
-    children.push(new Paragraph({ alignment: AlignmentType.CENTER, spacing: { after: 160 }, children: [new TextRun({ text: `${data.week}°settimana`, size: 180, font: 'Times New Roman' })] }));
+    children.push(new Paragraph({ alignment: AlignmentType.CENTER, spacing: { after: 160 }, children: [new TextRun({ text: `${data.week}°settimana${withSolutions ? ' — soluzioni' : ''}`, size: 180, font: 'Times New Roman' })] }));
 
     // 1-3: griglie ricerca-sequenza singola — 25 righe × 12 colonne come l'originale
     data.grids.forEach((g) => {
       children.push(heading(docx, `Cerchiare e contare tutte le sequenze ${g.target.join('')}`, '(orizzontale e verticale)'));
       children.push(symbolGridTable(docx, g.grid, { fillPage: true }));
+      if (withSolutions) children.push(solutionParagraph(`Soluzione: ${g.count} occorrenze (${g.countH} orizzontali, ${g.countV} verticali).`));
     });
 
     // 4: griglia multi-bersaglio (16 righe, volutamente più piccola) + legenda
     children.push(heading(docx, 'Cerchiare tutte le sequenze indicate', '(orizzontale, verticale e obliqua — 12 sequenze da trovare)'));
     children.push(symbolGridTable(docx, data.multi.grid));
     children.push(new Paragraph({ spacing: { before: 160 }, children: [] }));
-    children.push(legendTable(docx, data.multi.targets));
+    children.push(legendTable(docx, data.multi.targets, withSolutions ? data.multi.counts : null));
 
-    // 5: crucipuzzle
-    if (data.crucipuzzle) {
-      children.push(heading(docx, 'Cerchiare le parole dotate di senso', `(orizzontale, verticale o obliquo, dritto o inverso — almeno ${p.crucipuzzleMinWords} parole, di almeno 4 lettere)`));
-      children.push(symbolGridTable(docx, data.crucipuzzle.grid));
-    }
+    // 5: crucipuzzle — stessa logica delle griglie di ricerca (materiale della
+    // settimana, lunghezza bersaglio crescente), piazzato in tutte le 8 direzioni.
+    children.push(heading(docx, 'Cerchiare tutte le sequenze indicate nel crucipuzzle', '(tutte le direzioni, dritto o inverso — 12 sequenze da trovare)'));
+    children.push(symbolGridTable(docx, data.crucipuzzle.grid));
+    children.push(new Paragraph({ spacing: { before: 160 }, children: [] }));
+    children.push(legendTable(docx, data.crucipuzzle.targets, withSolutions ? data.crucipuzzle.counts : null));
 
     // 6: sequenziamento + immagine (quasi a piena pagina, come l'originale)
-    const seqTitle = p.sequencingType === 'numeric' ? 'Unire i numeri in ordine crescente' : 'Unire le lettere in ordine alfabetico';
+    const seqTitle = engine.sequencingInstructionText(data.sequencing.mode);
     children.push(heading(docx, seqTitle));
     const seqSvg = engine.renderSequencingSVG(data.sequencing);
     children.push(await imageParagraph(docx, rasterize, seqSvg, 586, 845));
+    if (withSolutions) children.push(solutionParagraph(`Ordine corretto: ${data.sequencing.order.join(' → ')}`));
 
     // 7: labirinto + immagine (dimensione di stampa come l'originale; la
-    // difficoltà reale è nel numero di celle, deciso da weekParams)
+    // difficoltà reale è nel numero di celle, deciso da weekParams). Nel fascicolo
+    // delle soluzioni il percorso risolto è disegnato direttamente nell'immagine
+    // (stesso motore SVG usato dall'anteprima a schermo con "Mostra risposta").
     children.push(heading(docx, 'Risolvere il labirinto'));
-    const mazeSvg = engine.renderMazeSVG(data.maze);
+    const mazeSvg = engine.renderMazeSVG(data.maze, 24, !!withSolutions);
     const mazeAspect = (data.maze.cols * 24 + 80) / (data.maze.rows * 24 + 140);
     const mazeWidth = 602;
     children.push(await imageParagraph(docx, rasterize, mazeSvg, mazeWidth, Math.round(mazeWidth / mazeAspect)));
 
     // 8: accesso lessicale — un solo blocco unificato, qualunque sia lo schema di
     // questa settimana (iniziale, posizione, congiunte/disgiunte, o combinazione a due
-    // vincoli lettera+categoria / lettera+lunghezza / categoria+lunghezza).
+    // vincoli lettera+categoria / lettera+lunghezza / categoria+lunghezza). Prompt
+    // aperto, senza un'unica risposta corretta: nessuna soluzione da riportare, in
+    // nessuno dei due fascicoli — come nell'anteprima a schermo.
     children.push(heading(docx, data.lexicalBlock.label));
     children.push(promptAnswerTable(docx, data.lexicalBlock.prompts));
 
-    // 9: accesso lessicale per categoria
+    // 9: accesso lessicale per categoria — prompt aperto, stesso discorso di sopra.
     children.push(heading(docx, `Scrivere parole che appartengano alle categorie (almeno ${p.categoryMinWords})`));
     children.push(promptAnswerTable(docx, data.categories));
 
-    // 11: anagrammi — SOLO la parola mescolata va nel documento, mai la soluzione
-    // (la soluzione si vede solo nell'anteprima dell'app con "Mostra risposta").
+    // 11: anagrammi — la soluzione va SOLO nel fascicolo gemello delle soluzioni,
+    // mai in quello bianco.
     children.push(heading(docx, 'Risolvere i seguenti anagrammi'));
-    children.push(promptAnswerTable(docx, data.anagrams.map(a => a.scrambled)));
+    children.push(promptAnswerTable(docx, data.anagrams.map(a => a.scrambled), withSolutions ? data.anagrams.map(a => a.solution) : null));
 
-    // 12: calcolo
+    // 12: calcolo — stessa logica.
     children.push(heading(docx, 'Calcolare il risultato'));
-    children.push(promptAnswerTable(docx, data.calc.map(c => c.expression)));
+    children.push(promptAnswerTable(docx, data.calc.map(c => c.expression), withSolutions ? data.calc.map(c => String(c.result)) : null));
 
     return new Document({
       sections: [{
@@ -10932,12 +11292,7 @@ async function resolveTrialImages(trial) {
    funziona esattamente come prima, solo senza memoria tra un dispositivo e l'altro.
    ========================================================= */
 const firebaseConfig = {
-  apiKey: "AIzaSyCEFMdVHdANv1PsVlb-Wo65JHe4IKMtk3o",
-    authDomain: "pdmgenerator.firebaseapp.com",
-    projectId: "pdmgenerator",
-    storageBucket: "pdmgenerator.firebasestorage.app",
-    messagingSenderId: "203067967755",
-    appId: "1:203067967755:web:6ec8266c59798c852e3a0e"
+  // apiKey: "...", authDomain: "...", projectId: "...", ...
 };
 
 let sharedHistoryReady = false;
@@ -11208,6 +11563,12 @@ function renderHistoryList(){
 const state = {
   exercise:"griglie",
   level:1,
+  // Livello indipendente per ciascun esercizio a "livelli" (non il fascicolo, che ha la
+  // sua settimana a parte): passare da un esercizio all'altro non fa più perdere il
+  // progresso raggiunto in quello lasciato. state.level resta comunque lo specchio del
+  // livello dell'esercizio attivo (state.levels[state.exercise]) — letto/scritto ovunque
+  // come prima, ma sincronizzato con la mappa a ogni cambio di esercizio o di slider.
+  levels: { categorizzazione:1, intruso:1, griglie:1, serie:1, inversione:1, accesso:1 },
   digitRule:"inverti",
   catMode:"raggruppa",
   materialOverride:{griglie:"auto", intruso:"auto", inversione:"auto"},
@@ -11220,8 +11581,6 @@ const state = {
   categorizzazioneTrialsOverride:null,
   accessoWordsOverride:null,
   fascicoloWeek:1,
-  crucipuzzleLenMin:null,
-  crucipuzzleLenMax:null,
   deck:null,
   slideIndex:0,
   reveal:false,
@@ -11264,163 +11623,220 @@ function exportFileName(exId, level, ext){
 // La difficoltà non passa mai dalla dimensione/numerosità della griglia — solo dal tipo di
 // simbolo (asse 1) e dalla complessità/varietà delle regole disponibili (asse 2).
 const GRID_ROWS = 5, GRID_COLS = 7;
-const GRID_FAMILIES = [
-  {id:1, kind:"char", pool:["1","2","3","4"]},
-  {id:2, kind:"char", pool:["A","B","D","E"]},
-  {id:3, kind:"char", pool:["1","2","3","4"]},
-  {id:4, kind:"char", pool:["A","B","D","E"]},
-  {id:5, kind:"shape", pool:["●","▲","■"]},
-  {id:6, kind:"shape", pool:["●","▲","■"]},
-  {id:7, kind:"char", pool:["1","2","3","4"]},
-  {id:8, kind:"char", pool:["3","4","6","7"]},
-  {id:9, kind:"char", pool:["A","B","D","E"]},
-  {id:10,kind:"char", pool:["A","U","N","L"]},
-  {id:11,kind:"char", pool:["1","4","D","A"]},
-  {id:12,kind:"arrow",pool:["↑","↓","←","→"]},
-  {id:13,kind:"unicode", base:0x0410, count:5}, // cirillico
-  {id:14,kind:"unicode", base:0x53E3, count:4}, // cjk
-  {id:15,kind:"unicode", base:0x1200, count:5}, // ge'ez
-  {id:16,kind:"unicode", base:0x1218, count:5}  // ge'ez (altro blocco)
+
+// Categoria di simboli per fascia di livello (2 livelli per categoria, 1-16): 1-2 forme,
+// 3-4 frecce, 5-6 numeri, 7-8 lettere, 9-10 misto numeri/lettere, 11-12 cirillico,
+// 13-14 ideogrammi, 15-16 ge'ez. Ogni categoria ha piu' varianti di pool: la fascia di
+// livello resta la stessa, ma la generazione ne pesca una a caso ogni volta, cosi due cicli
+// consecutivi allo stesso livello non espongono mai lo stesso materiale identico.
+const GRID_CATEGORY_BY_LEVEL = [
+  null,
+  "shapes", "shapes",
+  "arrows", "arrows",
+  "digits", "digits",
+  "letters", "letters",
+  "mixed", "mixed",
+  "cyrillic", "cyrillic",
+  "cjk", "cjk",
+  "geez", "geez"
 ];
-// Fedele agli originali: solo 2 sfondi (giallo/bianco) e 2 bordi (rosso/nero), colori pieni,
-// presenti fin dal livello 1 (non introdotti gradualmente).
-const FILL_COLORS = [
-  {name:"giallo", css:"#FFD400"},
-  {name:"bianco", css:"#FFFFFF"}
+const GRID_CATEGORY_POOLS = {
+  shapes:   { kind:"shape", variants:[["●","▲","■"], ["●","▲","■","◆"], ["○","△","□","◇"], ["★","☆","●","■"]] },
+  arrows:   { kind:"arrow", variants:[["↑","↓","←","→"], ["↑","↓","←","→","↗"], ["↖","↗","↘","↙"], ["↑","→","↙","↖"]] },
+  digits:   { kind:"char",  variants:[["1","2","3","4"], ["3","4","6","7"], ["2","5","8","9"], ["0","1","7","9"]] },
+  letters:  { kind:"char",  variants:[["A","B","D","E"], ["A","U","N","L"], ["M","P","R","S"], ["C","E","I","O"]] },
+  mixed:    { kind:"char",  variants:[["1","4","D","A"], ["2","B","7","E"], ["3","A","9","L"], ["5","M","0","R"]] },
+  cyrillic: { kind:"unicode", variants:[{base:0x0410,count:5}, {base:0x0416,count:5}, {base:0x0420,count:4}, {base:0x042A,count:5}] },
+  cjk:      { kind:"unicode", variants:[{base:0x53E3,count:4}, {base:0x4E00,count:4}, {base:0x6708,count:4}, {base:0x706B,count:4}] },
+  geez:     { kind:"unicode", variants:[{base:0x1200,count:5}, {base:0x1218,count:5}, {base:0x1228,count:5}, {base:0x1230,count:5}] }
+};
+function familyForLevel(level){
+  const cat = GRID_CATEGORY_BY_LEVEL[level] || "shapes";
+  const def = GRID_CATEGORY_POOLS[cat];
+  const variant = pick(def.variants);
+  return def.kind === "unicode"
+    ? { kind:"unicode", base:variant.base, count:variant.count, category:cat }
+    : { kind:def.kind, pool:variant, category:cat };
+}
+
+// Tre assi di colore indipendenti — sfondo, bordo, e ora anche il colore del simbolo stesso
+// (prima sempre nero fisso). Ogni asse ha una tavolozza di 4 colori nitidi e ben distinguibili
+// tra loro; ogni griglia ne pesca 3 a caso per asse, cosi il ventaglio visto cambia a ogni
+// generazione senza mai scendere sotto una leggibilita' curata a mano (sfondi chiari, bordi e
+// simboli in tinte decise).
+const FILL_POOL = [
+  { name:"giallo", css:"#FFD400" },
+  { name:"bianco", css:"#FFFFFF" },
+  { name:"celeste", css:"#A9D8F0" },
+  { name:"verde chiaro", css:"#BFE6B0" }
 ];
-const BORDER_COLORS = [
-  {name:"rosso", css:"#E30613"},
-  {name:"nero", css:"#000000"}
+const BORDER_POOL = [
+  { name:"rosso", css:"#E30613" },
+  { name:"nero", css:"#000000" },
+  { name:"blu", css:"#1155CC" },
+  { name:"verde scuro", css:"#1E7A34" }
 ];
-const COLORS = [...FILL_COLORS, ...BORDER_COLORS];
+const SYMBOL_COLOR_POOL = [
+  { name:"viola", css:"#6C3483" },
+  { name:"marrone", css:"#6E4A2E" },
+  { name:"indaco", css:"#2C3E91" },
+  { name:"ruggine", css:"#B5541A" }
+];
+const COLORS = [...FILL_POOL, ...BORDER_POOL, ...SYMBOL_COLOR_POOL];
 function randInt(lo,hi){ return lo + rnd(hi-lo+1); }
 
-// Costruisce UN tentativo di griglia e valuta un ampio ventaglio di regole candidate
-// (simbolo, colore, colore incrociato per quadranti, posizionale, simbolo+colore),
-// tenendo solo quelle il cui conteggio cade tra 5 e 12 — come nell'originale, dove
-// ogni griglia porta con sé 10-14 varianti di regola già pronte.
+// Assegna un attributo di colore (sfondo/bordo/colore-simbolo) a tutte le celle: sceglie `n`
+// colori dalla tavolozza data e li distribuisce in gruppi di dimensione bilanciata (stesso
+// schema usato per i simboli) — con 3 colori su 35 celle ogni gruppo cade naturalmente nel
+// range di conteggio 4-14 richiesto per le regole a singolo attributo.
+function assignAttribute(cells, allIdx, pool, propName, n){
+  const chosen = pickN(pool, Math.min(n, pool.length));
+  const idx = shuffle(allIdx);
+  const k = chosen.length, total = idx.length;
+  const base = Math.floor(total/k), rem = total%k;
+  let cursor = 0;
+  chosen.forEach((color,ci)=>{
+    const size = base + (ci<rem?1:0);
+    idx.slice(cursor, cursor+size).forEach(i=>{ cells[i][propName] = color.name; });
+    cursor += size;
+  });
+  return chosen;
+}
+
+// Costruisce UN tentativo di griglia e valuta un ampio ventaglio di regole candidate,
+// tenendo solo quelle il cui conteggio cade tra 4 e 14. Le regole sono generate e ordinate
+// dal più semplice al più complesso: singoli elementi (simboli, poi singoli attributi di
+// colore, poi le proprietà di famiglia), poi combinazioni a 2 elementi (simbolo+colore,
+// sfondo+bordo, posizione+sfondo), poi combinazioni a 3 elementi.
 function buildGridAttempt(symbols){
   const n = GRID_ROWS*GRID_COLS;
   const cells = Array.from({length:n}, (_,i)=>({ row:Math.floor(i/GRID_COLS), col:i%GRID_COLS }));
   const allIdx = cells.map((_,i)=>i);
 
-  // 1) SIMBOLO — partizione bilanciata: con 3-7 simboli su 35 celle, ogni simbolo cade
-  //    naturalmente tra 5 e 12, quindi TUTTI diventano regole valide.
+  // 1) SIMBOLI — partizione bilanciata: con 3-5 simboli su 35 celle, ogni simbolo cade
+  //    naturalmente tra 4 e 14, quindi tutti diventano regole valide.
   const shuffledIdx = shuffle(allIdx);
   const k = symbols.length;
   const base = Math.floor(n/k), rem = n%k;
   let cursor = 0;
-  const specs = [];
+  const specsSingles = [];
   symbols.forEach((sym,si)=>{
     const chunkSize = base + (si<rem?1:0);
     const chunk = shuffledIdx.slice(cursor, cursor+chunkSize);
     cursor += chunkSize;
     chunk.forEach(i=>cells[i].sym = sym);
-    specs.push({ text:`Conta tutti gli elementi «${sym}».`, matches:c=>c.sym===sym });
+    specsSingles.push({ text:`Conta tutti gli elementi «${sym}».`, matches:c=>c.sym===sym });
   });
 
-  // 2) COLORE — 4 quadranti sfondo×bordo costruiti deliberatamente (non a caso), così le
-  //    intersezioni cadono quasi sempre nel range utile invece di essere lasciate al caso.
-  const colorIdx = shuffle(allIdx);
-  const A = randInt(5,10), B = randInt(5,10), C = randInt(5,9); // D = resto (bianco+nero)
-  let p = 0;
-  const idxA = colorIdx.slice(p, p+=A); // giallo + rosso
-  const idxB = colorIdx.slice(p, p+=B); // giallo + nero
-  const idxC = colorIdx.slice(p, p+=C); // bianco + rosso
-  const idxD = colorIdx.slice(p);       // bianco + nero
-  idxA.forEach(i=>{cells[i].fill="giallo"; cells[i].border="rosso";});
-  idxB.forEach(i=>{cells[i].fill="giallo"; cells[i].border="nero";});
-  idxC.forEach(i=>{cells[i].fill="bianco"; cells[i].border="rosso";});
-  idxD.forEach(i=>{cells[i].fill="bianco"; cells[i].border="nero";});
+  // 2) COLORE — tre assi indipendenti (sfondo, bordo, colore del simbolo), 3 colori a testa
+  //    scelti a caso dalla tavolozza a ogni generazione, distribuiti in gruppi bilanciati.
+  const fillChosen = assignAttribute(cells, allIdx, FILL_POOL, "fill", 3);
+  const borderChosen = assignAttribute(cells, allIdx, BORDER_POOL, "border", 3);
+  const symColorChosen = assignAttribute(cells, allIdx, SYMBOL_COLOR_POOL, "symColor", 3);
+
   // 2a) attributo singolo (più semplice: un solo aspetto da guardare)
-  specs.push(
-    { text:"Conta tutti gli elementi con sfondo giallo.", matches:c=>c.fill==="giallo" },
-    { text:"Conta tutti gli elementi con bordo rosso.", matches:c=>c.border==="rosso" },
-    { text:"Conta tutti gli elementi con sfondo bianco.", matches:c=>c.fill==="bianco" },
-    { text:"Conta tutti gli elementi con bordo nero.", matches:c=>c.border==="nero" }
-  );
-  // 2b) due attributi incrociati (più complesso: sfondo E bordo insieme)
-  specs.push(
-    { text:"Conta gli elementi con sfondo giallo E bordo rosso.", matches:c=>c.fill==="giallo"&&c.border==="rosso" },
-    { text:"Conta gli elementi con sfondo giallo E bordo nero.", matches:c=>c.fill==="giallo"&&c.border==="nero" },
-    { text:"Conta gli elementi con sfondo bianco E bordo rosso.", matches:c=>c.fill==="bianco"&&c.border==="rosso" },
-    { text:"Conta gli elementi con sfondo bianco E bordo nero.", matches:c=>c.fill==="bianco"&&c.border==="nero" }
-  );
+  const specsColorSingle = [];
+  fillChosen.forEach(c=> specsColorSingle.push({ text:`Conta tutti gli elementi con sfondo ${c.name}.`, matches:cell=>cell.fill===c.name }));
+  borderChosen.forEach(c=> specsColorSingle.push({ text:`Conta tutti gli elementi con bordo ${c.name}.`, matches:cell=>cell.border===c.name }));
+  symColorChosen.forEach(c=> specsColorSingle.push({ text:`Conta tutti gli elementi con simbolo di colore ${c.name}.`, matches:cell=>cell.symColor===c.name }));
 
-  // 3) POSIZIONALE — sfondo giallo incrociato con parità di riga/colonna (aggiunge il
-  //    ragionamento spaziale sopra l'attributo colore: più complesso del blocco 2).
-  specs.push(
-    { text:"Conta gli elementi con sfondo giallo nelle righe dispari.", matches:c=>c.fill==="giallo"&&c.row%2===1 },
-    { text:"Conta gli elementi con sfondo giallo nelle righe pari.", matches:c=>c.fill==="giallo"&&c.row%2===0 },
-    { text:"Conta gli elementi con sfondo giallo nelle colonne dispari.", matches:c=>c.fill==="giallo"&&c.col%2===1 },
-    { text:"Conta gli elementi con sfondo giallo nelle colonne pari.", matches:c=>c.fill==="giallo"&&c.col%2===0 }
-  );
-
-  // 4) SIMBOLO + COLORE — un simbolo specifico incrociato con lo sfondo giallo (il più
-  //    complesso: bisogna tenere insieme identità E colore).
-  symbols.forEach(sym=>{
-    specs.push({ text:`Conta gli elementi «${sym}» con sfondo giallo.`, matches:c=>c.sym===sym&&c.fill==="giallo" });
-  });
-
-  // 5) CARATTERISTICHE PROPRIE DELLA FAMIGLIA DI SIMBOLI — non tutti gli alfabeti hanno le
+  // 3) CARATTERISTICHE PROPRIE DELLA FAMIGLIA DI SIMBOLI — non tutti gli alfabeti hanno le
   // stesse proprietà: qui si sfrutta quello che il tipo di simbolo USATO permette davvero
   // (pari/dispari solo se sono cifre, vocale/consonante solo se sono lettere, direzione solo
   // per le frecce, forma curva/angolare solo per le figure geometriche) invece di applicare
   // sempre lo stesso schema universale a prescindere dai simboli disponibili.
+  const specsFamily = [];
   const isAllDigits = symbols.every(s => /^[0-9]$/.test(s));
   const isAllLetters = symbols.every(s => /^[A-Za-z]$/.test(s));
   const VOWELS = ["A","E","I","O","U"];
   const isAllArrows = symbols.every(s => ["↑","↓","←","→","↖","↗","↘","↙"].includes(s));
   const roundAll = ["●","○","◆","◇","★","☆"], angularAll = ["■","□","▲","△","▼","▽"];
   const hasRound = symbols.some(s=>roundAll.includes(s)), hasAngular = symbols.some(s=>angularAll.includes(s));
-
   if (isAllDigits) {
-    specs.push(
+    specsFamily.push(
       { text:"Conta tutti gli elementi con cifra pari.", matches:c=>Number(c.sym)%2===0 },
       { text:"Conta tutti gli elementi con cifra dispari.", matches:c=>Number(c.sym)%2===1 }
     );
   }
   if (isAllLetters && symbols.some(s=>VOWELS.includes(s.toUpperCase())) && symbols.some(s=>!VOWELS.includes(s.toUpperCase()))) {
-    specs.push(
+    specsFamily.push(
       { text:"Conta tutte le vocali.", matches:c=>VOWELS.includes(c.sym.toUpperCase()) },
       { text:"Conta tutte le consonanti.", matches:c=>!VOWELS.includes(c.sym.toUpperCase()) }
     );
   }
   if (isAllArrows) {
     const upSet = ["↑","↖","↗"], downSet = ["↓","↙","↘"];
-    specs.push(
+    specsFamily.push(
       { text:"Conta le frecce che puntano verso l'alto (↑ ↖ ↗).", matches:c=>upSet.includes(c.sym) },
       { text:"Conta le frecce che puntano verso il basso (↓ ↙ ↘).", matches:c=>downSet.includes(c.sym) }
     );
   }
   if (hasRound && hasAngular) {
-    specs.push({ text:"Conta le forme con contorno curvo (non ad angoli).", matches:c=>roundAll.includes(c.sym) });
-    specs.push({ text:"Conta le forme con angoli (non curve).", matches:c=>angularAll.includes(c.sym) });
+    specsFamily.push({ text:"Conta le forme con contorno curvo (non ad angoli).", matches:c=>roundAll.includes(c.sym) });
+    specsFamily.push({ text:"Conta le forme con angoli (non curve).", matches:c=>angularAll.includes(c.sym) });
   }
+
+  // 4) COMBINAZIONI A 2 ELEMENTI — sfondo×bordo, simbolo+colore (di sfondo o di simbolo),
+  //    posizione+sfondo.
+  const specsPair = [];
+  shuffle(fillChosen).slice(0,2).forEach(fc=>{
+    shuffle(borderChosen).slice(0,2).forEach(bc=>{
+      specsPair.push({ text:`Conta gli elementi con sfondo ${fc.name} E bordo ${bc.name}.`, matches:cell=>cell.fill===fc.name && cell.border===bc.name });
+    });
+  });
+  symbols.forEach(sym=>{
+    const fc = pick(fillChosen);
+    specsPair.push({ text:`Conta gli elementi «${sym}» con sfondo ${fc.name}.`, matches:cell=>cell.sym===sym && cell.fill===fc.name });
+  });
+  symbols.forEach(sym=>{
+    const sc = pick(symColorChosen);
+    specsPair.push({ text:`Conta gli elementi «${sym}» di colore ${sc.name}.`, matches:cell=>cell.sym===sym && cell.symColor===sc.name });
+  });
+  const posFill = pick(fillChosen);
+  specsPair.push(
+    { text:`Conta gli elementi con sfondo ${posFill.name} nelle righe dispari.`, matches:cell=>cell.fill===posFill.name && cell.row%2===1 },
+    { text:`Conta gli elementi con sfondo ${posFill.name} nelle righe pari.`, matches:cell=>cell.fill===posFill.name && cell.row%2===0 },
+    { text:`Conta gli elementi con sfondo ${posFill.name} nelle colonne dispari.`, matches:cell=>cell.fill===posFill.name && cell.col%2===1 },
+    { text:`Conta gli elementi con sfondo ${posFill.name} nelle colonne pari.`, matches:cell=>cell.fill===posFill.name && cell.col%2===0 }
+  );
+
+  // 5) COMBINAZIONI A 3 ELEMENTI — il livello di complessità più alto, tenuto per ultimo.
+  const specsTriple = [];
+  {
+    const sym3 = pick(symbols), fc3 = pick(fillChosen), bc3 = pick(borderChosen);
+    specsTriple.push({ text:`Conta gli elementi «${sym3}» con sfondo ${fc3.name} e bordo ${bc3.name}.`, matches:c=>c.sym===sym3 && c.fill===fc3.name && c.border===bc3.name });
+  }
+  {
+    const fc4 = pick(fillChosen), bc4 = pick(borderChosen);
+    specsTriple.push({ text:`Conta gli elementi con sfondo ${fc4.name} e bordo ${bc4.name} nelle righe pari.`, matches:c=>c.fill===fc4.name && c.border===bc4.name && c.row%2===0 });
+  }
+
+  const specs = [...specsSingles, ...specsColorSingle, ...specsFamily, ...specsPair, ...specsTriple];
 
   const rules = specs
     .map(s=>({ ...s, count: cells.filter(s.matches).length }))
-    .filter(r=>r.count>=5 && r.count<=20); // 20 non 12: le regole "raggruppate" (vocali/consonanti,
-    // frecce su/giù, forme curve/angolari) contano tipicamente il doppio di una regola a
-    // simbolo singolo — un tetto a 12 le avrebbe escluse quasi sempre.
+    .filter(r=>r.count>=4 && r.count<=14);
   return { cells, rules };
 }
 
 function genOneGrid(symbols){
-  // Genera più tentativi e tiene il migliore (più regole valide), puntando ad almeno 10 —
-  // come nell'originale. Con 35 celle e 3-7 simboli il target si raggiunge quasi sempre
-  // entro pochi tentativi.
+  // Genera più tentativi e tiene il migliore (più regole valide), puntando a una decina —
+  // come richiesto. Con 35 celle e assi di colore a 3 valori il target si raggiunge quasi
+  // sempre entro pochi tentativi.
   let best = null;
-  for(let attempt=0; attempt<150; attempt++){
+  for(let attempt=0; attempt<300; attempt++){
     const res = buildGridAttempt(symbols);
     if(!best || res.rules.length > best.rules.length) best = res;
     if(best.rules.length >= 10) break;
   }
+  // L'elenco è già ordinato dal più semplice al più complesso: se sono emerse più di una
+  // dozzina di regole valide si tiene solo la testa, restando comunque "una decina".
+  if(best.rules.length > 12) best = { ...best, rules: best.rules.slice(0,12) };
   return best;
 }
 
 function genGriglie(level){
-  let fam = GRID_FAMILIES[level-1];
+  let fam = familyForLevel(level);
   const ov = state.materialOverride.griglie;
   if(ov && ov!=="auto"){
     const opt = MATERIAL_OPTIONS.griglie.find(o=>o.id===ov);
@@ -11528,8 +11944,18 @@ function buildIntrusoScreen(family, len, targetN){
 }
 function lenForLevelIntruso(level){
   // passo di 3 livelli invece di grandi plateau (prima: 7 livelli fermi a len=3) —
-  // difficoltà più granulare, un salto ogni 3 livelli anziché ogni 4-7.
-  return Math.min(5, 1 + Math.floor((level-1)/3));
+  // difficoltà più granulare, un salto ogni 3 livelli anziché ogni 4-7. Tetto a 3 (non 5):
+  // sequenze più lunghe non aggiungono discriminabilità utile, solo fatica di lettura.
+  return Math.min(3, 1 + Math.floor((level-1)/3));
+}
+function targetNForLevelIntruso(level, isAtomic){
+  // La difficoltà cresce non solo nel materiale (famiglie via via più simili tra loro) ma
+  // anche nel numero di elementi da confrontare: più elementi, quasi tutti a coppie, quindi
+  // più confronti necessari per isolare l'unico singolo. Un gradino ogni 4 livelli.
+  const base = isAtomic ? 18 : 15;
+  const cap = isAtomic ? 30 : 27;
+  const step = Math.floor((level-1)/4) * 3;
+  return Math.min(base + step, cap);
 }
 function levelFamiliesIntruso(level, count){
   // Schermate per sessione (di default 9, nel range 8-11 osservato negli originali,
@@ -11563,7 +11989,7 @@ function genIntruso(level){
     .map(fam=>{
       const isAtomic = INTRUSO_ATOMIC_FAMILIES.includes(fam);
       const famLen = isAtomic ? 1 : len;
-      const targetN = isAtomic ? 18 : 15;
+      const targetN = targetNForLevelIntruso(level, isAtomic);
       return buildIntrusoScreen(fam, famLen, targetN);
     })
     .filter(Boolean);
@@ -11580,12 +12006,12 @@ function shuffleInPlace(a){
 }
 
 // ---------- INVERSIONE E RIORDINO ----------
-// livello >=13: 1 carattere rosso + 1 verde; livello 10-12: 1-2 rossi; livello <=9: 1 rosso
+// livello 1-4: 1 solo rosso; livello 5-8: 1 o 2 rossi; livello 9-16: rosso e verde insieme.
 function markChars(text, level){
   const positions = [...text].map((_,i)=>i);
   let n, colors;
-  if(level>=13){ n=2; colors=["#D64545","#3E9B4F"]; }
-  else if(level>=10){ n=1+rnd(2); colors=["#D64545","#D64545"]; }
+  if(level>=9){ n=2; colors=["#D64545","#3E9B4F"]; }
+  else if(level>=5){ n=1+rnd(2); colors=["#D64545","#D64545"]; }
   else { n=1; colors=["#D64545"]; }
   n = Math.min(n, text.length);
   const chosen=[];
@@ -11613,21 +12039,67 @@ function nonwordFor(len, level){
   return w;
 }
 
+// Numero totale di elementi nell'intera sessione (somma di tutti i blocchi/consegne), non
+// più un numero fisso di elementi per blocco: 20 nei livelli 1-8, 30 dal livello 9 in poi,
+// distribuiti in modo il più possibile uniforme tra le consegne effettivamente presenti in
+// quella sessione (auto o override che sia).
+function inversioneSessionTotal(level){
+  return level>=9 ? 30 : 20;
+}
+// Numero medio di blocchi in modalità automatica a un dato livello, usato solo per mostrare
+// un valore di default sensato nello slider "Numero di stimoli per blocco" (il conteggio
+// reale per blocco viene poi ricalcolato in genInversione in base alle consegne presenti).
+function inversioneAutoBlockCount(level){
+  const lens = level<10 ? [3,4] : [3,4,5];
+  const alnum = level>=7;
+  let n = lens.length*2; // lettere + numeri
+  if(alnum) n += lens.filter(l=>l>=4).length;
+  return n || 1;
+}
 function defaultItemsPerInversione(level){
-  return level>=13 ? 5 : (level>=11 ? 3 : 5);
+  return Math.round(inversioneSessionTotal(level) / inversioneAutoBlockCount(level));
 }
 
 function genInversione(level){
   const lexical = level<=4;
   const mixedCase = level>=11;
-  const alnum = level>=11 || state.inversioneForceAlnum; // la spunta anticipa il blocco alfanumerico, la complessità (lunghezza, maiuscole) resta comunque legata al livello vero
+  const alnum = level>=7 || state.inversioneForceAlnum; // la spunta anticipa il blocco alfanumerico, la complessità (lunghezza, maiuscole) resta comunque legata al livello vero
   const lens = level<10 ? [3,4] : [3,4,5];
-  const itemsPer = state.inversioneItemsOverride || defaultItemsPerInversione(level);
   const ov = state.materialOverride.inversione;
+  const alnumLens = ov==="mixed" ? lens : lens.filter(l=>l>=4);
+
+  // Prima si stabilisce l'elenco delle consegne (blocchi) che verranno effettivamente
+  // generate, poi si distribuisce il totale di sessione in modo uniforme tra queste — così
+  // la somma resta 20 (livelli 1-8) o 30 (dal 9° in poi) qualunque sia il materiale attivo.
+  const blockSpecs = [];
+  if(!ov || ov==="auto" || ov==="letters"){
+    lens.forEach(len=> blockSpecs.push({kind:"letters", len}));
+  }
+  if(!ov || ov==="auto" || ov==="digits"){
+    lens.forEach(len=> blockSpecs.push({kind:"digits", len}));
+  }
+  if(ov==="mixed" || (alnum && (!ov || ov==="auto"))){
+    alnumLens.forEach(len=> blockSpecs.push({kind:"alnum", len}));
+  }
+
+  const nBlocks = blockSpecs.length || 1;
+  let itemsForBlock;
+  if(state.inversioneItemsOverride){
+    // Controllo manuale "Numero di stimoli per blocco": resta un valore fisso per blocco,
+    // scelto in seduta dal terapista — non entra nella distribuzione automatica del totale.
+    itemsForBlock = new Array(nBlocks).fill(state.inversioneItemsOverride);
+  } else {
+    const total = inversioneSessionTotal(level);
+    const base = Math.floor(total/nBlocks), rem = total%nBlocks;
+    itemsForBlock = new Array(nBlocks).fill(base);
+    shuffle(blockSpecs.map((_,i)=>i)).slice(0,rem).forEach(i=>{ itemsForBlock[i]++; });
+  }
 
   const blocks = [];
-  if(!ov || ov==="auto" || ov==="letters"){
-    lens.forEach(len=>{
+  blockSpecs.forEach((spec,i)=>{
+    const itemsPer = itemsForBlock[i];
+    const len = spec.len;
+    if(spec.kind==="letters"){
       let raw;
       if(lexical && REAL_WORDS[len]){
         raw = pickN(REAL_WORDS[len], Math.min(itemsPer, REAL_WORDS[len].length));
@@ -11639,21 +12111,14 @@ function genInversione(level){
       }
       const items = raw.map(t=>withMarks(t, level));
       blocks.push({label:`Lettere — ${len} caratteri`, items, kind:"letters"});
-    });
-  }
-  if(!ov || ov==="auto" || ov==="digits"){
-    lens.forEach(len=>{
+    } else if(spec.kind==="digits"){
       const items = Array.from({length:itemsPer},()=>withMarks(randDigits(len), level));
       blocks.push({label:`Numeri — ${len} cifre`, items, kind:"digits"});
-    });
-  }
-  if(ov==="mixed" || (alnum && (!ov || ov==="auto"))){
-    const alnumLens = ov==="mixed" ? lens : lens.filter(l=>l>=4);
-    alnumLens.forEach(len=>{
+    } else if(spec.kind==="alnum"){
       const items = Array.from({length:itemsPer},()=>withMarks(randAlnum(len), level));
       blocks.push({label:`Alfanumerico misto — ${len} caratteri`, items, kind:"alnum"});
-    });
-  }
+    }
+  });
   return {type:"inversione", blocks, slides:[{blocks}]};
 }
 
@@ -11822,12 +12287,13 @@ function renderOneGrid(s){
     div.className = "cell circle-cell" + (isAns ? " answer":"");
     const fillHex = colorHex(c.fill) || "#FFFFFF";
     const borderHex = colorHex(c.border) || "#000000";
+    const symHex = colorHex(c.symColor) || "#101010";
     div.style.background = fillHex;
     div.style.borderWidth = "3px";
     div.style.borderStyle = "solid";
     div.style.borderRadius = "50%";
     div.style.borderColor = isAns ? "#2F6F63" : borderHex;
-    div.style.color = "#111";
+    div.style.color = symHex;
     div.style.fontWeight = "800";
     div.textContent = c.sym;
     grid.appendChild(div);
@@ -12077,9 +12543,7 @@ function renderCategorizzazione(deck){
 
 /* ---------- FASCICOLO ESERCIZI A CASA ---------- */
 function genFascicolo(){
-  return window.Engine.buildFascicolo(state.fascicoloWeek, Math.floor(Math.random()*1e9), {
-    crucipuzzleLenMin: state.crucipuzzleLenMin, crucipuzzleLenMax: state.crucipuzzleLenMax,
-  });
+  return window.Engine.buildFascicolo(state.fascicoloWeek, Math.floor(Math.random()*1e9), {});
 }
 
 function fEl(tag, attrs, children){
@@ -12150,16 +12614,12 @@ function renderFascicolo(deck){
   multiWrap.appendChild(fLegend(deck.multi.targets, deck.multi.counts, showSolutions));
   root.appendChild(fSection("Cerchiare tutte le sequenze indicate", null, multiWrap));
 
-  if(deck.crucipuzzle){
-    root.appendChild(fSection(
-      "Cerchiare le parole dotate di senso",
-      `(orizzontale, verticale o obliquo, dritto o inverso — almeno ${p.crucipuzzleMinWords} parole, di almeno 4 lettere)` +
-      (showSolutions ? ` — parole inserite: ${deck.crucipuzzle.placed.join(", ")}` : ""),
-      fGridTable(deck.crucipuzzle.grid, "fasc-cruci")
-    ));
-  }
+  const cruciWrap = fEl("div");
+  cruciWrap.appendChild(fGridTable(deck.crucipuzzle.grid, "fasc-cruci"));
+  cruciWrap.appendChild(fLegend(deck.crucipuzzle.targets, deck.crucipuzzle.counts, showSolutions));
+  root.appendChild(fSection("Cerchiare tutte le sequenze indicate nel crucipuzzle", "(tutte le direzioni, dritto o inverso — 12 sequenze da trovare)", cruciWrap));
 
-  const seqTitle = p.sequencingType==="numeric" ? "Unire i numeri in ordine crescente" : "Unire le lettere in ordine alfabetico";
+  const seqTitle = E.sequencingInstructionText(deck.sequencing.mode);
   const seqDiv = fEl("div",{class:"fasc-svg-wrap", html: E.renderSequencingSVG(deck.sequencing)});
   root.appendChild(fSection(seqTitle, showSolutions ? `Ordine corretto: ${deck.sequencing.order.join(" → ")}` : null, seqDiv));
 
@@ -12219,10 +12679,16 @@ async function exportFascicolo(deck){
     alert("La libreria per generare il file Word non si è ancora caricata. Controlla la connessione e riprova tra qualche secondo — se il problema persiste, ricarica la pagina.");
     return;
   }
-  const doc = await window.DocBuilder.buildFascicoloDocument(window.docx, deck, rasterizeSVGBrowser, window.Engine);
-  const blob = await window.docx.Packer.toBlob(doc);
   const group = state.groupNumber ? `(${state.groupNumber})` : "";
-  saveAs(blob, `Fascicolo.${deck.week}${group}.docx`);
+  // Fascicolo gemello: il file bianco per il paziente e quello con le soluzioni per il
+  // terapista vengono generati ed esportati insieme, accoppiati, a ogni esportazione —
+  // non due passaggi separati da ricordarsi di fare entrambi.
+  const blankDoc = await window.DocBuilder.buildFascicoloDocument(window.docx, deck, rasterizeSVGBrowser, window.Engine, false);
+  const blankBlob = await window.docx.Packer.toBlob(blankDoc);
+  saveAs(blankBlob, `Fascicolo.${deck.week}${group}.docx`);
+  const solutionsDoc = await window.DocBuilder.buildFascicoloDocument(window.docx, deck, rasterizeSVGBrowser, window.Engine, true);
+  const solutionsBlob = await window.docx.Packer.toBlob(solutionsDoc);
+  saveAs(solutionsBlob, `Fascicolo.${deck.week}${group} - soluzioni.docx`);
 }
 
 const RENDERERS = {
@@ -12426,7 +12892,7 @@ const EX_CONTROLS = {
     const row = document.createElement("div");
     row.className = "level-row";
     const input = document.createElement("input");
-    input.type = "range"; input.id = "weekRange"; input.min = "1"; input.max = "24"; input.value = state.fascicoloWeek;
+    input.type = "range"; input.id = "weekRange"; input.min = "1"; input.max = "12"; input.value = state.fascicoloWeek;
     const badge = document.createElement("div");
     badge.className = "level-badge"; badge.id = "weekBadge"; badge.textContent = state.fascicoloWeek;
     input.addEventListener("input", e=>{
@@ -12438,42 +12904,8 @@ const EX_CONTROLS = {
     wrap.appendChild(row);
     const note = document.createElement("div");
     note.className = "level-note";
-    note.textContent = "Ogni settimana fa avanzare in modo coordinato tutti i 12 blocchi del fascicolo (alfabeti delle griglie, soglie minime, vincoli lessicali, lunghezza di anagrammi/labirinto/calcolo), riproducendo la stessa progressione osservata nei fascicoli originali. Oltre la settimana 8 la stessa logica continua ad aumentare la difficoltà. \"Mostra risposta / regola\" mostra qui le soluzioni di ogni blocco (mai incluse nel file .docx esportato).";
+    note.textContent = "Il fascicolo dura 12 settimane in tutto. Ogni settimana fa avanzare in modo coordinato tutti i 12 blocchi (materiale delle griglie, lunghezza dei bersagli, sequenziamento, labirinto, calcolo). \"Mostra risposta / regola\" mostra qui le soluzioni di ogni blocco (il download separato \"Fascicolo con soluzioni\" le include anche nel file .docx).";
     wrap.appendChild(note);
-
-    const cruciLabel = document.createElement("label");
-    cruciLabel.style.marginTop = "14px";
-    cruciLabel.textContent = "Lunghezza delle parole cercate nel crucipuzzle";
-    wrap.appendChild(cruciLabel);
-    const cruciRow = document.createElement("div");
-    cruciRow.style.cssText = "display:flex; gap:10px; align-items:center; margin-top:6px;";
-    const minSel = document.createElement("select");
-    const maxSel = document.createElement("select");
-    [minSel, maxSel].forEach(sel=>{
-      for(let n=3;n<=10;n++){ const opt = document.createElement("option"); opt.value=n; opt.textContent=n; sel.appendChild(opt); }
-    });
-    minSel.value = state.crucipuzzleLenMin || 4;
-    maxSel.value = state.crucipuzzleLenMax || 10;
-    const applyRange = ()=>{
-      state.crucipuzzleLenMin = Number(minSel.value);
-      state.crucipuzzleLenMax = Number(maxSel.value);
-      if(state.crucipuzzleLenMin > state.crucipuzzleLenMax) state.crucipuzzleLenMax = state.crucipuzzleLenMin;
-      generate();
-    };
-    minSel.addEventListener("change", applyRange);
-    maxSel.addEventListener("change", applyRange);
-    cruciRow.appendChild(document.createTextNode("da"));
-    cruciRow.appendChild(minSel);
-    cruciRow.appendChild(document.createTextNode("a"));
-    cruciRow.appendChild(maxSel);
-    cruciRow.appendChild(document.createTextNode("lettere"));
-    wrap.appendChild(cruciRow);
-    const cruciReset = document.createElement("button");
-    cruciReset.className = "chip";
-    cruciReset.style.marginTop = "8px";
-    cruciReset.textContent = "Automatico (da settimana)";
-    cruciReset.onclick = ()=>{ state.crucipuzzleLenMin=null; state.crucipuzzleLenMax=null; renderExControls(); generate(); };
-    wrap.appendChild(cruciReset);
 
     return wrap;
   }
@@ -12499,6 +12931,7 @@ function buildExList(){
     btn.innerHTML = `<span class="ex-name">${ex.name}</span><span class="ex-desc">${ex.desc}</span>`;
     btn.onclick = ()=>{
       state.exercise = ex.id;
+      state.level = state.levels[ex.id] ?? 1; // ripristina il livello proprio di questo esercizio
       state.slideIndex = 0;
       state.reveal = false;
       buildExList();
@@ -12518,6 +12951,7 @@ async function generate(){
   // un generatore con un livello fuori dai suoi limiti.
   const maxLevelNow = state.exercise==="serie" ? SERIE_MAX_LEVEL : 16;
   if(state.level > maxLevelNow) state.level = maxLevelNow;
+  state.levels[state.exercise] = state.level;
   const gen = ++state._generationToken; // scarta risposte di storico arrivate in ritardo se nel frattempo si è generato di nuovo
 
   if(state.exercise==="categorizzazione"){
@@ -12544,7 +12978,6 @@ async function generate(){
     if(gen !== state._generationToken) return;
     state.deck = window.Engine.buildFascicolo(state.fascicoloWeek, Math.floor(Math.random()*1e9), {
       anagramWords: excludeAnagrams, categories: excludeCategories, lexicalKeys: excludeLexical,
-      crucipuzzleLenMin: state.crucipuzzleLenMin, crucipuzzleLenMax: state.crucipuzzleLenMax,
     });
     appendUsed("fascicoloHistory", "usedAnagramWords", state.deck.anagrams.map(a=>a.solution), 60);
     appendUsed("fascicoloHistory", "usedCategories", state.deck.categories, 60);
@@ -12572,13 +13005,15 @@ function render(){
   const maxLevel = state.exercise==="serie" ? SERIE_MAX_LEVEL : 16;
   document.getElementById("exTitle").textContent = ex.name;
   document.getElementById("levelField").style.display = isFascicolo ? "none" : "block";
-  document.getElementById("btnExport").textContent = isFascicolo ? "Esporta in Word (.docx)" : "Esporta in PowerPoint";
+  document.getElementById("btnExport").textContent = isFascicolo ? "Esporta in Word (fascicolo + soluzioni)" : "Esporta in PowerPoint";
   if(isFascicolo){
     document.getElementById("exMeta").textContent = `Settimana ${state.fascicoloWeek}`;
   } else {
     const levelRangeEl = document.getElementById("levelRange");
     levelRangeEl.max = String(maxLevel);
-    if(state.level > maxLevel){ state.level = maxLevel; levelRangeEl.value = maxLevel; }
+    if(state.level > maxLevel){ state.level = maxLevel; }
+    state.levels[state.exercise] = state.level;
+    levelRangeEl.value = state.level; // riflette sempre il livello dell'esercizio attivo, anche dopo un cambio esercizio
     document.getElementById("exMeta").textContent = `Livello ${state.level} di ${maxLevel}`;
     document.getElementById("levelBadge").textContent = state.level;
     document.getElementById("levelNote").textContent = LEVEL_NOTES[state.exercise][state.level-1];
@@ -12657,11 +13092,12 @@ function exportGriglie(deck, level){
     s.cells.forEach(c=>{
       const bgHex = c.fill ? hexNoHash(colorHex(c.fill)) : "FFFFFF";
       const borderHex = c.border ? hexNoHash(colorHex(c.border)) : "000000";
+      const symHex = c.symColor ? hexNoHash(colorHex(c.symColor)) : "101010";
       slide.addText(c.sym, {
         shape: "ellipse",
         x: marginX + c.col*PITCH, y: marginY + c.row*PITCH, w:CIRCLE, h:CIRCLE,
         align:"center", valign:"middle", fontSize, bold:true,
-        color:"1E2A26",
+        color:symHex,
         fill:{color:bgHex}, line:{color:borderHex, width:lineWidth},
         isTextBox:true
       });
