@@ -403,6 +403,9 @@
   .fasc-block{margin-bottom:32px;}
   .fasc-title-row{display:flex;align-items:center;justify-content:space-between;gap:10px;margin:0 0 4px;}
   .fasc-block h3{font-size:14.5px;margin:0;color:var(--ink);}
+  .fasc-regen-controls{display:flex;align-items:center;gap:6px;flex-shrink:0;}
+  .fasc-week-select{font-size:11.5px;padding:2px 5px;border:1px solid var(--line);border-radius:6px;
+    background:#fff;color:var(--ink-soft);}
   .fasc-regen-btn{font-size:11.5px;padding:3px 9px;border:1px solid var(--line);border-radius:6px;
     background:#fff;color:var(--ink-soft);cursor:pointer;white-space:nowrap;}
   .fasc-regen-btn:hover{background:#F3F5F3;color:var(--ink);}
@@ -423,7 +426,7 @@
   .fasc-svg-wrap svg{max-width:100%;height:auto;display:block;background:#fff;border:1px solid var(--line);border-radius:8px;}
   @media print{
     .fasc-block{break-inside:avoid;}
-    .fasc-regen-btn{display:none;}
+    .fasc-regen-controls{display:none;}
   }
 </style>
 </head>
@@ -1951,8 +1954,11 @@ return {
     children.push(heading(docx, data.lexicalBlock.label));
     children.push(promptAnswerTable(docx, data.lexicalBlock.prompts));
 
-    // 9: accesso lessicale per categoria — prompt aperto, stesso discorso di sopra.
-    children.push(heading(docx, `Scrivere parole che appartengano alle categorie (almeno ${p.categoryMinWords})`));
+    // 9: accesso lessicale per categoria — prompt aperto, stesso discorso di sopra. Se
+    // questa parte è stata rigenerata singolarmente a un livello diverso da quello globale
+    // del fascicolo, "almeno N parole" segue quel livello (data.categoriesMinWords),
+    // non quello globale (p.categoryMinWords) — stessa logica dell'anteprima a schermo.
+    children.push(heading(docx, `Scrivere parole che appartengano alle categorie (almeno ${data.categoriesMinWords ?? p.categoryMinWords})`));
     children.push(promptAnswerTable(docx, data.categories));
 
     // 11: anagrammi — la soluzione va SOLO nel fascicolo gemello delle soluzioni,
@@ -11298,13 +11304,7 @@ async function resolveTrialImages(trial) {
    funziona esattamente come prima, solo senza memoria tra un dispositivo e l'altro.
    ========================================================= */
 const firebaseConfig = {
-  apiKey: "AIzaSyCEFMdVHdANv1PsVlb-Wo65JHe4IKMtk3o",
-    authDomain: "pdmgenerator.firebaseapp.com",
-    projectId: "pdmgenerator",
-    storageBucket: "pdmgenerator.firebasestorage.app",
-    messagingSenderId: "203067967755",
-    appId: "1:203067967755:web:6ec8266c59798c852e3a0e"
-
+  // apiKey: "...", authDomain: "...", projectId: "...", ...
 };
 
 let sharedHistoryReady = false;
@@ -11593,6 +11593,11 @@ const state = {
   categorizzazioneTrialsOverride:null,
   accessoWordsOverride:null,
   fascicoloWeek:1,
+  // Livello (settimana) scelto per la rigenerazione di UNA singola parte del fascicolo,
+  // quando diverso dalla settimana globale — es. {grid0: 5} rigenera solo la prima griglia
+  // al livello della settimana 5, lasciando la settimana globale invariata. Una parte non
+  // presente qui segue semplicemente la settimana globale.
+  fascicoloPartWeek:{},
   deck:null,
   slideIndex:0,
   reveal:false,
@@ -12616,12 +12621,22 @@ function fSection(title, sub, content, regenKey){
   const titleRow = fEl("div",{class:"fasc-title-row"});
   titleRow.appendChild(fEl("h3",{},title));
   if(regenKey){
-    // Rigenera SOLO questa parte del fascicolo (stessa identica logica di generazione
-    // della settimana corrente, incluse le liste anti-ripetizione) senza toccare il resto
-    // — così una singola sezione non convincente non obbliga a rifare tutto il fascicolo.
-    const btn = fEl("button",{class:"fasc-regen-btn", type:"button", title:"Rigenera solo questa parte"}, "↻ Rigenera");
-    btn.onclick = ()=>regenerateFascicoloPart(regenKey, btn);
-    titleRow.appendChild(btn);
+    // Rigenera SOLO questa parte del fascicolo, al livello (settimana) scelto qui accanto
+    // — non necessariamente quello della settimana globale — stessa identica logica di
+    // generazione (incluse le liste anti-ripetizione) senza toccare il resto del fascicolo.
+    const controls = fEl("div",{class:"fasc-regen-controls"});
+    const select = fEl("select",{class:"fasc-week-select", title:"Livello (settimana) da usare per questa parte"});
+    for(let w=1; w<=12; w++){
+      const opt = fEl("option",{value:String(w)}, `Sett. ${w}`);
+      if(w === (state.fascicoloPartWeek[regenKey] ?? state.fascicoloWeek)) opt.setAttribute("selected","selected");
+      select.appendChild(opt);
+    }
+    select.onchange = ()=>{ state.fascicoloPartWeek[regenKey] = Number(select.value); };
+    const btn = fEl("button",{class:"fasc-regen-btn", type:"button", title:"Rigenera solo questa parte, al livello scelto a sinistra"}, "↻ Rigenera");
+    btn.onclick = ()=>regenerateFascicoloPart(regenKey, btn, Number(select.value));
+    controls.appendChild(select);
+    controls.appendChild(btn);
+    titleRow.appendChild(controls);
   }
   wrap.appendChild(titleRow);
   if(sub) wrap.appendChild(fEl("div",{class:"fasc-sub"}, sub));
@@ -12664,7 +12679,7 @@ function renderFascicolo(deck){
 
   root.appendChild(fSection(deck.lexicalBlock.label, null, fPromptTable(deck.lexicalBlock.prompts, null, false), "lexicalBlock"));
 
-  root.appendChild(fSection(`Scrivere parole che appartengano alle categorie (almeno ${p.categoryMinWords})`, null, fPromptTable(deck.categories, null, false), "categories"));
+  root.appendChild(fSection(`Scrivere parole che appartengano alle categorie (almeno ${deck.categoriesMinWords ?? p.categoryMinWords})`, null, fPromptTable(deck.categories, null, false), "categories"));
 
   root.appendChild(fSection("Risolvere i seguenti anagrammi", null,
     fPromptTable(deck.anagrams.map(a=>a.scrambled), deck.anagrams.map(a=>a.solution), showSolutions), "anagrams"));
@@ -12677,11 +12692,13 @@ function renderFascicolo(deck){
 
 // Rigenera UNA sola parte del fascicolo corrente: costruisce un fascicolo "usa e getta"
 // completo con un seed nuovo (stessa identica funzione, stesse liste anti-ripetizione
-// della settimana attiva), ma ne innesta nel fascicolo mostrato solo la parte richiesta,
-// lasciando intatte tutte le altre. Evita di duplicare la logica di generazione di ogni
-// singolo esercizio: quella resta unica, dentro buildFascicolo.
-async function regenerateFascicoloPart(partKey, btn){
+// della settimana attiva) ma al livello (settimana) scelto per QUESTA parte — non
+// necessariamente quello della settimana globale — e ne innesta nel fascicolo mostrato
+// solo la parte richiesta, lasciando intatte tutte le altre. Evita di duplicare la logica
+// di generazione di ogni singolo esercizio: quella resta unica, dentro buildFascicolo.
+async function regenerateFascicoloPart(partKey, btn, weekOverride){
   if(!state.deck || state.exercise!=="fascicolo") return;
+  const week = weekOverride || state.fascicoloPartWeek[partKey] || state.fascicoloWeek;
   const original = btn ? btn.textContent : null;
   if(btn){ btn.disabled = true; btn.textContent = "…"; }
   try {
@@ -12690,7 +12707,7 @@ async function regenerateFascicoloPart(partKey, btn){
       fetchRecentUsed("fascicoloHistory", "usedCategories"),
       fetchRecentUsed("fascicoloHistory", "usedLexicalKeys"),
     ]);
-    const fresh = window.Engine.buildFascicolo(state.fascicoloWeek, Math.floor(Math.random()*1e9), {
+    const fresh = window.Engine.buildFascicolo(week, Math.floor(Math.random()*1e9), {
       anagramWords: excludeAnagrams, categories: excludeCategories, lexicalKeys: excludeLexical,
     });
     const m = /^grid(\d)$/.exec(partKey);
@@ -12709,6 +12726,10 @@ async function regenerateFascicoloPart(partKey, btn){
       appendUsed("fascicoloHistory", "usedLexicalKeys", fresh.lexicalBlock.historyKeys, 60);
     } else if (partKey === "categories") {
       state.deck.categories = fresh.categories;
+      // La consegna ("almeno N parole") dipende dal livello scelto per QUESTA rigenerazione,
+      // non da quello globale del fascicolo: va tenuta assieme al contenuto rigenerato,
+      // sia nell'anteprima sia nel fascicolo esportato (vedi buildFascicoloDocument).
+      state.deck.categoriesMinWords = fresh.params.categoryMinWords;
       appendUsed("fascicoloHistory", "usedCategories", fresh.categories, 60);
     } else if (partKey === "anagrams") {
       state.deck.anagrams = fresh.anagrams;
@@ -13065,6 +13086,8 @@ async function generate(){
     state.deck = window.Engine.buildFascicolo(state.fascicoloWeek, Math.floor(Math.random()*1e9), {
       anagramWords: excludeAnagrams, categories: excludeCategories, lexicalKeys: excludeLexical,
     });
+    state.deck.categoriesMinWords = state.deck.params.categoryMinWords;
+    state.fascicoloPartWeek = {}; // una rigenerazione completa riparte da zero: nessuna parte resta agganciata a un livello scelto in precedenza per una rigenerazione singola
     appendUsed("fascicoloHistory", "usedAnagramWords", state.deck.anagrams.map(a=>a.solution), 60);
     appendUsed("fascicoloHistory", "usedCategories", state.deck.categories, 60);
     appendUsed("fascicoloHistory", "usedLexicalKeys", state.deck.lexicalBlock.historyKeys, 60);
