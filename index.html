@@ -401,7 +401,12 @@
   .fasc-root{width:100%;text-align:left;}
   .fasc-root h2{font-size:20px;margin-bottom:22px;}
   .fasc-block{margin-bottom:32px;}
-  .fasc-block h3{font-size:14.5px;margin:0 0 4px;color:var(--ink);}
+  .fasc-title-row{display:flex;align-items:center;justify-content:space-between;gap:10px;margin:0 0 4px;}
+  .fasc-block h3{font-size:14.5px;margin:0;color:var(--ink);}
+  .fasc-regen-btn{font-size:11.5px;padding:3px 9px;border:1px solid var(--line);border-radius:6px;
+    background:#fff;color:var(--ink-soft);cursor:pointer;white-space:nowrap;}
+  .fasc-regen-btn:hover{background:#F3F5F3;color:var(--ink);}
+  .fasc-regen-btn:disabled{opacity:0.5;cursor:default;}
   .fasc-block .fasc-sub{font-size:12px;color:var(--ink-soft);margin-bottom:8px;font-style:italic;}
   table.fasc-grid{border-collapse:collapse;font-size:12.5px;background:#fff;}
   table.fasc-grid td{border:1px solid var(--line);width:24px;height:24px;text-align:center;padding:0;
@@ -418,6 +423,7 @@
   .fasc-svg-wrap svg{max-width:100%;height:auto;display:block;background:#fff;border:1px solid var(--line);border-radius:8px;}
   @media print{
     .fasc-block{break-inside:avoid;}
+    .fasc-regen-btn{display:none;}
   }
 </style>
 </head>
@@ -11292,12 +11298,7 @@ async function resolveTrialImages(trial) {
    funziona esattamente come prima, solo senza memoria tra un dispositivo e l'altro.
    ========================================================= */
 const firebaseConfig = {
- apiKey: "AIzaSyCEFMdVHdANv1PsVlb-Wo65JHe4IKMtk3o",
-    authDomain: "pdmgenerator.firebaseapp.com",
-    projectId: "pdmgenerator",
-    storageBucket: "pdmgenerator.firebasestorage.app",
-    messagingSenderId: "203067967755",
-    appId: "1:203067967755:web:6ec8266c59798c852e3a0e"
+  // apiKey: "...", authDomain: "...", projectId: "...", ...
 };
 
 let sharedHistoryReady = false;
@@ -11664,30 +11665,26 @@ function familyForLevel(level){
     : { kind:def.kind, pool:variant, category:cat };
 }
 
-// Tre assi di colore indipendenti — sfondo, bordo, e ora anche il colore del simbolo stesso
-// (prima sempre nero fisso). Ogni asse ha una tavolozza di 4 colori nitidi e ben distinguibili
-// tra loro; ogni griglia ne pesca 3 a caso per asse, cosi il ventaglio visto cambia a ogni
-// generazione senza mai scendere sotto una leggibilita' curata a mano (sfondi chiari, bordi e
-// simboli in tinte decise).
+// Tre assi di colore indipendenti — sfondo, bordo, e colore del simbolo stesso (prima
+// sempre nero fisso). Colori PRIMARI e pieni, non tinte pastello o secondarie: nitidi,
+// ben riconoscibili, e che non compromettano la lettura del simbolo. Lo sfondo resta su
+// tonalità chiare/neutre (cosi' qualunque bordo o inchiostro resti leggibile sopra);
+// bordo e colore del simbolo pescano dalla stessa tavolozza di primari decisi (rosso,
+// blu, verde, nero). Ogni griglia ne sceglie 3 a caso per asse.
 const FILL_POOL = [
   { name:"giallo", css:"#FFD400" },
   { name:"bianco", css:"#FFFFFF" },
-  { name:"celeste", css:"#A9D8F0" },
-  { name:"verde chiaro", css:"#BFE6B0" }
+  { name:"grigio chiaro", css:"#D9D9D9" }
 ];
-const BORDER_POOL = [
+const PRIMARY_INK_POOL = [
   { name:"rosso", css:"#E30613" },
-  { name:"nero", css:"#000000" },
   { name:"blu", css:"#1155CC" },
-  { name:"verde scuro", css:"#1E7A34" }
+  { name:"verde", css:"#1E8449" },
+  { name:"nero", css:"#000000" }
 ];
-const SYMBOL_COLOR_POOL = [
-  { name:"viola", css:"#6C3483" },
-  { name:"marrone", css:"#6E4A2E" },
-  { name:"indaco", css:"#2C3E91" },
-  { name:"ruggine", css:"#B5541A" }
-];
-const COLORS = [...FILL_POOL, ...BORDER_POOL, ...SYMBOL_COLOR_POOL];
+const BORDER_POOL = PRIMARY_INK_POOL;
+const SYMBOL_COLOR_POOL = PRIMARY_INK_POOL;
+const COLORS = [...FILL_POOL, ...PRIMARY_INK_POOL];
 function randInt(lo,hi){ return lo + rnd(hi-lo+1); }
 
 // Assegna un attributo di colore (sfondo/bordo/colore-simbolo) a tutte le celle: sceglie `n`
@@ -11709,10 +11706,12 @@ function assignAttribute(cells, allIdx, pool, propName, n){
 }
 
 // Costruisce UN tentativo di griglia e valuta un ampio ventaglio di regole candidate,
-// tenendo solo quelle il cui conteggio cade tra 4 e 14. Le regole sono generate e ordinate
-// dal più semplice al più complesso: singoli elementi (simboli, poi singoli attributi di
-// colore, poi le proprietà di famiglia), poi combinazioni a 2 elementi (simbolo+colore,
-// sfondo+bordo, posizione+sfondo), poi combinazioni a 3 elementi.
+// tenendo solo quelle il cui conteggio cade tra 4 e 14. Ogni regola di colore resta
+// SEMPRE agganciata a un simbolo specifico (mai "conta gli sfondi gialli" da sola: un
+// criterio cosi' non dipende dal materiale e sarebbe identico a ogni livello). Le regole
+// sono generate e ordinate per complessita' crescente: simbolo da solo -> simbolo + un
+// solo aspetto cromatico (sfondo O bordo, oppure posizione) -> simbolo + colore proprio
+// del simbolo + un secondo aspetto -> il livello piu' complesso, tre aspetti insieme.
 function buildGridAttempt(symbols){
   const n = GRID_ROWS*GRID_COLS;
   const cells = Array.from({length:n}, (_,i)=>({ row:Math.floor(i/GRID_COLS), col:i%GRID_COLS }));
@@ -11730,20 +11729,16 @@ function buildGridAttempt(symbols){
     const chunk = shuffledIdx.slice(cursor, cursor+chunkSize);
     cursor += chunkSize;
     chunk.forEach(i=>cells[i].sym = sym);
-    specsSingles.push({ text:`Conta tutti gli elementi «${sym}».`, matches:c=>c.sym===sym });
+    specsSingles.push({ text:`Conta tutti gli elementi «${sym}».`, matches:c=>c.sym===sym, tier:1 });
   });
 
-  // 2) COLORE — tre assi indipendenti (sfondo, bordo, colore del simbolo), 3 colori a testa
-  //    scelti a caso dalla tavolozza a ogni generazione, distribuiti in gruppi bilanciati.
+  // 2) COLORE — tre assi indipendenti (sfondo, bordo, colore del simbolo), colori primari,
+  //    3 a testa scelti a caso dalla tavolozza a ogni generazione, distribuiti in gruppi
+  //    bilanciati. Non generano MAI una regola da soli: entrano solo incrociati con un
+  //    simbolo nei blocchi 4-6 qui sotto.
   const fillChosen = assignAttribute(cells, allIdx, FILL_POOL, "fill", 3);
   const borderChosen = assignAttribute(cells, allIdx, BORDER_POOL, "border", 3);
   const symColorChosen = assignAttribute(cells, allIdx, SYMBOL_COLOR_POOL, "symColor", 3);
-
-  // 2a) attributo singolo (più semplice: un solo aspetto da guardare)
-  const specsColorSingle = [];
-  fillChosen.forEach(c=> specsColorSingle.push({ text:`Conta tutti gli elementi con sfondo ${c.name}.`, matches:cell=>cell.fill===c.name }));
-  borderChosen.forEach(c=> specsColorSingle.push({ text:`Conta tutti gli elementi con bordo ${c.name}.`, matches:cell=>cell.border===c.name }));
-  symColorChosen.forEach(c=> specsColorSingle.push({ text:`Conta tutti gli elementi con simbolo di colore ${c.name}.`, matches:cell=>cell.symColor===c.name }));
 
   // 3) CARATTERISTICHE PROPRIE DELLA FAMIGLIA DI SIMBOLI — non tutti gli alfabeti hanno le
   // stesse proprietà: qui si sfrutta quello che il tipo di simbolo USATO permette davvero
@@ -11759,84 +11754,103 @@ function buildGridAttempt(symbols){
   const hasRound = symbols.some(s=>roundAll.includes(s)), hasAngular = symbols.some(s=>angularAll.includes(s));
   if (isAllDigits) {
     specsFamily.push(
-      { text:"Conta tutti gli elementi con cifra pari.", matches:c=>Number(c.sym)%2===0 },
-      { text:"Conta tutti gli elementi con cifra dispari.", matches:c=>Number(c.sym)%2===1 }
+      { text:"Conta tutti gli elementi con cifra pari.", matches:c=>Number(c.sym)%2===0, tier:1 },
+      { text:"Conta tutti gli elementi con cifra dispari.", matches:c=>Number(c.sym)%2===1, tier:1 }
     );
   }
   if (isAllLetters && symbols.some(s=>VOWELS.includes(s.toUpperCase())) && symbols.some(s=>!VOWELS.includes(s.toUpperCase()))) {
     specsFamily.push(
-      { text:"Conta tutte le vocali.", matches:c=>VOWELS.includes(c.sym.toUpperCase()) },
-      { text:"Conta tutte le consonanti.", matches:c=>!VOWELS.includes(c.sym.toUpperCase()) }
+      { text:"Conta tutte le vocali.", matches:c=>VOWELS.includes(c.sym.toUpperCase()), tier:1 },
+      { text:"Conta tutte le consonanti.", matches:c=>!VOWELS.includes(c.sym.toUpperCase()), tier:1 }
     );
   }
   if (isAllArrows) {
     const upSet = ["↑","↖","↗"], downSet = ["↓","↙","↘"];
     specsFamily.push(
-      { text:"Conta le frecce che puntano verso l'alto (↑ ↖ ↗).", matches:c=>upSet.includes(c.sym) },
-      { text:"Conta le frecce che puntano verso il basso (↓ ↙ ↘).", matches:c=>downSet.includes(c.sym) }
+      { text:"Conta le frecce che puntano verso l'alto (↑ ↖ ↗).", matches:c=>upSet.includes(c.sym), tier:1 },
+      { text:"Conta le frecce che puntano verso il basso (↓ ↙ ↘).", matches:c=>downSet.includes(c.sym), tier:1 }
     );
   }
   if (hasRound && hasAngular) {
-    specsFamily.push({ text:"Conta le forme con contorno curvo (non ad angoli).", matches:c=>roundAll.includes(c.sym) });
-    specsFamily.push({ text:"Conta le forme con angoli (non curve).", matches:c=>angularAll.includes(c.sym) });
+    specsFamily.push({ text:"Conta le forme con contorno curvo (non ad angoli).", matches:c=>roundAll.includes(c.sym), tier:1 });
+    specsFamily.push({ text:"Conta le forme con angoli (non curve).", matches:c=>angularAll.includes(c.sym), tier:1 });
   }
 
-  // 4) COMBINAZIONI A 2 ELEMENTI — sfondo×bordo, simbolo+colore (di sfondo o di simbolo),
-  //    posizione+sfondo.
-  const specsPair = [];
-  shuffle(fillChosen).slice(0,2).forEach(fc=>{
-    shuffle(borderChosen).slice(0,2).forEach(bc=>{
-      specsPair.push({ text:`Conta gli elementi con sfondo ${fc.name} E bordo ${bc.name}.`, matches:cell=>cell.fill===fc.name && cell.border===bc.name });
-    });
-  });
+  // 4) SIMBOLO + UN SOLO ASPETTO CROMATICO O POSIZIONALE — secondo gradino: dopo il
+  //    simbolo da solo, lo stesso simbolo ma "solo con sfondo X" o "solo con bordo Y" o
+  //    "solo nelle righe/colonne pari/dispari". Più varianti per simbolo (non una sola)
+  //    così anche se qualcuna cade fuori dal range 4-14 restano abbastanza candidate valide
+  //    per popolare davvero questo gradino, non solo il primo.
+  const specsTier2 = [];
   symbols.forEach(sym=>{
     const fc = pick(fillChosen);
-    specsPair.push({ text:`Conta gli elementi «${sym}» con sfondo ${fc.name}.`, matches:cell=>cell.sym===sym && cell.fill===fc.name });
+    specsTier2.push({ text:`Conta gli elementi «${sym}» con sfondo ${fc.name}.`, matches:c=>c.sym===sym && c.fill===fc.name, tier:2 });
+    const bc = pick(borderChosen);
+    specsTier2.push({ text:`Conta gli elementi «${sym}» con bordo ${bc.name}.`, matches:c=>c.sym===sym && c.border===bc.name, tier:2 });
+    const odd = Math.random() < 0.5;
+    if (Math.random() < 0.5) specsTier2.push({ text:`Conta gli elementi «${sym}» nelle righe ${odd?"dispari":"pari"}.`, matches:c=>c.sym===sym && c.row%2===(odd?1:0), tier:2 });
+    else specsTier2.push({ text:`Conta gli elementi «${sym}» nelle colonne ${odd?"dispari":"pari"}.`, matches:c=>c.sym===sym && c.col%2===(odd?1:0), tier:2 });
   });
+
+  // 5) SIMBOLO + COLORE PROPRIO DEL SIMBOLO + SFONDO O BORDO — terzo gradino: tre aspetti
+  //    insieme (identità del simbolo, tinta del simbolo, e sfondo O bordo). Due varianti
+  //    per simbolo (con sfondo E con bordo), stesso motivo del blocco precedente.
+  const specsTier3 = [];
   symbols.forEach(sym=>{
-    const sc = pick(symColorChosen);
-    specsPair.push({ text:`Conta gli elementi «${sym}» di colore ${sc.name}.`, matches:cell=>cell.sym===sym && cell.symColor===sc.name });
+    const sc1 = pick(symColorChosen), fc = pick(fillChosen);
+    specsTier3.push({ text:`Conta gli elementi «${sym}» di colore ${sc1.name} con sfondo ${fc.name}.`, matches:c=>c.sym===sym && c.symColor===sc1.name && c.fill===fc.name, tier:3 });
+    const sc2 = pick(symColorChosen), bc = pick(borderChosen);
+    specsTier3.push({ text:`Conta gli elementi «${sym}» di colore ${sc2.name} con bordo ${bc.name}.`, matches:c=>c.sym===sym && c.symColor===sc2.name && c.border===bc.name, tier:3 });
   });
-  const posFill = pick(fillChosen);
-  specsPair.push(
-    { text:`Conta gli elementi con sfondo ${posFill.name} nelle righe dispari.`, matches:cell=>cell.fill===posFill.name && cell.row%2===1 },
-    { text:`Conta gli elementi con sfondo ${posFill.name} nelle righe pari.`, matches:cell=>cell.fill===posFill.name && cell.row%2===0 },
-    { text:`Conta gli elementi con sfondo ${posFill.name} nelle colonne dispari.`, matches:cell=>cell.fill===posFill.name && cell.col%2===1 },
-    { text:`Conta gli elementi con sfondo ${posFill.name} nelle colonne pari.`, matches:cell=>cell.fill===posFill.name && cell.col%2===0 }
-  );
 
-  // 5) COMBINAZIONI A 3 ELEMENTI — il livello di complessità più alto, tenuto per ultimo.
-  const specsTriple = [];
-  {
-    const sym3 = pick(symbols), fc3 = pick(fillChosen), bc3 = pick(borderChosen);
-    specsTriple.push({ text:`Conta gli elementi «${sym3}» con sfondo ${fc3.name} e bordo ${bc3.name}.`, matches:c=>c.sym===sym3 && c.fill===fc3.name && c.border===bc3.name });
-  }
-  {
+  // 6) IL PIÙ COMPLESSO — simbolo + sfondo + bordo insieme (due aspetti di superficie),
+  //    tenuto per ultimo: alcune varianti per simbolo, così il gradino più difficile ha
+  //    comunque buone probabilità di comparire nell'elenco finale.
+  const specsTier4 = [];
+  symbols.forEach(sym=>{
     const fc4 = pick(fillChosen), bc4 = pick(borderChosen);
-    specsTriple.push({ text:`Conta gli elementi con sfondo ${fc4.name} e bordo ${bc4.name} nelle righe pari.`, matches:c=>c.fill===fc4.name && c.border===bc4.name && c.row%2===0 });
-  }
+    specsTier4.push({ text:`Conta gli elementi «${sym}» con sfondo ${fc4.name} e bordo ${bc4.name}.`, matches:c=>c.sym===sym && c.fill===fc4.name && c.border===bc4.name, tier:4 });
+    const sc5 = pick(symColorChosen), fc5 = pick(fillChosen);
+    specsTier4.push({ text:`Conta gli elementi «${sym}» di colore ${sc5.name} con sfondo ${fc5.name}, nelle righe pari.`, matches:c=>c.sym===sym && c.symColor===sc5.name && c.fill===fc5.name && c.row%2===0, tier:4 });
+  });
 
-  const specs = [...specsSingles, ...specsColorSingle, ...specsFamily, ...specsPair, ...specsTriple];
+  const specs = [...specsSingles, ...specsFamily, ...specsTier2, ...specsTier3, ...specsTier4];
 
-  const rules = specs
-    .map(s=>({ ...s, count: cells.filter(s.matches).length }))
-    .filter(r=>r.count>=4 && r.count<=14);
-  return { cells, rules };
+  const evaluated = specs.map(s=>({ ...s, count: cells.filter(s.matches).length }));
+  return { cells, evaluated };
+}
+
+// Sceglie le regole finali di UNA griglia con una quota per gradino di complessità, non
+// semplicemente "le prime che passano il filtro": altrimenti i gradini più facili (simbolo
+// da solo, simbolo+un colore) riempiono da soli tutta la decina e quelli più complessi
+// (simbolo+colore proprio+sfondo/bordo) rischiano di non comparire mai, anche quando
+// generati. Ordine di uscita: comunque dal più semplice al più complesso.
+const TIER_QUOTA = { 1:4, 2:3, 3:3, 4:2 };
+function selectRules(evaluated){
+  const valid = evaluated.filter(r=>r.count>=4 && r.count<=14);
+  const byTier = {1:[],2:[],3:[],4:[]};
+  valid.forEach(r=> byTier[r.tier].push(r));
+  const chosen = [];
+  [1,2,3,4].forEach(t=> chosen.push(...byTier[t].slice(0, TIER_QUOTA[t])));
+  return chosen;
 }
 
 function genOneGrid(symbols){
-  // Genera più tentativi e tiene il migliore (più regole valide), puntando a una decina —
-  // come richiesto. Con 35 celle e assi di colore a 3 valori il target si raggiunge quasi
-  // sempre entro pochi tentativi.
-  let best = null;
+  // Genera più tentativi e tiene il migliore: non "quello con più regole valide" (favorisce
+  // sempre i gradini facili, che sono più numerosi in partenza), ma quello con la miglior
+  // copertura dei gradini di difficoltà — in particolare dei due più complessi (3 e 4), che
+  // altrimenti tendono a sparire dall'elenco finale anche quando qualche variante valida
+  // viene generata.
+  let best = null, bestScore = -1;
   for(let attempt=0; attempt<300; attempt++){
-    const res = buildGridAttempt(symbols);
-    if(!best || res.rules.length > best.rules.length) best = res;
-    if(best.rules.length >= 10) break;
+    const { cells, evaluated } = buildGridAttempt(symbols);
+    const chosen = selectRules(evaluated);
+    const tiersCovered = new Set(chosen.map(r=>r.tier)).size;
+    const hardCovered = (chosen.some(r=>r.tier===3)?1:0) + (chosen.some(r=>r.tier===4)?1:0);
+    const score = hardCovered*100 + tiersCovered*10 + chosen.length;
+    if(score > bestScore){ bestScore = score; best = { cells, rules: chosen }; }
+    if(hardCovered===2 && chosen.length>=10) break;
   }
-  // L'elenco è già ordinato dal più semplice al più complesso: se sono emerse più di una
-  // dozzina di regole valide si tiene solo la testa, restando comunque "una decina".
-  if(best.rules.length > 12) best = { ...best, rules: best.rules.slice(0,12) };
   return best;
 }
 
@@ -12591,9 +12605,19 @@ function fPromptTable(prompts, solutions, showSolutions){
   });
   return table;
 }
-function fSection(title, sub, content){
+function fSection(title, sub, content, regenKey){
   const wrap = fEl("div",{class:"fasc-block"});
-  wrap.appendChild(fEl("h3",{},title));
+  const titleRow = fEl("div",{class:"fasc-title-row"});
+  titleRow.appendChild(fEl("h3",{},title));
+  if(regenKey){
+    // Rigenera SOLO questa parte del fascicolo (stessa identica logica di generazione
+    // della settimana corrente, incluse le liste anti-ripetizione) senza toccare il resto
+    // — così una singola sezione non convincente non obbliga a rifare tutto il fascicolo.
+    const btn = fEl("button",{class:"fasc-regen-btn", type:"button", title:"Rigenera solo questa parte"}, "↻ Rigenera");
+    btn.onclick = ()=>regenerateFascicoloPart(regenKey, btn);
+    titleRow.appendChild(btn);
+  }
+  wrap.appendChild(titleRow);
   if(sub) wrap.appendChild(fEl("div",{class:"fasc-sub"}, sub));
   wrap.appendChild(content);
   return wrap;
@@ -12606,43 +12630,94 @@ function renderFascicolo(deck){
 
   root.appendChild(fEl("h2",{}, `Fascicolo ${deck.week} — ${deck.week}°settimana`));
 
-  deck.grids.forEach(g=>{
+  deck.grids.forEach((g,i)=>{
     root.appendChild(fSection(
       `Cerchiare e contare tutte le sequenze ${g.target.join("")} (orizzontale e verticale)`,
       showSolutions ? `Occorrenze presenti nella griglia: ${g.count}` : null,
-      fGridTable(g.grid)
+      fGridTable(g.grid),
+      `grid${i}`
     ));
   });
 
   const multiWrap = fEl("div");
   multiWrap.appendChild(fGridTable(deck.multi.grid));
   multiWrap.appendChild(fLegend(deck.multi.targets, deck.multi.counts, showSolutions));
-  root.appendChild(fSection("Cerchiare tutte le sequenze indicate", null, multiWrap));
+  root.appendChild(fSection("Cerchiare tutte le sequenze indicate", null, multiWrap, "multi"));
 
   const cruciWrap = fEl("div");
   cruciWrap.appendChild(fGridTable(deck.crucipuzzle.grid, "fasc-cruci"));
   cruciWrap.appendChild(fLegend(deck.crucipuzzle.targets, deck.crucipuzzle.counts, showSolutions));
-  root.appendChild(fSection("Cerchiare tutte le sequenze indicate nel crucipuzzle", "(tutte le direzioni, dritto o inverso — 12 sequenze da trovare)", cruciWrap));
+  root.appendChild(fSection("Cerchiare tutte le sequenze indicate nel crucipuzzle", "(tutte le direzioni, dritto o inverso — 12 sequenze da trovare)", cruciWrap, "crucipuzzle"));
 
   const seqTitle = E.sequencingInstructionText(deck.sequencing.mode);
   const seqDiv = fEl("div",{class:"fasc-svg-wrap", html: E.renderSequencingSVG(deck.sequencing)});
-  root.appendChild(fSection(seqTitle, showSolutions ? `Ordine corretto: ${deck.sequencing.order.join(" → ")}` : null, seqDiv));
+  root.appendChild(fSection(seqTitle, showSolutions ? `Ordine corretto: ${deck.sequencing.order.join(" → ")}` : null, seqDiv, "sequencing"));
 
   const mazeDiv = fEl("div",{class:"fasc-svg-wrap", html: E.renderMazeSVG(deck.maze, 18, showSolutions)});
-  root.appendChild(fSection("Risolvere il labirinto", null, mazeDiv));
+  root.appendChild(fSection("Risolvere il labirinto", null, mazeDiv, "maze"));
 
-  root.appendChild(fSection(deck.lexicalBlock.label, null, fPromptTable(deck.lexicalBlock.prompts, null, false)));
+  root.appendChild(fSection(deck.lexicalBlock.label, null, fPromptTable(deck.lexicalBlock.prompts, null, false), "lexicalBlock"));
 
-  root.appendChild(fSection(`Scrivere parole che appartengano alle categorie (almeno ${p.categoryMinWords})`, null, fPromptTable(deck.categories, null, false)));
+  root.appendChild(fSection(`Scrivere parole che appartengano alle categorie (almeno ${p.categoryMinWords})`, null, fPromptTable(deck.categories, null, false), "categories"));
 
   root.appendChild(fSection("Risolvere i seguenti anagrammi", null,
-    fPromptTable(deck.anagrams.map(a=>a.scrambled), deck.anagrams.map(a=>a.solution), showSolutions)));
+    fPromptTable(deck.anagrams.map(a=>a.scrambled), deck.anagrams.map(a=>a.solution), showSolutions), "anagrams"));
 
   root.appendChild(fSection("Calcolare il risultato", null,
-    fPromptTable(deck.calc.map(c=>c.expression), deck.calc.map(c=>c.result), showSolutions)));
+    fPromptTable(deck.calc.map(c=>c.expression), deck.calc.map(c=>c.result), showSolutions), "calc"));
 
   return root;
 }
+
+// Rigenera UNA sola parte del fascicolo corrente: costruisce un fascicolo "usa e getta"
+// completo con un seed nuovo (stessa identica funzione, stesse liste anti-ripetizione
+// della settimana attiva), ma ne innesta nel fascicolo mostrato solo la parte richiesta,
+// lasciando intatte tutte le altre. Evita di duplicare la logica di generazione di ogni
+// singolo esercizio: quella resta unica, dentro buildFascicolo.
+async function regenerateFascicoloPart(partKey, btn){
+  if(!state.deck || state.exercise!=="fascicolo") return;
+  const original = btn ? btn.textContent : null;
+  if(btn){ btn.disabled = true; btn.textContent = "…"; }
+  try {
+    const [excludeAnagrams, excludeCategories, excludeLexical] = await Promise.all([
+      fetchRecentUsed("fascicoloHistory", "usedAnagramWords"),
+      fetchRecentUsed("fascicoloHistory", "usedCategories"),
+      fetchRecentUsed("fascicoloHistory", "usedLexicalKeys"),
+    ]);
+    const fresh = window.Engine.buildFascicolo(state.fascicoloWeek, Math.floor(Math.random()*1e9), {
+      anagramWords: excludeAnagrams, categories: excludeCategories, lexicalKeys: excludeLexical,
+    });
+    const m = /^grid(\d)$/.exec(partKey);
+    if (m) {
+      state.deck.grids[Number(m[1])] = fresh.grids[Number(m[1])];
+    } else if (partKey === "multi") {
+      state.deck.multi = fresh.multi;
+    } else if (partKey === "crucipuzzle") {
+      state.deck.crucipuzzle = fresh.crucipuzzle;
+    } else if (partKey === "sequencing") {
+      state.deck.sequencing = fresh.sequencing;
+    } else if (partKey === "maze") {
+      state.deck.maze = fresh.maze;
+    } else if (partKey === "lexicalBlock") {
+      state.deck.lexicalBlock = fresh.lexicalBlock;
+      appendUsed("fascicoloHistory", "usedLexicalKeys", fresh.lexicalBlock.historyKeys, 60);
+    } else if (partKey === "categories") {
+      state.deck.categories = fresh.categories;
+      appendUsed("fascicoloHistory", "usedCategories", fresh.categories, 60);
+    } else if (partKey === "anagrams") {
+      state.deck.anagrams = fresh.anagrams;
+      appendUsed("fascicoloHistory", "usedAnagramWords", fresh.anagrams.map(a=>a.solution), 60);
+    } else if (partKey === "calc") {
+      state.deck.calc = fresh.calc;
+    }
+    render();
+  } catch(e){
+    console.error(e);
+    alert("Non sono riuscito a rigenerare questa parte: " + e.message);
+    if(btn){ btn.disabled = false; btn.textContent = original; }
+  }
+}
+
 
 async function rasterizeSVGBrowser(svgString){
   const m = svgString.match(/width="(\d+)"\s+height="(\d+)"/);
