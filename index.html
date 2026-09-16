@@ -11501,12 +11501,7 @@ async function resolveTrialImages(trial) {
    funziona esattamente come prima, solo senza memoria tra un dispositivo e l'altro.
    ========================================================= */
 const firebaseConfig = {
- apiKey: "AIzaSyCEFMdVHdANv1PsVlb-Wo65JHe4IKMtk3o",
-    authDomain: "pdmgenerator.firebaseapp.com",
-    projectId: "pdmgenerator",
-    storageBucket: "pdmgenerator.firebasestorage.app",
-    messagingSenderId: "203067967755",
-    appId: "1:203067967755:web:6ec8266c59798c852e3a0e"
+  // apiKey: "...", authDomain: "...", projectId: "...", ...
 };
 
 let sharedHistoryReady = false;
@@ -12196,7 +12191,7 @@ function buildIntrusoScreen(family, len, targetN){
   const oddIndex = objs.findIndex(o=>o.isOdd);
   const items = objs.map(o=>o.value);
   return {
-    items, oddIndex, familyLabel: family.label,
+    items, oddIndex, familyLabel: family.label, familyId: family.id,
     rule: `Trova l'unico elemento «${family.label}» che compare una sola volta (tutti gli altri sono ripetuti almeno 2 volte).`,
     answer: `Posizione ${oddIndex+1}: «${items[oddIndex]}»`
   };
@@ -13487,6 +13482,19 @@ function exportGriglie(deck, level){
   return p.writeFile({fileName:exportFileName("griglie", level, "pptx")});
 }
 
+// Larghezza reale per carattere (rapporto rispetto al fontSize), misurata rendendo ogni
+// famiglia a 100pt e leggendo la larghezza effettiva del testo (non un valore teorico):
+// alcuni Unicode — soprattutto i numeri romani, che molti font disegnano come la sequenza
+// di lettere equivalente ("Ⅷ" reso largo come "VIII") — sono molto più larghi di una
+// lettera normale (rapporto ~0.6). Senza questa calibrazione il testo andava a capo e
+// finiva per sovrapporsi alla riga sotto, invece di restare nei limiti della cella.
+const INTRUSO_FAMILY_CHAR_WIDTH = {
+  roman: 1.8, domino: 1.5, cjk: 1.1, armenian: 0.95, "cyrillic-arcaico": 0.95, canadian: 0.95,
+  mahjong: 0.95, geez: 0.7, cyrillic: 0.65, thai: 0.65, digit: 0.65, letter: 0.65,
+};
+const INTRUSO_DEFAULT_TEXT_CHAR_WIDTH = 0.65; // famiglie testuali non calibrate esplicitamente
+const INTRUSO_DEFAULT_ATOMIC_CHAR_WIDTH = 0.9; // famiglie a glifo singolo non calibrate esplicitamente
+
 function exportIntruso(deck, level){
   // Esporta l'intera sessione (tutte le schermate del mazzo, non solo quella a video),
   // come nei file originali che contengono più slide per sessione.
@@ -13511,17 +13519,25 @@ function exportIntruso(deck, level){
     const cellW = areaW/cols, cellH = areaH/rows;
     // Il font è vincolato sia dall'altezza sia dalla larghezza della cella: le famiglie
     // testuali ai livelli alti arrivano a stringhe di 5 caratteri, quindi la sola altezza
-    // non basta a evitare che il testo esca dalla cella in orizzontale.
+    // non basta a evitare che il testo esca dalla cella in orizzontale. Il rapporto
+    // larghezza/font varia per famiglia (vedi INTRUSO_FAMILY_CHAR_WIDTH sopra) — mai un
+    // singolo valore fisso uguale per tutte, che è esattamente ciò che causava lo
+    // sformarsi dei numeri romani.
     const itemLen = Math.max(1, ...s.items.map(it=>String(it).length));
-    const fontSizeByHeight = cellH*40;
-    const fontSizeByWidth = (cellW*72*0.85) / itemLen / 0.62;
+    const isAtomic = itemLen === 1 && INTRUSO_ATOMIC_FAMILIES.some(f=>f.id===s.familyId);
+    const charWidth = INTRUSO_FAMILY_CHAR_WIDTH[s.familyId]
+      ?? (isAtomic ? INTRUSO_DEFAULT_ATOMIC_CHAR_WIDTH : INTRUSO_DEFAULT_TEXT_CHAR_WIDTH);
+    // Margine di altezza più prudente (32 invece di 40): un po' di scorta in più nel caso
+    // in cui, nonostante la calibrazione, il testo vada comunque a capo su due righe.
+    const fontSizeByHeight = cellH*32;
+    const fontSizeByWidth = (cellW*72*0.85) / itemLen / charWidth;
     const fontSize = Math.floor(Math.min(fontSizeByHeight, fontSizeByWidth));
     s.items.forEach((it,i)=>{
       const r = Math.floor(i/cols), c = i%cols;
       slide.addText(it, {
         x:MARGIN+c*cellW, y:MARGIN+r*cellH, w:cellW, h:cellH,
         align:"center", valign:"middle", fontSize, bold:true, color:"1E2A26",
-        isTextBox:true
+        isTextBox:true, wrap:false, fit:"shrink"
       });
     });
   });
@@ -13540,6 +13556,21 @@ function exportInversione(deck, level){
     `\n\nOgni stimolo ha 1-2 caratteri colorati (rosso, dal livello 13 anche verde): la consegna clinica `+
     `esatta legata a questi caratteri non è confermata nel materiale originale — verificare con Rodrigo.`
   );
+  // Dimensione del font proporzionata alla lunghezza dello stimolo, non più fissa a 110pt
+  // (troppo piccola: su una slide 13.33×7.5in restava confinata in un angolo). Calcolata per
+  // sfruttare la slide il più possibile restando SEMPRE entro i margini: il vincolo di
+  // larghezza usa una stima larga (0.75em a carattere, prudente anche per le lettere più
+  // larghe come "M") e quello di altezza lascia margine sopra/sotto — si prende il più
+  // piccolo dei due, quindi non sforma mai, nemmeno nei casi più estremi testati (stringhe
+  // di sole "M" ripetute, le più larghe possibili nell'alfabeto usato).
+  function inversioneFontSize(text){
+    const n = Math.max(1, [...text].length);
+    const maxWidthPt = 13.33*72*0.82;
+    const maxHeightPt = 7.5*72*0.60;
+    const byWidth = maxWidthPt / (n*0.75);
+    const byHeight = maxHeightPt / 1.15;
+    return Math.max(150, Math.min(380, Math.floor(Math.min(byWidth, byHeight))));
+  }
   deck.blocks.forEach(b=>{
     const applicable = SEQUENCE_RULES.filter(r=>r.kinds.includes(b.kind));
     b.items.forEach((item, idx)=>{
@@ -13550,11 +13581,12 @@ function exportInversione(deck, level){
       stim.background={color:"FFFFFF"};
       const markMap = {};
       item.marks.forEach(m=>markMap[m.index]=m.color);
+      const fontSize = inversioneFontSize(item.text);
       const runs=[]; let cur=null;
       [...item.text].forEach((ch,i)=>{
         const col = markMap[i] ? hexNoHash(markMap[i]) : "1E2A26";
         if(cur && cur.options.color===col){ cur.text+=ch; }
-        else { cur = {text:ch, options:{fontSize:110,bold:true,color:col}}; runs.push(cur); }
+        else { cur = {text:ch, options:{fontSize,bold:true,color:col}}; runs.push(cur); }
       });
       stim.addText(runs, {x:0,y:0,w:13.33,h:7.5,align:"center",valign:"middle",isTextBox:true});
       // Niente soluzioni nel commento: si vedono solo nell'app con "Mostra risposta",
