@@ -11508,12 +11508,7 @@ async function resolveTrialImages(trial) {
    funziona esattamente come prima, solo senza memoria tra un dispositivo e l'altro.
    ========================================================= */
 const firebaseConfig = {
-  apiKey: "AIzaSyCEFMdVHdANv1PsVlb-Wo65JHe4IKMtk3o",
-    authDomain: "pdmgenerator.firebaseapp.com",
-    projectId: "pdmgenerator",
-    storageBucket: "pdmgenerator.firebasestorage.app",
-    messagingSenderId: "203067967755",
-    appId: "1:203067967755:web:6ec8266c59798c852e3a0e"
+  // apiKey: "...", authDomain: "...", projectId: "...", ...
 };
 
 let sharedHistoryReady = false;
@@ -12199,9 +12194,9 @@ function familyPredicates(symbols){
       mk("le frecce che puntano verso destra (→ ↗ ↘)", c=>right.includes(c.sym)),
       mk("le frecce che puntano verso sinistra (← ↖ ↙)", c=>left.includes(c.sym)));
   }
+  // (il criterio speculare "solo figure ad angoli" è stato rimosso su richiesta di Rodrigo)
   if (hasRound && hasAngular) out.push(
-    { plain:"Conta le forme con contorno curvo (non ad angoli).", np:"le forme curve", f:c=>roundAll.includes(c.sym) },
-    { plain:"Conta le forme con angoli (non curve).", np:"le forme ad angoli", f:c=>angularAll.includes(c.sym) });
+    { plain:"Conta le forme con contorno curvo (non ad angoli).", np:"le forme curve", f:c=>roundAll.includes(c.sym) });
   const FULL = ["●","■","▲","▼","◆","★"], EMPTY = ["○","□","△","▽","◇","☆"];
   if (symbols.every(s=>FULL.includes(s)||EMPTY.includes(s)) && both(FULL)) out.push(
     mk("le forme piene", c=>FULL.includes(c.sym)),
@@ -12292,7 +12287,15 @@ function specToRule(sp){
 function sampleSpec(symbols, famPreds, F, B, I, feat){
   const sp = { syms:null, pred:null, fill:null, border:null, ink:null, bstyle:null, size:null, pos:null, adj:null, rel:null, notFill:null, notBorder:null, notInk:null };
   const r = Math.random();
-  if(r<0.10) sp.pred = ANY_PRED;
+  // Criterio "intermedio": simbolo (o proprietà della famiglia) + UNA sola caratteristica, a
+  // valore singolo. Richiesti in numero maggiore da Rodrigo (prima i criteri con 3+ caratteristiche
+  // erano la maggioranza): qui si generano apposta, in quota fissa tra i candidati.
+  const simple = Math.random() < 0.40;
+  if(simple){
+    if(famPreds.length && r<0.25) sp.pred = pick(famPreds);
+    else sp.syms = [pick(symbols)];
+  }
+  else if(r<0.10) sp.pred = ANY_PRED;
   else if(famPreds.length && r<0.30) sp.pred = pick(famPreds);
   else if(r<0.60 && symbols.length>=2) sp.syms = pickN(symbols, 2);
   else sp.syms = [pick(symbols)];
@@ -12300,6 +12303,12 @@ function sampleSpec(symbols, famPreds, F, B, I, feat){
   // paziente vede meglio e che finora erano sfruttati poco), meno sul colore del simbolo,
   // sulla posizione e sulla negazione.
   const feats = [];
+  if(simple){
+    const opts = ["fill","fill","fill","border","border","border","ink","ink","pos"];
+    if(feat.bStyles) opts.push("bstyle");
+    if(feat.sizes) opts.push("size");
+    feats.push(pick(opts));
+  } else {
   if(Math.random()<0.60) feats.push("fill");
   if(Math.random()<0.55) feats.push("border");
   if(Math.random()<0.35) feats.push("ink");
@@ -12309,12 +12318,13 @@ function sampleSpec(symbols, famPreds, F, B, I, feat){
   if(feat.sizes && Math.random()<0.25) feats.push("size");
   if(Math.random()<0.10) feats.push("adj");
   if(Math.random()<0.20) feats.push("rel");
-  const nOf = pool => pickN(pool, Math.random()<0.35 ? 2 : 1).map(c=>c.name);
+  }
+  const nOf = pool => pickN(pool, (!simple && Math.random()<0.35) ? 2 : 1).map(c=>c.name);
   if(feats.includes("fill")) sp.fill = nOf(F);
   if(feats.includes("border")) sp.border = nOf(B);
   if(feats.includes("ink")) sp.ink = nOf(I);
   if(feats.includes("pos")) sp.pos = pick(POS_OPTIONS);
-  if(feats.includes("bstyle")) sp.bstyle = feat.bStyles.length>=3 && Math.random()<0.3 ? pickN(feat.bStyles, 2) : [pick(feat.bStyles)];
+  if(feats.includes("bstyle")) sp.bstyle = !simple && feat.bStyles.length>=3 && Math.random()<0.3 ? pickN(feat.bStyles, 2) : [pick(feat.bStyles)];
   if(feats.includes("size")) sp.size = [pick(feat.sizes)];
   if(feats.includes("adj")){
     const useFill = Math.random()<0.5;
@@ -12325,7 +12335,8 @@ function sampleSpec(symbols, famPreds, F, B, I, feat){
     if(Math.random()<0.5) sp.rel = Math.random()<0.5 ? "destra" : "sotto";
     else { const useFill = Math.random()<0.5; sp.adj = { kind: useFill ? "fill" : "border", name: pick(useFill ? F : B).name }; }
   }
-  if(feats.includes("neg")){
+  // (adiacenza e negazione nella stessa regola non si combinano: troppo pesante da applicare)
+  if(feats.includes("neg") && !sp.adj){
     // la negazione riguarda un asse su cui non c'è già un vincolo positivo
     const axes = [["notFill",F,sp.fill],["notBorder",B,sp.border],["notInk",I,sp.ink]].filter(a=>!a[2]);
     if(axes.length){ const [key,pool] = pick(axes); sp[key] = [pick(pool).name]; }
@@ -12394,6 +12405,7 @@ function buildGridAttempt(symbols, level){
   const seen = new Set();
   const evaluated = [];
   const push = rule => {
+    if(rule.tier>=5) return; // gradino 5 escluso (troppe condizioni insieme), su richiesta di Rodrigo
     if(seen.has(rule.text)) return;
     seen.add(rule.text);
     rule.count = cells.filter(rule.matches).length;
@@ -12413,10 +12425,15 @@ function tierQuotaForLevel(level){
   // Rivista su richiesta di Rodrigo: troppe richieste semplici (il singolo elemento) e troppo poche
   // combinazioni. Gradino 1 = singolo simbolo/proprietà; 2-3 = un/due vincoli; 4-5 = combinazioni
   // di più vincoli (sfondo + bordo + colore del simbolo, alternative, posizione, negazione).
-  if(level<=2)  return {1:2, 2:3, 3:3, 4:2, 5:0};
-  if(level<=5)  return {1:1, 2:2, 3:3, 4:3, 5:1};
-  if(level<=10) return {1:1, 2:1, 3:2, 4:3, 5:3};
-  return               {1:0, 2:1, 3:2, 4:3, 5:4};
+  // Rivista ancora su richiesta di Rodrigo: più criteri intermedi con SOLO 2 caratteristiche
+  // (gradino 2: simbolo + un vincolo), meno con 3 o più (gradini 3-5). Il gradino 2 è ora il
+  // più numeroso a ogni livello; la difficoltà cresce comunque, perché salgono i gradini 4-5.
+  if(level<=2)  return {1:2, 2:5, 3:2, 4:1, 5:0};
+  // Gradino 5 abolito (regole con 4+ condizioni, adiacenza + negazione ecc.): le sue quote sono
+  // passate al gradino 4, che resta il tetto di difficoltà.
+  if(level<=5)  return {1:1, 2:5, 3:2, 4:2, 5:0};
+  if(level<=10) return {1:1, 2:4, 3:2, 4:3, 5:0};
+  return               {1:0, 2:4, 3:2, 4:4, 5:0};
 }
 // Sceglie le regole finali di UNA griglia: quota per gradino, e dentro ogni gradino
 // preferisce i conteggi non ancora usciti, così le regole di una stessa griglia non danno
@@ -12550,8 +12567,11 @@ const INTRUSO_ATOMIC_FAMILIES = [
   // livello `pairsFrom` gli elementi diventano SEQUENZE di 2 simboli (dal `triplesFrom`
   // di 3) scelte tra varianti quasi identiche — cambia un solo simbolo o l'ordine — invece
   // di simboli scelti a caso. Vedi intrusoPoolFor / intrusoLenFor.
-  {id:"suits", label:"semi delle carte", pool:["♠","♥","♦","♣"], extra:["♤","♡","♢","♧"], small:true, extraFrom:3, pairsFrom:5, triplesFrom:9, unlockLevel:1},
-  {id:"music", label:"note musicali", pool:["♩","♪","♫","♬"], extra:["♭","♮","♯"], small:true, extraFrom:3, pairsFrom:5, triplesFrom:9, unlockLevel:1},
+  // Semi e note: soglie anticipate (pool allargato e coppie già dal livello 2, triple dal 5)
+  // perché i semi risultavano troppo facili già dal livello 2 (segnalato da Rodrigo); il
+  // livello 1 resta con 4 simboli singoli come ingresso. Dadi, cerchi e quadranti: invariati.
+  {id:"suits", label:"semi delle carte", pool:["♠","♥","♦","♣"], extra:["♤","♡","♢","♧"], small:true, extraFrom:2, pairsFrom:2, triplesFrom:5, unlockLevel:1},
+  {id:"music", label:"note musicali", pool:["♩","♪","♫","♬"], extra:["♭","♮","♯"], small:true, extraFrom:2, pairsFrom:2, triplesFrom:5, unlockLevel:1},
   {id:"punct", label:"punteggiatura", pool:["!","?","#","%","&","@","§","*"], unlockLevel:1},
   {id:"zodiac", label:"simboli zodiacali", pool:["♈","♉","♊","♋","♌","♍","♎","♏","♐","♑","♒","♓"], unlockLevel:1},
   {id:"dice", label:"dadi", pool: codeRange(0x2680,6), extra:[], small:true, extraFrom:99, pairsFrom:5, triplesFrom:9, unlockLevel:1},
