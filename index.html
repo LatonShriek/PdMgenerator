@@ -11508,12 +11508,7 @@ async function resolveTrialImages(trial) {
    funziona esattamente come prima, solo senza memoria tra un dispositivo e l'altro.
    ========================================================= */
 const firebaseConfig = {
- apiKey: "AIzaSyCEFMdVHdANv1PsVlb-Wo65JHe4IKMtk3o",
-    authDomain: "pdmgenerator.firebaseapp.com",
-    projectId: "pdmgenerator",
-    storageBucket: "pdmgenerator.firebasestorage.app",
-    messagingSenderId: "203067967755",
-    appId: "1:203067967755:web:6ec8266c59798c852e3a0e"
+  // apiKey: "...", authDomain: "...", projectId: "...", ...
 };
 
 let sharedHistoryReady = false;
@@ -13094,11 +13089,18 @@ function renderOneGrid(s){
     div.style.borderColor = isAns ? "#2F6F63" : borderHex;
     div.style.color = symHex;
     div.style.fontWeight = "800";
+    // Differenza grande/piccolo resa ben evidente (rapporto ~2,4:1; prima 0,6 → ~1,7:1, segnalato
+    // da Rodrigo). Le celle senza attributo dimensione (c.size assente) restano alla misura normale.
     if(c.size==="piccolo"){
       const sm = document.createElement("span");
-      sm.style.fontSize = "0.6em";
+      sm.style.fontSize = "0.5em";
       sm.textContent = c.sym;
       div.appendChild(sm);
+    } else if(c.size==="grande"){
+      const bg = document.createElement("span");
+      bg.style.fontSize = "1.2em";
+      bg.textContent = c.sym;
+      div.appendChild(bg);
     } else {
       div.textContent = c.sym;
     }
@@ -14057,7 +14059,7 @@ function exportGriglie(deck, level){
       slide.addText(c.sym, {
         shape: "ellipse",
         x: marginX + c.col*PITCH, y: marginY + c.row*PITCH, w:CIRCLE, h:CIRCLE,
-        align:"center", valign:"middle", fontSize: c.size==="piccolo" ? Math.round(fontSize*0.6) : fontSize, bold:true,
+        align:"center", valign:"middle", fontSize: c.size==="piccolo" ? Math.round(fontSize*0.42) : fontSize, bold:true, // grande = misura piena, piccolo = 0,42× (era 0,6×: differenza poco evidente)
         color:symHex,
         fill:{color:bgHex}, line:{color:borderHex, width:lineWidth, dashType:({tratteggiato:"dash", puntinato:"sysDot"})[c.bStyle] || "solid"},
         isTextBox:true
