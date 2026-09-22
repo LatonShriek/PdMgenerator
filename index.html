@@ -11541,12 +11541,7 @@ async function resolveTrialImages(trial) {
    funziona esattamente come prima, solo senza memoria tra un dispositivo e l'altro.
    ========================================================= */
 const firebaseConfig = {
-  apiKey: "AIzaSyCEFMdVHdANv1PsVlb-Wo65JHe4IKMtk3o",
-    authDomain: "pdmgenerator.firebaseapp.com",
-    projectId: "pdmgenerator",
-    storageBucket: "pdmgenerator.firebasestorage.app",
-    messagingSenderId: "203067967755",
-    appId: "1:203067967755:web:6ec8266c59798c852e3a0e"
+  // apiKey: "...", authDomain: "...", projectId: "...", ...
 };
 
 let sharedHistoryReady = false;
@@ -12127,6 +12122,9 @@ const INK_POOL = [
   { name:"viola", css:"#6A1FAE", hue:"viola" }
 ];
 const INK_CONFLICTS = [["rosso","marrone"], ["blu","viola"]];
+// Sfondi troppo simili tra loro anche se di famiglie di tinta diverse (segnalato da Rodrigo:
+// "giallino" e "arancione chiaro" si confondono) — stessa logica di INK_CONFLICTS, ma per gli sfondi.
+const FILL_CONFLICTS = [["giallo","arancio chiaro"]];
 const COLORS = [...FILL_POOL, ...INK_POOL];
 function colorCombos(arr, k){
   if(k===0) return [[]];
@@ -12139,10 +12137,11 @@ function colorCombos(arr, k){
 // inchiostri scelti.
 function pickGridPalette(){
   const hasConflict = t => INK_CONFLICTS.some(([a,b]) => t.some(c=>c.name===a) && t.some(c=>c.name===b));
+  const hasFillConflict = t => FILL_CONFLICTS.some(([a,b]) => t.some(c=>c.name===a) && t.some(c=>c.name===b));
   const inkTriples = shuffle(colorCombos(INK_POOL, 3).filter(t=>!hasConflict(t)));
   for(const inks of inkTriples){
     const hues = new Set(inks.map(c=>c.hue));
-    const fillTriples = colorCombos(FILL_POOL.filter(f=>!hues.has(f.hue)), 3);
+    const fillTriples = colorCombos(FILL_POOL.filter(f=>!hues.has(f.hue)), 3).filter(t=>!hasFillConflict(t));
     if(fillTriples.length) return { inks, fills: pick(fillTriples) };
   }
   return { inks: pickN(INK_POOL, 3), fills: pickN(FILL_POOL, 3) }; // non raggiungibile con queste tavolozze
@@ -12566,16 +12565,21 @@ function selectRules(evaluated, level, quotaIn){
   // complessi ai livelli alti, dai più semplici ai bassi).
   const fillOrder = level>=12 ? [5,4,3,2,1] : [1,2,3,4,5];
   fillOrder.forEach(t=>{ while(chosen.length<total && takeOne(t)){} });
-  // Ordine finale: difficoltà CRESCENTE (per gradino), ma dentro ogni gradino i tipi si alternano
-  // (stimolo / posizione / relazione) e il tipo che apre il gradino cambia di gradino in gradino.
+  // Ordine finale: difficoltà CRESCENTE (per gradino); dentro ogni gradino (e anche al cambio di
+  // gradino) si evita di ripetere lo stesso tipo di consegna (stimolo/posizione/relazione) appena
+  // uscito, scegliendo ad ogni passo un tipo diverso dall'ultimo se ce n'è uno disponibile — non solo
+  // "alternati dentro il gradino" come prima, ma senza mai due consegne uguali di fila se evitabile.
   const out = [];
   const tiers = [...new Set(chosen.map(r=>r.tier))].sort((a,b)=>a-b);
-  tiers.forEach((t,ti)=>{
+  let lastKind = null;
+  tiers.forEach(t=>{
     const g = {stim:[], pos:[], rel:[]};
     chosen.filter(r=>r.tier===t).forEach(r=>g[r.kind].push(r));
-    const order = ti%2===0 ? ["stim","pos","rel"] : ["pos","stim","rel"];
     while(g.stim.length || g.pos.length || g.rel.length){
-      order.forEach(k=>{ if(g[k].length) out.push(g[k].shift()); });
+      const avail = ["stim","pos","rel"].filter(k=>g[k].length);
+      const k = avail.find(x=>x!==lastKind) || avail[0];
+      out.push(g[k].shift());
+      lastKind = k;
     }
   });
   return out;
@@ -12693,18 +12697,18 @@ const INTRUSO_ATOMIC_FAMILIES = [
   // Semi e note: soglie anticipate (pool allargato e coppie già dal livello 2, triple dal 5)
   // perché i semi risultavano troppo facili già dal livello 2 (segnalato da Rodrigo); il
   // livello 1 resta con 4 simboli singoli come ingresso. Dadi, cerchi e quadranti: invariati.
-  {id:"suits", label:"semi delle carte", pool:["♠","♥","♦","♣"], extra:["♤","♡","♢","♧"], small:true, extraFrom:2, pairsFrom:2, triplesFrom:9, unlockLevel:1},
-  {id:"music", label:"note musicali", pool:["♩","♪","♫","♬"], extra:["♭","♮","♯"], small:true, extraFrom:2, pairsFrom:2, triplesFrom:9, unlockLevel:1},
+  {id:"suits", label:"semi delle carte", pool:["♠","♥","♦","♣"], extra:["♤","♡","♢","♧"], small:true, extraFrom:4, pairsFrom:7, triplesFrom:20, unlockLevel:1},
+  {id:"music", label:"note musicali", pool:["♩","♪","♫","♬"], extra:["♭","♮","♯"], small:true, extraFrom:4, pairsFrom:7, triplesFrom:20, unlockLevel:1},
   {id:"punct", label:"punteggiatura", pool:["!","?","#","%","&","@","§","*"], unlockLevel:1},
   {id:"zodiac", label:"simboli zodiacali", pool:["♈","♉","♊","♋","♌","♍","♎","♏","♐","♑","♒","♓"], unlockLevel:1},
-  {id:"dice", label:"dadi", pool: codeRange(0x2680,6), extra:[], small:true, extraFrom:99, pairsFrom:3, triplesFrom:11, unlockLevel:1},
+  {id:"dice", label:"dadi", pool: codeRange(0x2680,6), extra:[], small:true, extraFrom:99, pairsFrom:9, triplesFrom:22, unlockLevel:1},
   {id:"domino", label:"domino", pool: codeRange(0x1F030,32), unlockLevel:8},
   {id:"mahjong", label:"mahjong", pool: codeRange(0x1F007,20), unlockLevel:14},
   {id:"cjk", label:"ideogrammi", pool: codeRange(0x53E3,40), unlockLevel:28},
   // Nuove famiglie a glifo singolo. Cerchi parziali e quadranti hanno pool ristretto (4): come semi e
   // note, si allargano con simboli molto simili e ai livelli alti diventano sequenze di 2-3 simboli.
-  {id:"circles", label:"cerchi parzialmente pieni", pool:["◐","◑","◒","◓"], extra:["◔","◕","○","●"], small:true, extraFrom:2, pairsFrom:3, triplesFrom:13, unlockLevel:1},
-  {id:"quadrants", label:"quadranti", pool:["◰","◱","◲","◳"], extra:["◧","◨","◩","◪"], small:true, extraFrom:3, pairsFrom:5, triplesFrom:15, unlockLevel:3},
+  {id:"circles", label:"cerchi parzialmente pieni", pool:["◐","◑","◒","◓"], extra:["◔","◕","○","●"], small:true, extraFrom:5, pairsFrom:9, triplesFrom:23, unlockLevel:1},
+  {id:"quadrants", label:"quadranti", pool:["◰","◱","◲","◳"], extra:["◧","◨","◩","◪"], small:true, extraFrom:6, pairsFrom:11, triplesFrom:24, unlockLevel:3},
   {id:"box", label:"tratti da tabella", pool:["┌","┐","└","┘","├","┤","┬","┴","┼"], unlockLevel:7},
   {id:"sets", label:"simboli insiemistici", pool:["∈","∉","∩","∪","⊂","⊃","⊆","⊇","∋","∌"], unlockLevel:9},
   {id:"braille", label:"Braille", pool: codeRange(0x2801,63), unlockLevel:14}
@@ -12802,10 +12806,11 @@ function buildIntrusoScreen(family, len, targetN, level, ctx){
   };
 }
 function lenForLevelIntruso(level){
-  // Livelli bassi troppo semplici (segnalato da Rodrigo): gli elementi testuali passano a COPPIE di
-  // caratteri già dal livello 2 e a TERNE dal 15 (prima: coppie dal 4, terne dal 7 su 16 livelli).
+  // Il passaggio a coppie al livello 2 rendeva il livello 3 già troppo difficile (segnalato di nuovo
+  // da Rodrigo): spostato più avanti (coppie dal 6, terne dal 24) ora che i 32 livelli danno spazio
+  // per distribuirlo con calma, invece di comprimerlo nei primissimi livelli come prima.
   // Tetto a 3: sequenze più lunghe non aggiungono discriminabilità utile, solo fatica di lettura.
-  return level<=1 ? 1 : (level<=14 ? 2 : 3);
+  return level<=5 ? 1 : (level<=23 ? 2 : 3);
 }
 function targetNForLevelIntruso(level, isAtomic, len){
   // Più elementi = più confronti per isolare l'unico singolo. Partenza più alta di prima (18 testo / 21
