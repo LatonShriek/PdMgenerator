@@ -565,8 +565,8 @@ const SYMBOL_FAMILIES = {
   digits:      { label: 'cifre',              tier: 1, chars: '0123456789'.split('') },
   latin:       { label: 'lettere latine',      tier: 1, chars: 'ABCDEFGHIL'.split('') },
   cyrillic:    { label: 'lettere cirilliche',   tier: 2, chars: ['Б','Г','Д','Ж','З','И','Л','П','Ц','Щ'] },
-  shapes:      { label: 'forme geometriche',   tier: 2, chars: ['⚪','⬜','⚫','⬛','╳','┃'] },
-  linesMixed:  { label: 'segmenti/direzioni',  tier: 3, chars: ['╾','╱','╲','╇','⬛','╳'] },
+  shapes:      { label: 'forme geometriche',   tier: 2, chars: ['○','□','●','■','╳','┃'] },
+  linesMixed:  { label: 'segmenti/direzioni',  tier: 3, chars: ['╾','╱','╲','╇','■','╳'] },
   arrows:      { label: 'frecce',              tier: 3, chars: ['↗','↔','↖','↙','↓','↕','↘','→','↑','←'] },
   mathSymbols: { label: 'simboli matematici',  tier: 4, chars: ['⋁','⋃','⊃','⋂','⊂','⋀','<','>'] },
   runes:       { label: 'rune (Futhark)',      tier: 5, chars: ['ᚠ','ᚢ','ᚩ','ᚴ','ᚹ','ᚱ','ᚲ','ᚷ','ᚺ','ᚾ'] },
@@ -11541,12 +11541,7 @@ async function resolveTrialImages(trial) {
    funziona esattamente come prima, solo senza memoria tra un dispositivo e l'altro.
    ========================================================= */
 const firebaseConfig = {
-  apiKey: "AIzaSyCEFMdVHdANv1PsVlb-Wo65JHe4IKMtk3o",
-    authDomain: "pdmgenerator.firebaseapp.com",
-    projectId: "pdmgenerator",
-    storageBucket: "pdmgenerator.firebasestorage.app",
-    messagingSenderId: "203067967755",
-    appId: "1:203067967755:web:6ec8266c59798c852e3a0e"
+  // apiKey: "...", authDomain: "...", projectId: "...", ...
 };
 
 let sharedHistoryReady = false;
