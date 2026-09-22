@@ -11541,12 +11541,7 @@ async function resolveTrialImages(trial) {
    funziona esattamente come prima, solo senza memoria tra un dispositivo e l'altro.
    ========================================================= */
 const firebaseConfig = {
-  apiKey: "AIzaSyCEFMdVHdANv1PsVlb-Wo65JHe4IKMtk3o",
-    authDomain: "pdmgenerator.firebaseapp.com",
-    projectId: "pdmgenerator",
-    storageBucket: "pdmgenerator.firebasestorage.app",
-    messagingSenderId: "203067967755",
-    appId: "1:203067967755:web:6ec8266c59798c852e3a0e"
+  // apiKey: "...", authDomain: "...", projectId: "...", ...
 };
 
 let sharedHistoryReady = false;
@@ -12702,18 +12697,18 @@ const INTRUSO_ATOMIC_FAMILIES = [
   // Semi e note: soglie anticipate (pool allargato e coppie già dal livello 2, triple dal 5)
   // perché i semi risultavano troppo facili già dal livello 2 (segnalato da Rodrigo); il
   // livello 1 resta con 4 simboli singoli come ingresso. Dadi, cerchi e quadranti: invariati.
-  {id:"suits", label:"semi delle carte", pool:["♠","♥","♦","♣"], extra:["♤","♡","♢","♧"], small:true, extraFrom:4, pairsFrom:7, triplesFrom:20, unlockLevel:1},
-  {id:"music", label:"note musicali", pool:["♩","♪","♫","♬"], extra:["♭","♮","♯"], small:true, extraFrom:4, pairsFrom:7, triplesFrom:20, unlockLevel:1},
+  {id:"suits", label:"semi delle carte", pool:["♠","♥","♦","♣"], extra:["♤","♡","♢","♧"], small:true, extraFrom:2, pairsFrom:2, triplesFrom:9, unlockLevel:1},
+  {id:"music", label:"note musicali", pool:["♩","♪","♫","♬"], extra:["♭","♮","♯"], small:true, extraFrom:2, pairsFrom:2, triplesFrom:9, unlockLevel:1},
   {id:"punct", label:"punteggiatura", pool:["!","?","#","%","&","@","§","*"], unlockLevel:1},
   {id:"zodiac", label:"simboli zodiacali", pool:["♈","♉","♊","♋","♌","♍","♎","♏","♐","♑","♒","♓"], unlockLevel:1},
-  {id:"dice", label:"dadi", pool: codeRange(0x2680,6), extra:[], small:true, extraFrom:99, pairsFrom:9, triplesFrom:22, unlockLevel:1},
+  {id:"dice", label:"dadi", pool: codeRange(0x2680,6), extra:[], small:true, extraFrom:99, pairsFrom:3, triplesFrom:11, unlockLevel:1},
   {id:"domino", label:"domino", pool: codeRange(0x1F030,32), unlockLevel:8},
   {id:"mahjong", label:"mahjong", pool: codeRange(0x1F007,20), unlockLevel:14},
   {id:"cjk", label:"ideogrammi", pool: codeRange(0x53E3,40), unlockLevel:28},
   // Nuove famiglie a glifo singolo. Cerchi parziali e quadranti hanno pool ristretto (4): come semi e
   // note, si allargano con simboli molto simili e ai livelli alti diventano sequenze di 2-3 simboli.
-  {id:"circles", label:"cerchi parzialmente pieni", pool:["◐","◑","◒","◓"], extra:["◔","◕","○","●"], small:true, extraFrom:5, pairsFrom:9, triplesFrom:23, unlockLevel:1},
-  {id:"quadrants", label:"quadranti", pool:["◰","◱","◲","◳"], extra:["◧","◨","◩","◪"], small:true, extraFrom:6, pairsFrom:11, triplesFrom:24, unlockLevel:3},
+  {id:"circles", label:"cerchi parzialmente pieni", pool:["◐","◑","◒","◓"], extra:["◔","◕","○","●"], small:true, extraFrom:2, pairsFrom:3, triplesFrom:13, unlockLevel:1},
+  {id:"quadrants", label:"quadranti", pool:["◰","◱","◲","◳"], extra:["◧","◨","◩","◪"], small:true, extraFrom:3, pairsFrom:5, triplesFrom:15, unlockLevel:3},
   {id:"box", label:"tratti da tabella", pool:["┌","┐","└","┘","├","┤","┬","┴","┼"], unlockLevel:7},
   {id:"sets", label:"simboli insiemistici", pool:["∈","∉","∩","∪","⊂","⊃","⊆","⊇","∋","∌"], unlockLevel:9},
   {id:"braille", label:"Braille", pool: codeRange(0x2801,63), unlockLevel:14}
@@ -12869,7 +12864,7 @@ function genIntruso(level, excludeKeys){
     .map(fam=>{
       const isAtomic = INTRUSO_ATOMIC_FAMILIES.includes(fam);
       const famLen = isAtomic ? intrusoLenFor(fam, level, 1) : len;
-      const targetN = Math.min(targetNForLevelIntruso(level, isAtomic, famLen), intrusoMaxItems(fam.id, famLen));
+      const targetN = niceIntrusoCount(targetNForLevelIntruso(level, isAtomic, famLen), 1333, 500, intrusoMaxItems(fam.id, famLen));
       return buildIntrusoScreen(fam, famLen, targetN, level, ctx);
     })
     .filter(Boolean);
@@ -13367,17 +13362,45 @@ function renderGriglie(deck){
 }
 
 function bestGridCols(n, areaW, areaH){
-  // Stessa logica di dimensionamento usata nell'export PowerPoint: cerca il numero
-  // di colonne che rende le celle più vicine possibile al quadrato, così a schermo
-  // e nel file esportato la disposizione è la stessa griglia pulita, mai righe
-  // spezzate in modo asimmetrico (es. 13 elementi + 2 su una riga a parte).
+  // Stessa logica di dimensionamento usata nell'export PowerPoint: cerca, tra i SOLI numeri
+  // di colonne che dividono n esattamente, quello che rende le celle più vicine possibile al
+  // quadrato — così a schermo e nel file esportato l'ultima riga è sempre piena quanto le
+  // altre (mai righe a metà, segnalato da Rodrigo), non solo "il più vicino al quadrato"
+  // anche a costo di una riga incompleta come prima.
   let cols = 1, bestMinSide = -1;
   for(let c=1; c<=n; c++){
-    const r = Math.ceil(n/c);
+    if(n % c !== 0) continue;
+    const r = n / c;
     const minSide = Math.min(areaW/c, areaH/r);
     if(minSide > bestMinSide){ bestMinSide = minSide; cols = c; }
   }
   return cols;
+}
+// Qualità (lato minimo della cella) della migliore disposizione a griglia PIENA per n elementi
+// nell'area indicata — usata solo per scegliere, in fase di generazione, un n vicino a quello
+// ideale del livello ma che si presti bene a una griglia piena (vedi niceIntrusoCount).
+function bestGridScore(n, areaW, areaH){
+  const cols = bestGridCols(n, areaW, areaH);
+  const rows = n / cols;
+  return Math.min(areaW/cols, areaH/rows);
+}
+// Il numero di elementi "ideale" per livello (targetNForLevelIntruso) a volte cade su un valore
+// scomodo da disporre in griglia piena (es. un numero primo, o quasi): una sola colonna o una
+// sola riga lunghissima. Si cerca invece, entro poche unità di distanza, il numero più vicino
+// che permette una griglia piena ragionevolmente quadrata — la difficoltà del livello non
+// cambia per una differenza di 1-2 elementi, ma l'impaginazione sì.
+function niceIntrusoCount(n, areaW, areaH, maxN){
+  maxN = maxN==null ? Infinity : maxN;
+  let best = Math.min(n, maxN), bestScore = -1;
+  for(let d=0; d<=4; d++){
+    const cands = d===0 ? [n] : [n-d, n+d];
+    for(const cand of cands){
+      if(cand < 4 || cand > maxN) continue;
+      const score = bestGridScore(cand, areaW, areaH);
+      if(score > bestScore){ bestScore = score; best = cand; }
+    }
+  }
+  return best;
 }
 function renderIntruso(deck){
   const wrap = document.createElement("div");
@@ -14382,15 +14405,10 @@ function exportIntruso(deck, level){
     slide.background = {color:"FFFFFF"};
     slide.addNotes(`Livello ${level}. Schermata ${si+1}/${deck.slides.length} (${s.familyLabel}). ${s.rule}`);
     const n = s.items.length;
-    // Cerca il numero di colonne che rende le celle più vicine possibile al quadrato,
-    // per massimizzare la dimensione del testo — nessun riquadro, solo gli elementi.
-    let cols = 1, bestMinSide = -1;
-    for(let c=1; c<=n; c++){
-      const rr = Math.ceil(n/c);
-      const minSide = Math.min(areaW/c, areaH/rr);
-      if(minSide > bestMinSide){ bestMinSide = minSide; cols = c; }
-    }
-    const rows = Math.ceil(n/cols);
+    // Numero di colonne come nell'anteprima (bestGridCols): solo divisori esatti di n, così
+    // l'ultima riga è sempre piena quanto le altre, mai una riga a metà.
+    const cols = bestGridCols(n, areaW, areaH);
+    const rows = n / cols;
     const cellW = areaW/cols, cellH = areaH/rows;
     // Il font è vincolato sia dall'altezza sia dalla larghezza della cella: le famiglie
     // testuali ai livelli alti arrivano a stringhe di 5 caratteri, quindi la sola altezza
