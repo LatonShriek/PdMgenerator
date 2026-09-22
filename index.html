@@ -432,6 +432,21 @@
     .fasc-block{break-inside:avoid;}
     .fasc-regen-controls{display:none;}
   }
+  /* ---- progressione del gruppo (interruttore mantieni / sali) ---- */
+  #progressPanel{margin-top:18px;padding:12px;border:1px solid var(--line);border-radius:10px;background:#F8FAF8;}
+  #progressPanel h3{font-size:14px;margin:0 0 2px 0;}
+  #progressPanel label{display:block;font-size:12.5px;font-weight:600;color:var(--ink-soft);}
+  .prog-row{display:flex;align-items:center;gap:8px;margin-top:8px;flex-wrap:wrap;font-size:12px;color:var(--ink-soft);}
+  .prog-row input[type=number]{width:66px;padding:6px 8px;}
+  .prog-row select{width:auto;padding:6px 8px;}
+  .prog-switch{display:flex;border:1px solid var(--line);border-radius:999px;overflow:hidden;margin-top:10px;background:#fff;}
+  .prog-switch button{flex:1;padding:9px 8px;border:none;background:#fff;font-size:13px;cursor:pointer;color:var(--ink);}
+  .prog-switch button + button{border-left:1px solid var(--line);}
+  .prog-switch button.on{background:var(--accent);color:var(--accent-ink);font-weight:700;}
+  .prog-switch button:disabled{opacity:.45;cursor:default;}
+  .prog-suggest{font-size:12px;color:var(--ink-soft);margin-top:7px;line-height:1.45;}
+  .prog-log{font-size:11.5px;color:var(--ink-soft);margin:8px 0 0;padding-left:16px;line-height:1.5;}
+  .prog-undo{background:none;border:none;color:var(--warn);font-size:11.5px;cursor:pointer;padding:0;margin-top:6px;text-decoration:underline;}
 </style>
 </head>
 <body>
@@ -446,7 +461,7 @@
   <div class="field" id="levelField">
     <label for="levelRange">Livello di difficoltà (sessione di riferimento)</label>
     <div class="level-row">
-      <input type="range" id="levelRange" min="1" max="16" value="1">
+      <input type="range" id="levelRange" min="1" max="32" value="1">
       <div class="level-badge" id="levelBadge">1</div>
     </div>
     <div class="level-note" id="levelNote"></div>
@@ -474,6 +489,8 @@
     <input type="text" id="groupNumberInput" placeholder="es. 3" style="width:100%; padding:8px; border-radius:8px; border:1px solid var(--line); font-size:13px;">
     <div class="level-note" style="margin-top:6px;">Esempio: "3 - Griglie-Conteggio.1(5).pptx" — 3 è il numero fisso dell'esercizio, 1 il livello, 5 il numero di gruppo scritto qui.</div>
   </div>
+
+  <div id="progressPanel" style="display:none;"></div>
 </div>
 
 <div id="historyPanel" style="display:none;">
@@ -11446,19 +11463,33 @@ function sampleCategorizzazioneTrial(level) {
 // un secondo giro, di nuovo mescolato.
 function genCategorizzazioneV2(level, nTrials, excludeLabels) {
   nTrials = nTrials || 9;
-  const pool = CATEGORIZZAZIONE_LIBRARY[String(level)] || CATEGORIZZAZIONE_LIBRARY[level] || [];
-  // Se c'è una cronologia condivisa (criteri già visti di recente da questo gruppo),
-  // si pesca preferibilmente dal resto del pool — solo se il pool "pulito" è troppo
-  // piccolo per riempire la sessione si riammettono anche i criteri già visti.
-  const excl = excludeLabels ? new Set(excludeLabels) : null;
-  let effectivePool = pool;
-  if(excl && excl.size){
-    const fresh = pool.filter(e=>!excl.has(e.label));
-    if(fresh.length >= Math.min(nTrials, pool.length)) effectivePool = fresh;
+  // La libreria di Rodrigo ha 16 fasce di difficoltà (142 criteri verificati). Con 32 livelli le fasce
+  // vengono MESCOLATE gradualmente: il livello 1 usa solo la fascia 1, il 32 solo la 16, e ogni livello
+  // intermedio pesca ciascuna prova dalla fascia sotto o sopra in proporzione alla sua posizione.
+  const q = 1 + levelT(level)*15, lo = Math.floor(q), hi = Math.min(16, lo+1), frac = q - lo;
+  const libFor = k => CATEGORIZZAZIONE_LIBRARY[String(k)] || [];
+  const excl = excludeLabels ? new Set(excludeLabels) : new Set();
+  const usedNow = new Set();
+  const chosenEntries = [];
+  for(let i=0; i<nTrials; i++){
+    const primary = (Math.random() < frac) ? hi : lo;
+    const secondary = primary === lo ? hi : lo;
+    const P = libFor(primary), S = libFor(secondary);
+    // preferenza: fascia scelta, criterio nuovo per il gruppo e non già in sessione → poi l'altra fascia
+    // adiacente → poi criteri visti in passato ma non in questa sessione → infine anche ripetizioni
+    const tiers = [
+      P.filter(e=>!excl.has(e.label) && !usedNow.has(e.label)),
+      S.filter(e=>!excl.has(e.label) && !usedNow.has(e.label)),
+      P.filter(e=>!usedNow.has(e.label)),
+      S.filter(e=>!usedNow.has(e.label)),
+      P.length ? P : S
+    ];
+    const cand = tiers.find(t=>t.length) || [];
+    if(!cand.length) break;
+    const entry = cand[Math.floor(Math.random()*cand.length)];
+    usedNow.add(entry.label);
+    chosenEntries.push(entry);
   }
-  const order = [];
-  while (order.length < nTrials) order.push(...shuffleArr(effectivePool));
-  const chosenEntries = order.slice(0, nTrials);
   const trials = chosenEntries.map(entry => {
     const chosenA = sampleN(entry.a, Math.min(3, entry.a.length));
     const chosenB = sampleN(entry.b, Math.min(3, entry.b.length));
@@ -11502,18 +11533,15 @@ async function resolveTrialImages(trial) {
         match /accessoHistory/{doc} { allow read, write: if request.auth != null; }
         match /fascicoloHistory/{doc} { allow read, write: if request.auth != null; }
         match /materialHistory/{doc} { allow read, write: if request.auth != null; }
+        match /groupProgress/{doc} { allow read, write: if request.auth != null; }
    (materialHistory: cronologia di Griglie-Conteggio, Intruso percettivo e Inversione e riordino.)
+   (groupProgress: andamento registrato dallo sperimentatore e livello di ogni gruppo — vedi "Progressione del gruppo".)
    Anche senza Firebase la cronologia funziona: viene ricordata su questo browser, per gruppo.
    Finché firebaseConfig resta vuoto, questa sezione non fa nulla: l'app
    funziona esattamente come prima, solo senza memoria tra un dispositivo e l'altro.
    ========================================================= */
 const firebaseConfig = {
-  apiKey: "AIzaSyCEFMdVHdANv1PsVlb-Wo65JHe4IKMtk3o",
-    authDomain: "pdmgenerator.firebaseapp.com",
-    projectId: "pdmgenerator",
-    storageBucket: "pdmgenerator.firebasestorage.app",
-    messagingSenderId: "203067967755",
-    appId: "1:203067967755:web:6ec8266c59798c852e3a0e"
+  // apiKey: "...", authDomain: "...", projectId: "...", ...
 };
 
 let sharedHistoryReady = false;
@@ -11620,6 +11648,7 @@ async function clearHistoryForGroup(){
 }
 
 function updateHistoryStatus(){
+  if(typeof renderProgressPanel === "function"){ renderProgressPanel(); if(typeof progressSyncRemote === "function") progressSyncRemote(); }
   const el = document.getElementById("historyStatus");
   if(!el) return;
   const key = currentGroupKey();
@@ -11700,7 +11729,7 @@ LEXICAL_TIERS[2].words = LEXICAL_TIERS[2].words.filter(w=>/^[A-Za-zàèéìòù]
 // categorization_library.js / categorization_engine.js).
 
 
-// 24 livelli — SOLO per Serie attentive (gli altri esercizi restano a 16). Elenco fornito
+// 32 livelli. I primi 24 sono l'elenco fornito
 // direttamente da Rodrigo, non generato: ogni livello è una singola consegna, senza
 // varianti speculari automatiche (le variazioni di mappatura sono già scritte esplicitamente
 // livello per livello, es. i livelli 3-6 differiscono tra loro apposta).
@@ -11728,9 +11757,18 @@ const SERIE_RULES = [
   "Mano dx se lettera rossa o numero nero; «No» se lettera nera o numero rosso.",
   "Mano sx se lettera nera o numero rosso; «No» se lettera rossa o numero nero.",
   "n-1 back: risposta basata sullo stimolo precedente (dx se era nero/lettera, sx se era rosso/numero).",
-  "n-1 back: risposta basata sullo stimolo precedente (dx se era nero/lettera, «Sì» se era rosso/numero)."
+  "n-1 back: risposta basata sullo stimolo precedente (dx se era nero/lettera, «Sì» se era rosso/numero).",
+  // ---- Livelli 25-32: PROPOSTA da validare (estensione della progressione n-back, stessa formulazione dei livelli 23-24) ----
+  "n-1 back: risposta basata sullo stimolo precedente (sx se era nero/lettera, «Sì» se era rosso/numero).",
+  "n-1 back: risposta basata sullo stimolo precedente («Sì» se era nero/lettera, «No» se era rosso/numero).",
+  "n-1 back, mappatura invertita rispetto al livello 23 (sx se era nero/lettera, dx se era rosso/numero).",
+  "n-1 back: risposta basata sullo stimolo precedente («No» se era nero/lettera, dx se era rosso/numero).",
+  "n-2 back: risposta basata sullo stimolo di due posizioni prima (dx se era nero/lettera, sx se era rosso/numero).",
+  "n-2 back: risposta basata sullo stimolo di due posizioni prima (dx se era nero/lettera, «Sì» se era rosso/numero).",
+  "n-2 back: risposta basata sullo stimolo di due posizioni prima («Sì» se era nero/lettera, «No» se era rosso/numero).",
+  "n-2 back, mappatura invertita rispetto al livello 29 (sx se era nero/lettera, dx se era rosso/numero)."
 ];
-const SERIE_MAX_LEVEL = SERIE_RULES.length;
+const SERIE_MAX_LEVEL = SERIE_RULES.length; // 32, come tutti gli altri esercizi
 
 const SEQUENCE_RULES = [
   {key:"ripeti", label:"Ripeti in avanti", kinds:["letters","digits","alnum"], apply:s=>s},
@@ -11876,8 +11914,19 @@ function isTrivialOrder(str){
 }
 function invKey(kind, text){ return kind + ":" + text.toUpperCase(); }
 
+// TUTTI gli esercizi a livelli hanno ora 32 livelli (prima 16, Serie attentive 24).
+const MAX_LEVEL = 32;
+// Posizione di difficoltà normalizzata: livello 1 → 0, livello 32 → 1.
+function levelT(level){ return Math.max(0, Math.min(1, (level-1)/(MAX_LEVEL-1))); }
 function tierFromLevel(level, nTiers){
-  return Math.min(nTiers-1, Math.floor((level-1)/(16/nTiers)));
+  return Math.min(nTiers-1, Math.floor((level-1)/(MAX_LEVEL/nTiers)));
+}
+// Scelta "sfumata" di una fascia di difficoltà (0..n-1): a ogni livello si mescolano le due fasce
+// adiacenti in proporzione alla posizione del livello, così la difficoltà sale in modo uniforme
+// su 32 gradini invece che a scalini di 4 (o 8) livelli tutti uguali.
+function blendedIndex(level, n){
+  const pos = levelT(level)*(n-1), lo = Math.floor(pos), frac = pos-lo;
+  return (lo < n-1 && Math.random() < frac) ? lo+1 : lo;
 }
 
 /* =========================================================
@@ -11993,22 +12042,14 @@ function exportFileName(exId, level, ext){
 // simbolo (asse 1) e dalla complessità/varietà delle regole disponibili (asse 2).
 const GRID_ROWS = 5, GRID_COLS = 7;
 
-// Categoria di simboli per fascia di livello (2 livelli per categoria, 1-16): 1-2 forme,
-// 3-4 frecce, 5-6 numeri, 7-8 lettere, 9-10 misto numeri/lettere, 11-12 cirillico,
-// 13-14 ideogrammi, 15-16 ge'ez. Ogni categoria ha piu' varianti di pool: la fascia di
-// livello resta la stessa, ma la generazione ne pesca una a caso ogni volta, cosi due cicli
-// consecutivi allo stesso livello non espongono mai lo stesso materiale identico.
-const GRID_CATEGORY_BY_LEVEL = [
-  null,
-  "shapes", "shapes",
-  "arrows", "arrows",
-  "digits", "digits",
-  "letters", "letters",
-  "mixed", "mixed",
-  "cyrillic", "cyrillic",
-  "cjk", "cjk",
-  "geez", "geez"
-];
+// Categoria di simboli per fascia di livello (4 livelli per categoria, 1-32): 1-4 forme, 5-8 frecce,
+// 9-12 numeri, 13-16 lettere, 17-20 misto numeri/lettere, 21-24 cirillico, 25-28 ideogrammi, 29-32 ge'ez.
+// Dentro ogni categoria i 4 sotto-livelli salgono di difficoltà per complessità delle regole (vedi
+// tierQuotaForLevel). Ogni categoria ha piu' varianti di pool: la generazione ne pesca una a caso ogni
+// volta, cosi due cicli consecutivi allo stesso livello non espongono mai lo stesso materiale identico.
+const GRID_CATEGORIES = ["shapes","arrows","digits","letters","mixed","cyrillic","cjk","geez"];
+const GRID_CATEGORY_BY_LEVEL = [null].concat(Array.from({length:MAX_LEVEL}, (_,i)=> GRID_CATEGORIES[Math.min(GRID_CATEGORIES.length-1, Math.floor(i/4))]));
+const GRID_CATEGORY_LABELS = { shapes:"Forme geometriche", arrows:"Frecce", digits:"Cifre", letters:"Lettere", mixed:"Alfanumerico misto", cyrillic:"Cirillico", cjk:"Ideogrammi cinesi", geez:"Ge'ez" };
 // Ogni categoria ha molte varianti di pool (prima 4): a ogni generazione si sceglie una variante
 // MAI proposta a quel gruppo (o, esaurite le nuove, la meno recente), così né due cicli allo stesso
 // livello né livelli diversi della stessa categoria espongono lo stesso materiale.
@@ -12210,17 +12251,39 @@ const ANY_PRED = { plain:"Conta tutti gli elementi.", np:"gli elementi", f:()=>t
 // Criteri di posizione. La numerazione è quella "umana" (prima riga = riga 1 = dispari):
 // prima erano usati gli indici da 0 e "pari/dispari" risultava invertito.
 const isFrame = c => c.row===0 || c.row===GRID_ROWS-1 || c.col===0 || c.col===GRID_COLS-1;
+// Ogni opzione ha un peso di difficoltà `w`: 1 = un solo criterio di riga/colonna/bordo; 2 = criterio
+// composto (intersezione riga∩colonna, blocchi, scacchiera, righe/colonne non contigue). Le opzioni
+// con w=2 compaiono solo dal livello 9 (vedi GRID_POS_W2_FROM).
+const GRID_POS_W2_FROM = 9;
 const POS_OPTIONS = [
-  { text:"nelle righe pari", f:c=>(c.row+1)%2===0 },
-  { text:"nelle righe dispari", f:c=>(c.row+1)%2===1 },
-  { text:"nelle colonne pari", f:c=>(c.col+1)%2===0 },
-  { text:"nelle colonne dispari", f:c=>(c.col+1)%2===1 },
-  { text:"nelle prime 3 righe", f:c=>c.row<3 },
-  { text:"nelle ultime 3 righe", f:c=>c.row>=GRID_ROWS-3 },
-  { text:"nelle prime 4 colonne", f:c=>c.col<4 },
-  { text:"nelle ultime 4 colonne", f:c=>c.col>=GRID_COLS-4 },
-  { text:"sulla cornice della griglia (righe e colonne esterne)", f:c=>isFrame(c) },
-  { text:"nelle celle interne (non sulla cornice)", f:c=>!isFrame(c) }
+  { w:1, text:"nelle righe pari", f:c=>(c.row+1)%2===0 },
+  { w:1, text:"nelle righe dispari", f:c=>(c.row+1)%2===1 },
+  { w:1, text:"nelle colonne pari", f:c=>(c.col+1)%2===0 },
+  { w:1, text:"nelle colonne dispari", f:c=>(c.col+1)%2===1 },
+  { w:1, text:"nelle prime 3 righe", f:c=>c.row<3 },
+  { w:1, text:"nelle ultime 3 righe", f:c=>c.row>=GRID_ROWS-3 },
+  { w:1, text:"nelle prime 2 righe", f:c=>c.row<2 },
+  { w:1, text:"nelle ultime 2 righe", f:c=>c.row>=GRID_ROWS-2 },
+  { w:1, text:"nelle prime 4 colonne", f:c=>c.col<4 },
+  { w:1, text:"nelle ultime 4 colonne", f:c=>c.col>=GRID_COLS-4 },
+  { w:1, text:"nelle prime 3 colonne", f:c=>c.col<3 },
+  { w:1, text:"nelle ultime 3 colonne", f:c=>c.col>=GRID_COLS-3 },
+  { w:1, text:"nelle righe centrali (2–4)", f:c=>c.row>=1 && c.row<=3 },
+  { w:1, text:"nelle colonne centrali (3–5)", f:c=>c.col>=2 && c.col<=4 },
+  { w:1, text:"sulla cornice della griglia (righe e colonne esterne)", f:c=>isFrame(c) },
+  { w:1, text:"nelle celle interne (non sulla cornice)", f:c=>!isFrame(c) },
+  { w:2, text:"nelle celle in riga dispari e colonna dispari", f:c=>(c.row+1)%2===1 && (c.col+1)%2===1 },
+  { w:2, text:"nelle celle in riga dispari e colonna pari", f:c=>(c.row+1)%2===1 && (c.col+1)%2===0 },
+  { w:2, text:"nelle celle in riga pari e colonna dispari", f:c=>(c.row+1)%2===0 && (c.col+1)%2===1 },
+  { w:2, text:"nelle celle in riga pari e colonna pari", f:c=>(c.row+1)%2===0 && (c.col+1)%2===0 },
+  { w:2, text:"nel blocco in alto a sinistra (righe 1–3, colonne 1–4)", f:c=>c.row<3 && c.col<4 },
+  { w:2, text:"nel blocco in alto a destra (righe 1–3, colonne 4–7)", f:c=>c.row<3 && c.col>=GRID_COLS-4 },
+  { w:2, text:"nel blocco in basso a sinistra (righe 3–5, colonne 1–4)", f:c=>c.row>=GRID_ROWS-3 && c.col<4 },
+  { w:2, text:"nel blocco in basso a destra (righe 3–5, colonne 4–7)", f:c=>c.row>=GRID_ROWS-3 && c.col>=GRID_COLS-4 },
+  { w:2, text:"nella prima e nell'ultima riga (righe 1 e 5)", f:c=>c.row===0 || c.row===GRID_ROWS-1 },
+  { w:2, text:"nelle colonne 1, 4 e 7", f:c=>c.col===0 || c.col===3 || c.col===GRID_COLS-1 },
+  { w:2, text:"nelle celle a scacchiera dello stesso tipo dell'angolo in alto a sinistra", f:c=>(c.row+c.col)%2===0 },
+  { w:2, text:"nelle celle a scacchiera opposte all'angolo in alto a sinistra", f:c=>(c.row+c.col)%2===1 }
 ];
 
 // Un criterio è descritto da una "specifica": gruppo di simboli (uno, due in alternativa
@@ -12278,8 +12341,12 @@ function specToRule(sp){
   // 0 → gradino 1 … 4+ → gradino 5.
   const lists = [sp.fill, sp.border, sp.ink, sp.bstyle, sp.size].filter(Boolean);
   const score = (sp.syms && sp.syms.length>1 ? 1 : 0) + lists.length + lists.filter(l=>l.length>1).length
-              + (sp.pos?1:0) + (sp.adj?2:0) + (sp.rel?2:0) + ((sp.notFill||sp.notBorder||sp.notInk) ? 2 : 0);
-  return { text, matches, tier: Math.min(5, score+1) };
+              + (sp.pos ? (sp.pos.w||1) : 0) + (sp.adj?2:0) + (sp.rel?2:0) + ((sp.notFill||sp.notBorder||sp.notInk) ? 2 : 0);
+  // Tipo di regola, per mescolare in modo uniforme: 'pos' = usa un criterio di POSIZIONE (righe, colonne,
+  // cornice, blocchi…); 'rel' = relazione con le celle vicine (adiacenza, identico al vicino); 'stim' =
+  // solo caratteristiche degli STIMOLI (simbolo, sfondo, bordo, colore e dimensione del simbolo).
+  const kind = sp.pos ? "pos" : ((sp.adj || sp.rel) ? "rel" : "stim");
+  return { text, matches, tier: Math.min(5, score+1), kind };
 }
 
 // Estrae a caso una specifica. Il filtro sui conteggi (4-14) è a valle. `feat` elenca gli
@@ -12304,18 +12371,24 @@ function sampleSpec(symbols, famPreds, F, B, I, feat){
   // sulla posizione e sulla negazione.
   const feats = [];
   if(simple){
-    const opts = ["fill","fill","fill","border","border","border","ink","ink","pos"];
-    if(feat.bStyles) opts.push("bstyle");
-    if(feat.sizes) opts.push("size");
-    feats.push(pick(opts));
+    // Criterio con UNA sola caratteristica: metà delle volte di POSIZIONE (righe, colonne, cornice…), metà
+    // sugli STIMOLI (sfondo, bordo, colore/dimensione del simbolo, stile del bordo) — richiesta di Rodrigo:
+    // mescolare in modo uniforme regole sugli stimoli e regole sulla posizione.
+    if(Math.random()<0.5) feats.push("pos");
+    else {
+      const opts = ["fill","fill","border","border","ink","ink"];   // sfondo, bordo, colore del simbolo: peso uguale
+      if(feat.sizes) opts.push("size","size");                       // dimensione del simbolo (dal livello 3)
+      if(feat.bStyles) opts.push("bstyle");                          // stile del bordo (dal livello 5)
+      feats.push(pick(opts));
+    }
   } else {
-  if(Math.random()<0.60) feats.push("fill");
-  if(Math.random()<0.55) feats.push("border");
-  if(Math.random()<0.35) feats.push("ink");
-  if(Math.random()<0.30) feats.push("pos");
+  if(Math.random()<0.55) feats.push("fill");
+  if(Math.random()<0.50) feats.push("border");
+  if(Math.random()<0.40) feats.push("ink");
+  if(Math.random()<0.50) feats.push("pos");
   if(Math.random()<0.25) feats.push("neg");
   if(feat.bStyles && Math.random()<0.30) feats.push("bstyle");
-  if(feat.sizes && Math.random()<0.25) feats.push("size");
+  if(feat.sizes && Math.random()<0.35) feats.push("size");
   if(Math.random()<0.10) feats.push("adj");
   if(Math.random()<0.20) feats.push("rel");
   }
@@ -12323,7 +12396,7 @@ function sampleSpec(symbols, famPreds, F, B, I, feat){
   if(feats.includes("fill")) sp.fill = nOf(F);
   if(feats.includes("border")) sp.border = nOf(B);
   if(feats.includes("ink")) sp.ink = nOf(I);
-  if(feats.includes("pos")) sp.pos = pick(POS_OPTIONS);
+  if(feats.includes("pos")) sp.pos = pick(feat.posOptions || POS_OPTIONS);
   if(feats.includes("bstyle")) sp.bstyle = !simple && feat.bStyles.length>=3 && Math.random()<0.3 ? pickN(feat.bStyles, 2) : [pick(feat.bStyles)];
   if(feats.includes("size")) sp.size = [pick(feat.sizes)];
   if(feats.includes("adj")){
@@ -12384,17 +12457,18 @@ function buildGridAttempt(symbols, level){
   const borderChosen = assignAttribute(cells, allIdx, palette.inks, "border", 3);
   const symColorChosen = assignAttribute(cells, allIdx, palette.inks, "symColor", 3);
 
-  // 2b) ATTRIBUTI EXTRA, in funzione del livello: dimensione del simbolo (grande/piccolo) dal
-  //     livello 2; stile del bordo dal livello 3 (continuo/tratteggiato; dal 9 anche puntinato).
-  const feat = { bStyles:null, sizes:null };
-  if(level>=2){
+  // 2b) ATTRIBUTI EXTRA, in funzione del livello (32 livelli): dimensione del simbolo (grande/piccolo)
+  //     dal livello 3; stile del bordo dal livello 5 (continuo/tratteggiato; dal 17 anche puntinato).
+  //     Criteri di posizione composti (blocchi, intersezioni, scacchiera) dal livello GRID_POS_W2_FROM.
+  const feat = { bStyles:null, sizes:null, posOptions: POS_OPTIONS.filter(o => o.w===1 || level>=GRID_POS_W2_FROM) };
+  if(level>=3){
     assignBinary(cells, allIdx, ["grande","piccolo"], "size");
     feat.sizes = ["grande","piccolo"];
   }
-  if(level>=9){
+  if(level>=17){
     assignAttribute(cells, allIdx, BORDER_STYLE_POOL, "bStyle", 3);
     feat.bStyles = BORDER_STYLE_POOL.map(x=>x.name);
-  } else if(level>=3){
+  } else if(level>=5){
     assignBinary(cells, allIdx, ["continuo","tratteggiato"], "bStyle");
     feat.bStyles = ["continuo","tratteggiato"];
   }
@@ -12421,63 +12495,105 @@ function buildGridAttempt(symbols, level){
 // fisse (4/3/3/2) a ogni livello, quindi al livello 16 comparivano gli stessi criteri del
 // livello 1 e quelli complessi erano pochi (segnalato da Rodrigo). Ora ai livelli bassi
 // dominano i criteri semplici, ai livelli alti quelli con più vincoli, alternative e negazioni.
-function tierQuotaForLevel(level){
-  // Rivista su richiesta di Rodrigo: troppe richieste semplici (il singolo elemento) e troppo poche
-  // combinazioni. Gradino 1 = singolo simbolo/proprietà; 2-3 = un/due vincoli; 4-5 = combinazioni
-  // di più vincoli (sfondo + bordo + colore del simbolo, alternative, posizione, negazione).
-  // Rivista ancora su richiesta di Rodrigo: più criteri intermedi con SOLO 2 caratteristiche
-  // (gradino 2: simbolo + un vincolo), meno con 3 o più (gradini 3-5). Il gradino 2 è ora il
-  // più numeroso a ogni livello; la difficoltà cresce comunque, perché salgono i gradini 4-5.
-  if(level<=2)  return {1:2, 2:5, 3:2, 4:1, 5:0};
-  // Gradino 5 abolito (regole con 4+ condizioni, adiacenza + negazione ecc.): le sue quote sono
-  // passate al gradino 4, che resta il tetto di difficoltà.
-  if(level<=5)  return {1:1, 2:5, 3:2, 4:2, 5:0};
-  if(level<=10) return {1:1, 2:4, 3:2, 4:3, 5:0};
-  return               {1:0, 2:4, 3:2, 4:4, 5:0};
+// Le quote passano in modo LINEARE dal livello 1 al 32 (prima erano 3 scalini fissi): a ogni livello
+// una regola in più/in meno cambia gradino, con somma sempre 10. Gradino 1 = singolo simbolo/proprietà;
+// 2 = un vincolo; 3 = due vincoli; 4 = combinazioni di più vincoli/alternative/negazione/relazioni.
+// (Gradino 5 abolito su richiesta di Rodrigo.)
+const GRID_QUOTA_START = [2, 5, 2, 1];   // livello 1
+const GRID_QUOTA_END   = [0, 3, 3, 4];   // livello 32
+function tierQuotaForLevel(level, u){
+  // `u` (0..1): soglia di arrotondamento. Senza `u` arrotonda al più vicino (versione deterministica, usata
+  // per le note di livello). Nella generazione di una griglia `u` è casuale: così il valore ATTESO della
+  // difficoltà sale in modo uniforme a OGNI livello (con 10 sole regole per griglia, quote intere darebbero
+  // solo una manciata di scalini), pur restando ogni griglia entro ±1 regola dalla quota lineare.
+  if(u==null) u = 0.5;
+  const t = levelT(level);
+  const raw = GRID_QUOTA_START.map((s,i)=> s + (GRID_QUOTA_END[i]-s)*t);
+  // Arrotondamento sulle somme CUMULATE (non su ogni gradino), con la stessa `u` per tutte: la quota del
+  // gradino 1 scende e quella del 4 sale sempre in modo monotono e la somma resta 10.
+  const q = []; let cum = 0, prev = 0;
+  for(let i=0;i<3;i++){ cum += raw[i]; const r = Math.floor(cum + u); q.push(r - prev); prev = r; }
+  q.push(10 - prev);
+  return {1:q[0], 2:q[1], 3:q[2], 4:q[3], 5:0};
 }
 // Sceglie le regole finali di UNA griglia: quota per gradino, e dentro ogni gradino
 // preferisce i conteggi non ancora usciti, così le regole di una stessa griglia non danno
 // tutte lo stesso risultato. Se un gradino non ha abbastanza candidati validi, il vuoto è
 // riempito dai gradini vicini (dai più complessi ai livelli alti, dai più semplici ai bassi).
-function selectRules(evaluated, level){
-  const quota = tierQuotaForLevel(level);
+function selectRules(evaluated, level, quotaIn){
+  const quota = quotaIn || tierQuotaForLevel(level);
   const total = [1,2,3,4,5].reduce((a,t)=>a+quota[t],0);
   const valid = evaluated.filter(r=>r.count>=4 && r.count<=14);
-  const byTier = {1:[],2:[],3:[],4:[],5:[]};
-  shuffle(valid).forEach(r=> byTier[r.tier].push(r));
+  const byTier = {};
+  [1,2,3,4,5].forEach(t=>{ byTier[t] = {stim:[], pos:[], rel:[]}; });
+  shuffle(valid).forEach(r=> byTier[r.tier][r.kind].push(r));
   const usedCount = {};
+  const kindCount = {stim:0, pos:0, rel:0};
   const chosen = [];
-  const take = (list, q) => {
-    for(let j=0; j<q && list.length; j++){
-      let bi = 0;
-      for(let i=1;i<list.length;i++) if((usedCount[list[i].count]||0) < (usedCount[list[bi].count]||0)) bi = i;
-      const r = list.splice(bi,1)[0];
-      chosen.push(r);
-      usedCount[r.count] = (usedCount[r.count]||0) + 1;
-    }
+  const REL_MAX = level>=12 ? 2 : 1;   // le regole relazionali (adiacenza, identico al vicino) restano una minoranza
+  // Estrae dalla lista la regola il cui conteggio è meno usato tra quelle già scelte: le regole di una
+  // stessa griglia non danno tutte lo stesso risultato.
+  const popLeastUsed = list => {
+    let bi = 0;
+    for(let i=1;i<list.length;i++) if((usedCount[list[i].count]||0) < (usedCount[list[bi].count]||0)) bi = i;
+    const r = list.splice(bi,1)[0];
+    usedCount[r.count] = (usedCount[r.count]||0) + 1;
+    kindCount[r.kind]++;
+    chosen.push(r);
   };
-  [1,2,3,4,5].forEach(t=> take(byTier[t], quota[t]));
-  const fillOrder = level>=6 ? [5,4,3,2,1] : [1,2,3,4,5];
-  fillOrder.forEach(t=>{ if(chosen.length<total) take(byTier[t], total-chosen.length); });
-  return chosen.sort((a,b)=>a.tier-b.tier);
+  // Una regola del gradino `t`: alterna STIMOLO / POSIZIONE (prende il tipo meno rappresentato finora),
+  // con una relazionale ogni tanto. Se il tipo voluto non ha candidati validi, ripiega sull'altro.
+  const tierKind = {1:{stim:0,pos:0}, 2:{stim:0,pos:0}, 3:{stim:0,pos:0}, 4:{stim:0,pos:0}, 5:{stim:0,pos:0}};
+  const takeOne = t => {
+    const b = byTier[t];
+    if(b.rel.length && kindCount.rel < REL_MAX && t>=3 && Math.random()<0.3){ popLeastUsed(b.rel); return true; }
+    // il tipo meno rappresentato NEL GRADINO; a parità, quello meno rappresentato in tutta la griglia; a parità, alterna
+    const tk = tierKind[t];
+    const order = tk.pos !== tk.stim ? (tk.pos < tk.stim ? ["pos","stim"] : ["stim","pos"])
+                : kindCount.pos !== kindCount.stim ? (kindCount.pos < kindCount.stim ? ["pos","stim"] : ["stim","pos"])
+                : (Math.random()<0.5 ? ["pos","stim"] : ["stim","pos"]);
+    for(const k of order) if(b[k].length){ popLeastUsed(b[k]); tk[k]++; return true; }
+    if(b.rel.length && kindCount.rel < REL_MAX){ popLeastUsed(b.rel); return true; }
+    return false;
+  };
+  [1,2,3,4,5].forEach(t=>{ for(let j=0; j<quota[t]; j++) if(!takeOne(t)) break; });
+  // Se un gradino non ha abbastanza candidati validi, il vuoto è riempito dai gradini vicini (dai più
+  // complessi ai livelli alti, dai più semplici ai bassi).
+  const fillOrder = level>=12 ? [5,4,3,2,1] : [1,2,3,4,5];
+  fillOrder.forEach(t=>{ while(chosen.length<total && takeOne(t)){} });
+  // Ordine finale: difficoltà CRESCENTE (per gradino), ma dentro ogni gradino i tipi si alternano
+  // (stimolo / posizione / relazione) e il tipo che apre il gradino cambia di gradino in gradino.
+  const out = [];
+  const tiers = [...new Set(chosen.map(r=>r.tier))].sort((a,b)=>a-b);
+  tiers.forEach((t,ti)=>{
+    const g = {stim:[], pos:[], rel:[]};
+    chosen.filter(r=>r.tier===t).forEach(r=>g[r.kind].push(r));
+    const order = ti%2===0 ? ["stim","pos","rel"] : ["pos","stim","rel"];
+    while(g.stim.length || g.pos.length || g.rel.length){
+      order.forEach(k=>{ if(g[k].length) out.push(g[k].shift()); });
+    }
+  });
+  return out;
 }
 
 function genOneGrid(symbols, level){
   // Più tentativi, tenendo il migliore: prima chi riempie meglio le quote di gradino del
   // livello, poi chi ha più conteggi diversi tra loro.
-  const quota = tierQuotaForLevel(level);
+  const quota = tierQuotaForLevel(level, Math.random());
   const total = [1,2,3,4,5].reduce((a,t)=>a+quota[t],0);
   let best = null, bestScore = -1;
   for(let attempt=0; attempt<60; attempt++){
     const { cells, evaluated } = buildGridAttempt(symbols, level);
-    const chosen = selectRules(evaluated, level);
+    const chosen = selectRules(evaluated, level, quota);
     const perTier = {1:0,2:0,3:0,4:0,5:0};
     chosen.forEach(r=>perTier[r.tier]++);
     const filled = [1,2,3,4,5].reduce((a,t)=>a+Math.min(perTier[t], quota[t]),0);
     const distinct = new Set(chosen.map(r=>r.count)).size;
-    const score = filled*100 + distinct*5;
+    const nPos = chosen.filter(r=>r.kind==="pos").length, nStim = chosen.filter(r=>r.kind==="stim").length;
+    const imbalance = Math.abs(nPos - nStim);           // mix stimoli/posizione: più è vicino a 0, meglio è
+    const score = filled*100 + distinct*5 - imbalance*12;
     if(score > bestScore){ bestScore = score; best = { cells, rules: chosen }; }
-    if(filled===total && distinct>=Math.min(8, total-2)) break;
+    if(filled===total && distinct>=Math.min(8, total-2) && imbalance<=1) break;
   }
   return best;
 }
@@ -12528,28 +12644,30 @@ function codeRange(base, count, step){
 }
 // Famiglie "testuali": l'elemento è una stringa di `len` caratteri presa dal pool,
 // la lunghezza cresce col livello (asse 1 di difficoltà, come negli originali).
-// unlockLevel = livello minimo da cui questa famiglia può comparire in sessione.
+// unlockLevel = livello minimo (su 32) da cui questa famiglia può comparire in sessione. Gli sblocchi sono
+// distribuiti in modo uniforme tra il livello 1 e il 28 (prima 1-15); i livelli 29-32 hanno già tutte le
+// famiglie e salgono per numero di elementi, lunghezza e somiglianza dei tipi.
 const INTRUSO_TEXT_FAMILIES = [
   {id:"digit", label:"cifre", pool:"0123456789".split(""), unlockLevel:1},
   {id:"letter", label:"lettere", pool:"ABCDEFGHILMNOPQRSTUVZ".split(""), unlockLevel:1},
   {id:"roman", label:"numeri romani", pool:["Ⅰ","Ⅱ","Ⅲ","Ⅳ","Ⅴ","Ⅵ","Ⅶ","Ⅷ","Ⅸ","Ⅹ"], unlockLevel:3},
-  {id:"cyrillic", label:"cirillico", pool: codeRange(0x0410,32), unlockLevel:5},
-  {id:"armenian", label:"armeno", pool: codeRange(0x0530,38), unlockLevel:8},
-  {id:"thai", label:"thai", pool: codeRange(0x0E01,40), unlockLevel:10},
-  {id:"geez", label:"ge'ez", pool: codeRange(0x1200,60), unlockLevel:12},
-  {id:"cyrillic-arcaico", label:"cirillico arcaico", pool: codeRange(0x0460,16,2), unlockLevel:14},
-  {id:"canadian", label:"sillabario canadese", pool: codeRange(0x1400,50), unlockLevel:15},
+  {id:"cyrillic", label:"cirillico", pool: codeRange(0x0410,32), unlockLevel:6},
+  {id:"armenian", label:"armeno", pool: codeRange(0x0530,38), unlockLevel:11},
+  {id:"thai", label:"thai", pool: codeRange(0x0E01,40), unlockLevel:13},
+  {id:"geez", label:"ge'ez", pool: codeRange(0x1200,60), unlockLevel:17},
+  {id:"cyrillic-arcaico", label:"cirillico arcaico", pool: codeRange(0x0460,16,2), unlockLevel:24},
+  {id:"canadian", label:"sillabario canadese", pool: codeRange(0x1400,50), unlockLevel:26},
   // Nuove famiglie (livelli 1-14): lettere minuscole e a/A mescolate (livelli bassi), alfabeto greco,
   // poi scritture non latine via via meno familiari. Stessi criteri delle altre: un solo singolo,
   // tutti gli altri almeno 2 volte, pool ampio di caratteri simili tra loro.
   {id:"lower", label:"lettere minuscole", pool:"abdeghilmnopqrstuvz".split(""), unlockLevel:1},
-  {id:"mixedcase", label:"lettere maiuscole e minuscole", pool:["a","A","b","B","d","D","e","E","g","G","n","N","r","R","t","T"], unlockLevel:2},
+  {id:"mixedcase", label:"lettere maiuscole e minuscole", pool:["a","A","b","B","d","D","e","E","g","G","n","N","r","R","t","T"], unlockLevel:1},
   {id:"greek", label:"alfabeto greco", pool: codeRange(0x0391,25).filter(ch=>ch.codePointAt(0)!==0x03A2), unlockLevel:5},
-  {id:"katakana", label:"katakana", pool: codeRange(0x30A2,48), unlockLevel:11},
-  {id:"hiragana", label:"hiragana", pool: codeRange(0x3042,48), unlockLevel:12},
+  {id:"katakana", label:"katakana", pool: codeRange(0x30A2,48), unlockLevel:16},
+  {id:"hiragana", label:"hiragana", pool: codeRange(0x3042,48), unlockLevel:18},
   // (ebraico senza le lettere finali ך ם ן ף ץ, che a metà stringa risulterebbero scorrette)
-  {id:"hebrew", label:"ebraico", pool: codeRange(0x05D0,27).filter(ch=>![0x05DA,0x05DD,0x05DF,0x05E3,0x05E5].includes(ch.codePointAt(0))), unlockLevel:13},
-  {id:"devanagari", label:"devanagari", pool: codeRange(0x0915,25), unlockLevel:14}
+  {id:"hebrew", label:"ebraico", pool: codeRange(0x05D0,27).filter(ch=>![0x05DA,0x05DD,0x05DF,0x05E3,0x05E5].includes(ch.codePointAt(0))), unlockLevel:20},
+  {id:"devanagari", label:"devanagari", pool: codeRange(0x0915,25), unlockLevel:22}
 ];
 // Famiglie "atomiche": l'elemento è un solo glifo (dadi, domino...), come negli
 // originali — non concatenato in stringhe, la difficoltà sta nella somiglianza visiva.
@@ -12570,21 +12688,21 @@ const INTRUSO_ATOMIC_FAMILIES = [
   // Semi e note: soglie anticipate (pool allargato e coppie già dal livello 2, triple dal 5)
   // perché i semi risultavano troppo facili già dal livello 2 (segnalato da Rodrigo); il
   // livello 1 resta con 4 simboli singoli come ingresso. Dadi, cerchi e quadranti: invariati.
-  {id:"suits", label:"semi delle carte", pool:["♠","♥","♦","♣"], extra:["♤","♡","♢","♧"], small:true, extraFrom:2, pairsFrom:2, triplesFrom:5, unlockLevel:1},
-  {id:"music", label:"note musicali", pool:["♩","♪","♫","♬"], extra:["♭","♮","♯"], small:true, extraFrom:2, pairsFrom:2, triplesFrom:5, unlockLevel:1},
+  {id:"suits", label:"semi delle carte", pool:["♠","♥","♦","♣"], extra:["♤","♡","♢","♧"], small:true, extraFrom:2, pairsFrom:2, triplesFrom:9, unlockLevel:1},
+  {id:"music", label:"note musicali", pool:["♩","♪","♫","♬"], extra:["♭","♮","♯"], small:true, extraFrom:2, pairsFrom:2, triplesFrom:9, unlockLevel:1},
   {id:"punct", label:"punteggiatura", pool:["!","?","#","%","&","@","§","*"], unlockLevel:1},
   {id:"zodiac", label:"simboli zodiacali", pool:["♈","♉","♊","♋","♌","♍","♎","♏","♐","♑","♒","♓"], unlockLevel:1},
-  {id:"dice", label:"dadi", pool: codeRange(0x2680,6), extra:[], small:true, extraFrom:99, pairsFrom:5, triplesFrom:9, unlockLevel:1},
-  {id:"domino", label:"domino", pool: codeRange(0x1F030,32), unlockLevel:6},
-  {id:"mahjong", label:"mahjong", pool: codeRange(0x1F007,20), unlockLevel:10},
-  {id:"cjk", label:"ideogrammi", pool: codeRange(0x53E3,40), unlockLevel:13},
+  {id:"dice", label:"dadi", pool: codeRange(0x2680,6), extra:[], small:true, extraFrom:99, pairsFrom:3, triplesFrom:11, unlockLevel:1},
+  {id:"domino", label:"domino", pool: codeRange(0x1F030,32), unlockLevel:8},
+  {id:"mahjong", label:"mahjong", pool: codeRange(0x1F007,20), unlockLevel:14},
+  {id:"cjk", label:"ideogrammi", pool: codeRange(0x53E3,40), unlockLevel:28},
   // Nuove famiglie a glifo singolo. Cerchi parziali e quadranti hanno pool ristretto (4): come semi e
   // note, si allargano con simboli molto simili e ai livelli alti diventano sequenze di 2-3 simboli.
-  {id:"circles", label:"cerchi parzialmente pieni", pool:["◐","◑","◒","◓"], extra:["◔","◕","○","●"], small:true, extraFrom:3, pairsFrom:5, triplesFrom:9, unlockLevel:1},
-  {id:"quadrants", label:"quadranti", pool:["◰","◱","◲","◳"], extra:["◧","◨","◩","◪"], small:true, extraFrom:3, pairsFrom:5, triplesFrom:9, unlockLevel:3},
-  {id:"box", label:"tratti da tabella", pool:["┌","┐","└","┘","├","┤","┬","┴","┼"], unlockLevel:6},
-  {id:"sets", label:"simboli insiemistici", pool:["∈","∉","∩","∪","⊂","⊃","⊆","⊇","∋","∌"], unlockLevel:7},
-  {id:"braille", label:"Braille", pool: codeRange(0x2801,63), unlockLevel:10}
+  {id:"circles", label:"cerchi parzialmente pieni", pool:["◐","◑","◒","◓"], extra:["◔","◕","○","●"], small:true, extraFrom:2, pairsFrom:3, triplesFrom:13, unlockLevel:1},
+  {id:"quadrants", label:"quadranti", pool:["◰","◱","◲","◳"], extra:["◧","◨","◩","◪"], small:true, extraFrom:3, pairsFrom:5, triplesFrom:15, unlockLevel:3},
+  {id:"box", label:"tratti da tabella", pool:["┌","┐","└","┘","├","┤","┬","┴","┼"], unlockLevel:7},
+  {id:"sets", label:"simboli insiemistici", pool:["∈","∉","∩","∪","⊂","⊃","⊆","⊇","∋","∌"], unlockLevel:9},
+  {id:"braille", label:"Braille", pool: codeRange(0x2801,63), unlockLevel:14}
 ];
 const INTRUSO_ALL_FAMILIES = [...INTRUSO_TEXT_FAMILIES, ...INTRUSO_ATOMIC_FAMILIES];
 
@@ -12641,7 +12759,7 @@ function intrusoLenFor(family, level, textLen){
 function buildIntrusoScreen(family, len, targetN, level, ctx){
   const pool = intrusoPoolFor(family, level||1);
   const poolCap = len===1 ? pool.length : 99;
-  const kMax = Math.min(9, poolCap);
+  const kMax = Math.min(9 + Math.max(0, Math.floor((targetN-18)/3)), poolCap);   // 9 tipi fino a N=20, poi +1 ogni 3 elementi in più: resta "quasi tutti a coppie"
   let k = kMax;
   while(k>=2 && (targetN-1) < 2*(k-1)) k--;
   if(k<2) return null;
@@ -12652,7 +12770,7 @@ function buildIntrusoScreen(family, len, targetN, level, ctx){
   const oKey = t => "O:" + family.id + "|" + t;
   let types;
   if(len===1) types = ctx ? lruOrder(pool, tKey, ctx).slice(0, k) : pickN(pool, Math.min(k, pool.length));
-  else if(family.small) types = similarIntrusoTypes(pool, len, k);
+  else if(family.small || (len>=2 && level>=3 && Math.random() < (level-2)/30)) types = similarIntrusoTypes(pool, len, k);   // dal livello 3, quota crescente (+1/30 a livello) di tipi che differiscono per UN solo carattere (o per l'ordine): al 32 sempre
   else types = distinctIntrusoTypes(pool, len, k, ctx ? (c=>ctx.last.has(tKey(c))) : null);
   if(types.length<k) k = types.length;
   if(k<2) return null;
@@ -12679,19 +12797,19 @@ function buildIntrusoScreen(family, len, targetN, level, ctx){
   };
 }
 function lenForLevelIntruso(level){
-  // passo di 3 livelli invece di grandi plateau (prima: 7 livelli fermi a len=3) —
-  // difficoltà più granulare, un salto ogni 3 livelli anziché ogni 4-7. Tetto a 3 (non 5):
-  // sequenze più lunghe non aggiungono discriminabilità utile, solo fatica di lettura.
-  return Math.min(3, 1 + Math.floor((level-1)/3));
+  // Livelli bassi troppo semplici (segnalato da Rodrigo): gli elementi testuali passano a COPPIE di
+  // caratteri già dal livello 2 e a TERNE dal 15 (prima: coppie dal 4, terne dal 7 su 16 livelli).
+  // Tetto a 3: sequenze più lunghe non aggiungono discriminabilità utile, solo fatica di lettura.
+  return level<=1 ? 1 : (level<=14 ? 2 : 3);
 }
-function targetNForLevelIntruso(level, isAtomic){
-  // La difficoltà cresce non solo nel materiale (famiglie via via più simili tra loro) ma
-  // anche nel numero di elementi da confrontare: più elementi, quasi tutti a coppie, quindi
-  // più confronti necessari per isolare l'unico singolo. Un gradino ogni 4 livelli.
-  const base = isAtomic ? 18 : 15;
-  const cap = isAtomic ? 30 : 27;
-  const step = Math.floor((level-1)/4) * 3;
-  return Math.min(base + step, cap);
+function targetNForLevelIntruso(level, isAtomic, len){
+  // Più elementi = più confronti per isolare l'unico singolo. Partenza più alta di prima (18 testo / 21
+  // glifi, prima 15 / 18); poi +1 elemento ogni 2 livelli (testo) o ogni ~2,7 (glifi) fino a 30
+  // (27 per le terne di caratteri, che sono lunghe da leggere): ogni livello è un po' più impegnativo.
+  const base = isAtomic ? 21 : 18;
+  const grown = isAtomic ? Math.floor((level-1)*3/8) : Math.floor((level-1)/2);
+  const cap = (!isAtomic && len>=3) ? 27 : 30;
+  return Math.min(base + grown, cap);
 }
 // Famiglie a "tessera" (mahjong, domino, semi delle carte): il glifo occupa solo una parte del
 // riquadro del carattere, quindi a 15-30 elementi per schermata risultava minuscolo. Su richiesta
@@ -12736,7 +12854,7 @@ function genIntruso(level, excludeKeys){
     .map(fam=>{
       const isAtomic = INTRUSO_ATOMIC_FAMILIES.includes(fam);
       const famLen = isAtomic ? intrusoLenFor(fam, level, 1) : len;
-      const targetN = Math.min(targetNForLevelIntruso(level, isAtomic), intrusoMaxItems(fam.id, famLen));
+      const targetN = Math.min(targetNForLevelIntruso(level, isAtomic, famLen), intrusoMaxItems(fam.id, famLen));
       return buildIntrusoScreen(fam, famLen, targetN, level, ctx);
     })
     .filter(Boolean);
@@ -12754,13 +12872,13 @@ function shuffleInPlace(a){
 }
 
 // ---------- INVERSIONE E RIORDINO ----------
-// livello 1-4: 1 solo rosso; livello 5-8: 1 o 2 rossi; livello 9-16: rosso e verde insieme.
+// Contrassegni: livelli 1-4: 1 solo rosso; 5-15: 1 rosso oppure 2 rossi, con quota di "2" in salita
+// (+1/12 a livello); 16-32: rosso e verde insieme.
 function markChars(text, level){
   const positions = [...text].map((_,i)=>i);
   let n, colors;
-  if(level>=9){ n=2; colors=["#D64545","#3E9B4F"]; }
-  else if(level>=5){ n=1+rnd(2); colors=["#D64545","#D64545"]; }
-  else { n=1; colors=["#D64545"]; }
+  if(level>=16){ n=2; colors=["#D64545","#3E9B4F"]; }
+  else { n = (level>=5 && Math.random() < Math.min(1,(level-4)/12)) ? 2 : 1; colors=["#D64545","#D64545"]; }
   n = Math.min(n, text.length);
   const chosen=[];
   while(chosen.length<n){ const i=pick(positions); if(!chosen.includes(i)) chosen.push(i); }
@@ -12797,7 +12915,7 @@ function nonwordFor(len, level){
   // gradiente generale "riduzione del supporto fonologico"), ma mai al livello 1.
   // In ogni caso: mai una lettera ripetuta nella stessa stringa e mai una parola vera.
   const isReal = w => INV_REAL_BLOCK.has(w.toUpperCase());
-  const pronounceProb = level<=9 ? 1 : level<=12 ? 0.6 : 0.35;
+  const pronounceProb = invPronounceProb(level);
   if(Math.random()<pronounceProb){
     for(let tries=0; tries<80; tries++){
       const w = pronounceableNonword(len);
@@ -12815,17 +12933,32 @@ function nonwordFor(len, level){
 // più un numero fisso di elementi per blocco: 20 nei livelli 1-8, 30 dal livello 9 in poi,
 // distribuiti in modo il più possibile uniforme tra le consegne effettivamente presenti in
 // quella sessione (auto o override che sia).
+// Totale elementi di sessione: 20 fino al livello 14, 30 dal 15.
 function inversioneSessionTotal(level){
-  return level>=9 ? 30 : 20;
+  return level>=15 ? 30 : 20;
 }
+// Lunghezze dei blocchi (32 livelli, finestra scorrevole per non moltiplicare i blocchi):
+// 1-3: solo 3 caratteri; 4-14: 3-4; 15-22: 3-5; 23-28: 4-5; 29-32: 4-6.
+function inversioneLens(level){
+  if(level<=3) return [3];
+  if(level<=14) return [3,4];
+  if(level<=22) return [3,4,5];
+  if(level<=28) return [4,5];
+  return [4,5,6];
+}
+const INV_ALNUM_FROM = 11, INV_LEXICAL_UNTIL = 8;
+// Quota di non-parole PRONUNCIABILI (il resto sono sequenze di lettere casuali): 100% fino al livello 9,
+// poi scende in modo lineare fino al 20% del livello 32.
+function invPronounceProb(level){ return level<=9 ? 1 : Math.max(0.2, 1 - 0.8*(level-9)/23); }
+// Quota di stringhe a maiuscole/minuscole MISTE: nessuna fino al livello 14, poi sale fino al 100% del 26.
+function invMixedCaseProb(level){ return level<=14 ? 0 : Math.min(1, (level-14)/12); }
 // Numero medio di blocchi in modalità automatica a un dato livello, usato solo per mostrare
 // un valore di default sensato nello slider "Numero di stimoli per blocco" (il conteggio
 // reale per blocco viene poi ricalcolato in genInversione in base alle consegne presenti).
 function inversioneAutoBlockCount(level){
-  const lens = level<10 ? [3,4] : [3,4,5];
-  const alnum = level>=7;
+  const lens = inversioneLens(level);
   let n = lens.length*2; // lettere + numeri
-  if(alnum) n += lens.filter(l=>l>=4).length;
+  if(level>=INV_ALNUM_FROM) n += lens.filter(l=>l>=4).length;
   return n || 1;
 }
 function defaultItemsPerInversione(level){
@@ -12835,10 +12968,10 @@ function defaultItemsPerInversione(level){
 function genInversione(level, excludeKeys){
   // excludeKeys: cronologia del gruppo (elementi già proposti, anche a livelli diversi).
   const ctx = makeAvoidCtx(excludeKeys);
-  const lexical = level<=4;
-  const mixedCase = level>=11;
-  const alnum = level>=7 || state.inversioneForceAlnum; // la spunta anticipa il blocco alfanumerico, la complessità (lunghezza, maiuscole) resta comunque legata al livello vero
-  const lens = level<10 ? [3,4] : [3,4,5];
+  const lexical = level<=INV_LEXICAL_UNTIL;
+  const pCase = invMixedCaseProb(level);
+  const alnum = level>=INV_ALNUM_FROM || state.inversioneForceAlnum; // la spunta anticipa il blocco alfanumerico, la complessità (lunghezza, maiuscole) resta comunque legata al livello vero
+  const lens = inversioneLens(level);
   const ov = state.materialOverride.inversione;
   const alnumLens = ov==="mixed" ? lens : lens.filter(l=>l>=4);
 
@@ -12891,7 +13024,7 @@ function genInversione(level, excludeKeys){
         const firsts = new Set();
         raw = Array.from({length:itemsPer}, ()=>{
           const w = genFresh(
-            ()=>{ const t = nonwordFor(len, level); return mixedCase ? randCase(t) : t; },
+            ()=>{ const t = nonwordFor(len, level); return Math.random()<pCase ? randCase(t) : t; },
             t=>invKey("L", t), ctx, t=>notTrivial(t) && !firsts.has(t[0].toUpperCase()));
           firsts.add(w[0].toUpperCase());
           return w;
@@ -12954,16 +13087,19 @@ function genSerie(level){
 
 // ---------- ACCESSO LESSICALE ----------
 function genAccesso(level, excludeWords){
-  const tier = tierFromLevel(level,4);
-  const pool = LEXICAL_TIERS[tier].words;
-  const excl = excludeWords ? new Set(excludeWords) : null;
-  let effectivePool = pool;
-  if(excl && excl.size){
-    const fresh = pool.filter(w=>!excl.has(w));
-    if(fresh.length) effectivePool = fresh; // il pool è ampio: quasi sempre resta materiale "fresco"
+  // 4 fasce lessicali (concreto frequente → concreto specifico → astratto → raro/tecnico), MESCOLATE
+  // gradualmente: a livello 1 solo la prima, a livello 32 solo l'ultima, in mezzo ogni parola è
+  // pescata dalla fascia più vicina alla posizione del livello (vedi blendedIndex).
+  const excl = excludeWords ? new Set(excludeWords) : new Set();
+  const count = Math.min(state.accessoWordsOverride || 1, 30);
+  const words = [];
+  for(let i=0; i<count; i++){
+    const pool = LEXICAL_TIERS[blendedIndex(level, LEXICAL_TIERS.length)].words;
+    let cand = pool.filter(w=>!excl.has(w) && !words.includes(w));   // mai proposte a questo gruppo, non già in sessione
+    if(!cand.length) cand = pool.filter(w=>!words.includes(w));
+    if(!cand.length) cand = pool;
+    words.push(pick(cand));
   }
-  const count = Math.min(state.accessoWordsOverride || 1, effectivePool.length);
-  const words = pickN(effectivePool, count);
   return {
     type:"accesso",
     word: words[0],
@@ -12979,7 +13115,7 @@ function genAccesso(level, excludeWords){
 /* =========================================================
    RENDER
    ========================================================= */
-const LEVEL_NOTES = {
+const LEVEL_NOTES_BASE = {   // note originali a 16 fasce: base per le note dei 32 livelli (vedi levelNote)
   griglie:[
     "Forme geometriche. Poche richieste semplici, il resto combinazioni di sfondo, bordo e colore.",
     "Forme geometriche, come sopra con altre varianti.",
@@ -13063,6 +13199,82 @@ const LEVEL_NOTES = {
     "Categorie astratte per qualità/processo, non per tipo di oggetto (es. precisione fine vs forza grossolana).","Astratto per processo.","Astratto per processo.","Astratto per processo."
   ]
 };
+
+// Note dei 32 livelli: per Griglie, Intruso e Inversione sono GENERATE dagli stessi parametri usati dai
+// generatori (così non possono andare fuori sincrono); Serie usa l'elenco di regole; Accesso e
+// Categorizzazione descrivono la miscela graduale delle fasce originali.
+const SERIE_NOTES_EXTRA = [
+  "n-1 back (proposta): sx / «Sì» in base allo stimolo precedente.",
+  "n-1 back (proposta): risposta solo verbale («Sì»/«No»).",
+  "n-1 back (proposta): mappatura invertita rispetto al livello 23.",
+  "n-1 back (proposta): «No» / dx, mappatura invertita.",
+  "n-2 back (proposta): risposta sullo stimolo di DUE posizioni prima (doppia manuale).",
+  "n-2 back (proposta): manuale + verbale.",
+  "n-2 back (proposta): risposta solo verbale.",
+  "n-2 back (proposta): mappatura invertita rispetto al livello 29."
+];
+function levelNote(exId, level){
+  const B = LEVEL_NOTES_BASE;
+  switch(exId){
+    case "griglie": {
+      const cat = GRID_CATEGORY_BY_LEVEL[level], sub = (level-1)%4 + 1;
+      const q = tierQuotaForLevel(level);
+      const extra = [];
+      if(level>=3) extra.push("simbolo grande/piccolo");
+      if(level>=17) extra.push("bordo continuo/tratteggiato/puntinato"); else if(level>=5) extra.push("bordo continuo/tratteggiato");
+      return `${GRID_CATEGORY_LABELS[cat]} (passo ${sub}/4). Mix di regole (indicativo): ${q[1]} sul solo simbolo · ${q[2]} con 1 vincolo · ${q[3]} con 2 vincoli · ${q[4]} composte; in ogni griglia circa metà sugli stimoli e metà sulla posizione${level>=GRID_POS_W2_FROM ? " (dal livello 9 anche posizioni composte: blocchi, scacchiera, riga∩colonna)" : ""}.` + (extra.length ? ` Attributi extra: ${extra.join(", ")}.` : "");
+    }
+    case "intruso": {
+      const len = lenForLevelIntruso(level);
+      const nT = targetNForLevelIntruso(level, false, len), nA = targetNForLevelIntruso(level, true, 1);
+      const bits = [`${nT} elementi (testo a ${len} car.) / ${nA} (glifi)`];
+      if(level>=3) bits.push(`tipi «quasi uguali» nel ${Math.round(Math.min(1,(level-2)/30)*100)}% dei testi`);
+      const newFam = INTRUSO_ALL_FAMILIES.filter(f=>f.unlockLevel===level).map(f=>f.label);
+      const extra = [];
+      INTRUSO_ATOMIC_FAMILIES.filter(f=>f.small).forEach(f=>{
+        if(f.triplesFrom===level) extra.push(`terne per ${f.label}`);
+        else if(f.pairsFrom===level && level>1) extra.push(`coppie per ${f.label}`);
+      });
+      let s = bits.join("; ") + ".";
+      if(level===1) s += " Famiglie di partenza: " + newFam.join(", ") + " (glifi singoli).";
+      else {
+        if(newFam.length) s += " Nuove famiglie: " + newFam.join(", ") + ".";
+        if(extra.length){ const e = extra.join("; "); s += " " + e.charAt(0).toUpperCase() + e.slice(1) + "."; }
+        if(!newFam.length && !extra.length && level<=28) s += " Stesse famiglie del livello precedente.";
+      }
+      if(level>=29) s += " Tutte le famiglie disponibili: sale solo la difficoltà di discriminazione.";
+      return s;
+    }
+    case "inversione": {
+      const lens = inversioneLens(level);
+      const items = inversioneSessionTotal(level);
+      const pp = invPronounceProb(level);
+      const parts = [level<=INV_LEXICAL_UNTIL ? "Parole reali" : (pp>=1 ? "Non-parole pronunciabili" : `Non-parole (pronunciabili ${Math.round(pp*100)}%)`)];
+      parts.push(`lunghezze ${lens.join("-")}`);
+      parts.push(level>=16 ? "contrassegni rosso+verde" : (level>=5 ? `1 o 2 contrassegni rossi (2 nel ${Math.round(Math.min(1,(level-4)/12)*100)}%)` : "1 contrassegno rosso"));
+      if(level>=INV_ALNUM_FROM) parts.push("blocco alfanumerico");
+      const pc = invMixedCaseProb(level);
+      if(pc>0) parts.push(pc>=1 ? "maiuscole/minuscole miste" : `maiuscole/minuscole miste nel ${Math.round(pc*100)}% delle stringhe`);
+      return `${parts.join(", ")}; ${items} elementi in sessione.`;
+    }
+    case "serie":
+      return level<=B.serie.length ? B.serie[level-1] : SERIE_NOTES_EXTRA[level-B.serie.length-1];
+    case "accesso": {
+      const names = ["Nomi concreti, alta frequenza", "Concreto specifico / categorie meno immediate", "Astratto / semi-tecnico", "Astratto/tecnico raro o nome proprio"];
+      const pos = levelT(level)*3, lo = Math.floor(pos), frac = pos-lo;
+      const mix = (frac>=0.05 && lo<3) ? ` — miscela graduale con la fascia successiva (${Math.round(frac*100)}%)` : "";
+      return `Fascia lessicale ${(pos+1).toFixed(1).replace(".",",")}/4: ${names[Math.round(pos)]}${mix}.`;
+    }
+    case "categorizzazione": {
+      const q = 1 + levelT(level)*15, lo = Math.floor(q), frac = q-lo;
+      const near = Math.round(q);
+      const blockDesc = B.categorizzazione[Math.floor((near-1)/4)*4];   // la nota descrittiva è quella del primo livello di ogni blocco da 4
+      const mix = (frac>=0.05 && lo<16) ? ` (mix graduale: ${Math.round((1-frac)*100)}% fascia ${lo} + ${Math.round(frac*100)}% fascia ${lo+1})` : "";
+      return `Fascia ${q.toFixed(1).replace(".",",")}/16 — ${blockDesc}${mix}`;
+    }
+  }
+  return "";
+}
 
 function colorHex(name){
   if(!name) return null;
@@ -13522,48 +13734,57 @@ function renderFascicolo(deck){
 // necessariamente quello della settimana globale — e ne innesta nel fascicolo mostrato
 // solo la parte richiesta, lasciando intatte tutte le altre. Evita di duplicare la logica
 // di generazione di ogni singolo esercizio: quella resta unica, dentro buildFascicolo.
+// Costruisce e applica UNA parte del fascicolo alla settimana indicata, dentro state.deck
+// già esistente — stessa logica usata sia dal pulsante "↻ Rigenera" di una singola parte,
+// sia (qui sotto, in generate()) per riportare automaticamente ogni parte fatta avanzare
+// individualmente alla propria settimana dopo una rigenerazione completa del fascicolo.
+async function applyFascicoloPartAt(partKey, week){
+  const [excludeAnagrams, excludeCategories, excludeLexical] = await Promise.all([
+    fetchRecentUsed("fascicoloHistory", "usedAnagramWords"),
+    fetchRecentUsed("fascicoloHistory", "usedCategories"),
+    fetchRecentUsed("fascicoloHistory", "usedLexicalKeys"),
+  ]);
+  const fresh = window.Engine.buildFascicolo(week, Math.floor(Math.random()*1e9), {
+    anagramWords: excludeAnagrams, categories: excludeCategories, lexicalKeys: excludeLexical,
+  });
+  const m = /^grid(\d)$/.exec(partKey);
+  if (m) {
+    state.deck.grids[Number(m[1])] = fresh.grids[Number(m[1])];
+  } else if (partKey === "multi") {
+    state.deck.multi = fresh.multi;
+  } else if (partKey === "crucipuzzle") {
+    state.deck.crucipuzzle = fresh.crucipuzzle;
+  } else if (partKey === "sequencing") {
+    state.deck.sequencing = fresh.sequencing;
+  } else if (partKey === "maze") {
+    state.deck.maze = fresh.maze;
+  } else if (partKey === "lexicalBlock") {
+    state.deck.lexicalBlock = fresh.lexicalBlock;
+    appendUsed("fascicoloHistory", "usedLexicalKeys", fresh.lexicalBlock.historyKeys, 60);
+  } else if (partKey === "categories") {
+    state.deck.categories = fresh.categories;
+    // La consegna ("almeno N parole") dipende dal livello scelto per QUESTA rigenerazione,
+    // non da quello globale del fascicolo: va tenuta assieme al contenuto rigenerato,
+    // sia nell'anteprima sia nel fascicolo esportato (vedi buildFascicoloDocument).
+    state.deck.categoriesMinWords = fresh.params.categoryMinWords;
+    appendUsed("fascicoloHistory", "usedCategories", fresh.categories, 60);
+  } else if (partKey === "anagrams") {
+    state.deck.anagrams = fresh.anagrams;
+    appendUsed("fascicoloHistory", "usedAnagramWords", fresh.anagrams.map(a=>a.solution), 60);
+  } else if (partKey === "calc") {
+    state.deck.calc = fresh.calc;
+  }
+}
 async function regenerateFascicoloPart(partKey, btn, weekOverride){
   if(!state.deck || state.exercise!=="fascicolo") return;
   const week = weekOverride || state.fascicoloPartWeek[partKey] || state.fascicoloWeek;
   const original = btn ? btn.textContent : null;
   if(btn){ btn.disabled = true; btn.textContent = "…"; }
   try {
-    const [excludeAnagrams, excludeCategories, excludeLexical] = await Promise.all([
-      fetchRecentUsed("fascicoloHistory", "usedAnagramWords"),
-      fetchRecentUsed("fascicoloHistory", "usedCategories"),
-      fetchRecentUsed("fascicoloHistory", "usedLexicalKeys"),
-    ]);
-    const fresh = window.Engine.buildFascicolo(week, Math.floor(Math.random()*1e9), {
-      anagramWords: excludeAnagrams, categories: excludeCategories, lexicalKeys: excludeLexical,
-    });
-    const m = /^grid(\d)$/.exec(partKey);
-    if (m) {
-      state.deck.grids[Number(m[1])] = fresh.grids[Number(m[1])];
-    } else if (partKey === "multi") {
-      state.deck.multi = fresh.multi;
-    } else if (partKey === "crucipuzzle") {
-      state.deck.crucipuzzle = fresh.crucipuzzle;
-    } else if (partKey === "sequencing") {
-      state.deck.sequencing = fresh.sequencing;
-    } else if (partKey === "maze") {
-      state.deck.maze = fresh.maze;
-    } else if (partKey === "lexicalBlock") {
-      state.deck.lexicalBlock = fresh.lexicalBlock;
-      appendUsed("fascicoloHistory", "usedLexicalKeys", fresh.lexicalBlock.historyKeys, 60);
-    } else if (partKey === "categories") {
-      state.deck.categories = fresh.categories;
-      // La consegna ("almeno N parole") dipende dal livello scelto per QUESTA rigenerazione,
-      // non da quello globale del fascicolo: va tenuta assieme al contenuto rigenerato,
-      // sia nell'anteprima sia nel fascicolo esportato (vedi buildFascicoloDocument).
-      state.deck.categoriesMinWords = fresh.params.categoryMinWords;
-      appendUsed("fascicoloHistory", "usedCategories", fresh.categories, 60);
-    } else if (partKey === "anagrams") {
-      state.deck.anagrams = fresh.anagrams;
-      appendUsed("fascicoloHistory", "usedAnagramWords", fresh.anagrams.map(a=>a.solution), 60);
-    } else if (partKey === "calc") {
-      state.deck.calc = fresh.calc;
-    }
+    state.fascicoloPartWeek[partKey] = week;
+    await applyFascicoloPartAt(partKey, week);
     render();
+    rememberGroupLevel();
   } catch(e){
     console.error(e);
     alert("Non sono riuscito a rigenerare questa parte: " + e.message);
@@ -13764,7 +13985,7 @@ const EX_CONTROLS = {
     const wrap = document.createElement("div");
     const note = document.createElement("div");
     note.className = "level-note";
-    note.textContent = `24 livelli — solo per questo esercizio (gli altri restano a 16). Ogni livello ha una sola consegna.`;
+    note.textContent = `32 livelli (i primi 24 sono l'elenco originale, i livelli 25-32 sono una proposta da validare). Ogni livello ha una sola consegna.`;
     wrap.appendChild(note);
     const nextRow = document.createElement("label");
     nextRow.style.cssText = "display:flex; align-items:center; gap:8px; margin-top:14px; font-weight:600;";
@@ -13817,7 +14038,7 @@ const EX_CONTROLS = {
     wrap.appendChild(alnumRow);
     const alnumNote = document.createElement("div");
     alnumNote.className = "level-note";
-    alnumNote.textContent = "Normalmente il blocco alfanumerico misto compare solo dal livello 11. Con la spunta attiva compare da subito, ma lunghezza e maiuscole/minuscole restano comunque calibrate sul livello selezionato — non si semplifica solo perché arriva prima.";
+    alnumNote.textContent = `Normalmente il blocco alfanumerico misto compare solo dal livello ${INV_ALNUM_FROM}. Con la spunta attiva compare da subito, ma lunghezza e maiuscole/minuscole restano comunque calibrate sul livello selezionato — non si semplifica solo perché arriva prima.`;
     wrap.appendChild(alnumNote);
     return wrap;
   },
@@ -13856,7 +14077,7 @@ const EX_CONTROLS = {
     wrap.appendChild(row);
     const note = document.createElement("div");
     note.className = "level-note";
-    note.textContent = "Il fascicolo dura 12 settimane in tutto. Ogni settimana fa avanzare in modo coordinato tutti i 12 blocchi (materiale delle griglie, lunghezza dei bersagli, sequenziamento, labirinto, calcolo). \"Mostra risposta / regola\" mostra qui le soluzioni di ogni blocco (il download separato \"Fascicolo con soluzioni\" le include anche nel file .docx).";
+    note.textContent = "Il fascicolo dura 12 settimane in tutto. Ogni settimana fa avanzare in modo coordinato tutti i blocchi (materiale delle griglie, lunghezza dei bersagli, sequenziamento, labirinto, calcolo). Con \"↻ Rigenera\" su una singola parte la puoi far avanzare (o tenere indietro) per conto suo: da quel momento resta alla settimana scelta anche dopo aver rigenerato tutto il fascicolo, ed è ricordata per questo gruppo. \"Mostra risposta / regola\" mostra qui le soluzioni di ogni blocco (il download separato \"Fascicolo con soluzioni\" le include anche nel file .docx).";
     wrap.appendChild(note);
 
     return wrap;
@@ -13897,11 +14118,9 @@ function buildExList(){
 
 async function generate(){
   state.slideIndex = 0;
-  // Il range di livello dipende dall'esercizio (Serie attentive arriva a 24, tutti gli
-  // altri restano a 16): si limita PRIMA di generare, non solo nel render, altrimenti
-  // passando da Serie a un livello alto verso un altro esercizio si rischia di chiamare
-  // un generatore con un livello fuori dai suoi limiti.
-  const maxLevelNow = state.exercise==="serie" ? SERIE_MAX_LEVEL : 16;
+  // Tutti gli esercizi a livelli vanno da 1 a MAX_LEVEL (32): si limita comunque PRIMA di generare,
+  // per non chiamare mai un generatore con un livello fuori dai suoi limiti.
+  const maxLevelNow = MAX_LEVEL;
   if(state.level > maxLevelNow) state.level = maxLevelNow;
   state.levels[state.exercise] = state.level;
   const gen = ++state._generationToken; // scarta risposte di storico arrivate in ritardo se nel frattempo si è generato di nuovo
@@ -13932,10 +14151,15 @@ async function generate(){
       anagramWords: excludeAnagrams, categories: excludeCategories, lexicalKeys: excludeLexical,
     });
     state.deck.categoriesMinWords = state.deck.params.categoryMinWords;
-    state.fascicoloPartWeek = {}; // una rigenerazione completa riparte da zero: nessuna parte resta agganciata a un livello scelto in precedenza per una rigenerazione singola
     appendUsed("fascicoloHistory", "usedAnagramWords", state.deck.anagrams.map(a=>a.solution), 60);
     appendUsed("fascicoloHistory", "usedCategories", state.deck.categories, 60);
     appendUsed("fascicoloHistory", "usedLexicalKeys", state.deck.lexicalBlock.historyKeys, 60);
+    // Le parti portate avanti (o indietro) singolarmente restano alla propria settimana anche
+    // dopo questa rigenerazione completa: si riapplicano qui, una per una, sopra il fascicolo
+    // appena ricostruito alla settimana globale — vedi applyFascicoloPartAt più sotto.
+    for(const [partKey, partWeek] of Object.entries(state.fascicoloPartWeek)){
+      try{ await applyFascicoloPartAt(partKey, partWeek); } catch(e){ console.error(e); }
+    }
   } else if(MATERIAL_HISTORY[state.exercise]){
     // Stessa logica anti-ripetizione di Categorizzazione e Accesso lessicale, estesa a
     // Griglie-Conteggio, Intruso percettivo e Inversione e riordino: il materiale già proposto
@@ -13960,12 +14184,13 @@ async function generate(){
     summary: summarizeDeck(state.exercise, historyLevel, state.deck)
   });
   render();
+  rememberGroupLevel();
 }
 
 function render(){
   const ex = EXERCISES.find(e=>e.id===state.exercise);
   const isFascicolo = state.exercise==="fascicolo";
-  const maxLevel = state.exercise==="serie" ? SERIE_MAX_LEVEL : 16;
+  const maxLevel = MAX_LEVEL;
   document.getElementById("exTitle").textContent = ex.name;
   document.getElementById("levelField").style.display = isFascicolo ? "none" : "block";
   document.getElementById("btnExport").textContent = isFascicolo ? "Esporta in Word (fascicolo + soluzioni)" : "Esporta in PowerPoint";
@@ -13979,7 +14204,7 @@ function render(){
     levelRangeEl.value = state.level; // riflette sempre il livello dell'esercizio attivo, anche dopo un cambio esercizio
     document.getElementById("exMeta").textContent = `Livello ${state.level} di ${maxLevel}`;
     document.getElementById("levelBadge").textContent = state.level;
-    document.getElementById("levelNote").textContent = LEVEL_NOTES[state.exercise][state.level-1];
+    document.getElementById("levelNote").textContent = levelNote(state.exercise, state.level);
   }
 
   const stage = document.getElementById("stage");
@@ -14009,6 +14234,8 @@ function render(){
   } else {
     ruleBox.style.display = "none";
   }
+
+  renderProgressPanel();
 
   const foot = document.getElementById("stageFoot");
   if(state.exercise==="serie"){
@@ -14367,11 +14594,246 @@ document.getElementById("nextSlide").addEventListener("click", ()=>{
   if(state.slideIndex < state.deck.slides.length-1){ state.slideIndex++; render(); }
 });
 
+/* =========================================================
+   PROGRESSIONE DEL GRUPPO — interruttore "mantieni livello / sali"
+   Lo sperimentatore registra l'andamento del gruppo (% di riuscita) dopo ogni sessione; l'app suggerisce
+   se mantenere il livello o salire (soglia e numero di sessioni consecutive regolabili) e lo sperimentatore
+   può confermare o invertire il suggerimento con l'interruttore. Dati per gruppo e per esercizio, salvati
+   in questo browser e — se la cronologia condivisa è attiva — condivisi tra i colleghi.
+   ========================================================= */
+const PROGRESS_PREFIX = "pdm_progress::";
+function progressBlank(){ return { u:0, settings:{thr:80, consec:1}, ex:{}, levels:{}, fascicoloParts:{} }; }
+function progressLoad(group){
+  try{
+    const d = JSON.parse(localStorage.getItem(PROGRESS_PREFIX + group) || "null");
+    if(d && d.ex){ d.settings = Object.assign({thr:80, consec:1}, d.settings || {}); d.levels = d.levels || {}; d.fascicoloParts = d.fascicoloParts || {}; return d; }
+  } catch(e){}
+  return progressBlank();
+}
+function progressStore(group, data){
+  data.u = Date.now();
+  try{ localStorage.setItem(PROGRESS_PREFIX + group, JSON.stringify(data)); } catch(e){}
+  progressPushRemote(group, data);
+}
+async function progressPushRemote(group, data){
+  if(!sharedHistoryReady) return;
+  try{ await firestoreDb.collection("groupProgress").doc(group).set({ data: JSON.stringify(data), updatedAt: Date.now() }, {merge:true}); }
+  catch(e){ /* rete o permessi: si resta in locale */ }
+}
+// Unione di due copie (locale + remota): registrazioni unite per timestamp, meno quelle annullate (`del`);
+// impostazioni e scelta manuale dalla copia più recente.
+function progressMerge(a, b){
+  const out = progressBlank();
+  const newer = (a.u||0) >= (b.u||0) ? a : b;
+  out.u = Math.max(a.u||0, b.u||0);
+  out.settings = Object.assign({thr:80, consec:1}, newer.settings || {});
+  out.levels = Object.assign({}, newer.levels || {});
+  out.fascicoloParts = Object.assign({}, newer.fascicoloParts || {});
+  const ids = new Set([...Object.keys(a.ex||{}), ...Object.keys(b.ex||{})]);
+  ids.forEach(id=>{
+    const ea = (a.ex||{})[id] || {}, eb = (b.ex||{})[id] || {};
+    const del = new Set([...(ea.del||[]), ...(eb.del||[])]);
+    const byT = new Map();
+    [...(ea.log||[]), ...(eb.log||[])].forEach(r=>{ if(!del.has(r.t)) byT.set(r.t, r); });
+    out.ex[id] = {
+      log: [...byT.values()].sort((x,y)=>x.t-y.t).slice(-40),
+      del: [...del].slice(-100),
+      decision: ((newer.ex||{})[id] || {}).decision || null
+    };
+  });
+  return out;
+}
+let _progressSyncing = false;
+async function progressSyncRemote(){
+  const group = currentGroupKey();
+  if(!group || !sharedHistoryReady || _progressSyncing) return;
+  _progressSyncing = true;
+  try{
+    const doc = await firestoreDb.collection("groupProgress").doc(group).get();
+    if(doc.exists){
+      const remote = JSON.parse(doc.data().data || "{}");
+      const merged = progressMerge(progressLoad(group), remote);
+      localStorage.setItem(PROGRESS_PREFIX + group, JSON.stringify(merged));
+      progressPushRemote(group, merged);
+    }
+  } catch(e){ /* si resta con i dati locali */ }
+  _progressSyncing = false;
+  renderProgressPanel();
+}
+// Stato decisionale di un esercizio: livello di riferimento (quello dell'ultima sessione registrata),
+// suggerimento (sali / mantieni) e scelta effettiva (suggerimento oppure scelta manuale, valida solo
+// finché non c'è una nuova registrazione).
+function progressState(exData, stateLevel, s){
+  const log = (exData && exData.log) || [];
+  const last = log.length ? log[log.length-1] : null;
+  const ref = last ? last.level : stateLevel;
+  let run = 0;
+  for(let i=log.length-1; i>=0; i--){ if(log[i].level===ref && log[i].pct>=s.thr) run++; else break; }
+  const atMax = ref >= MAX_LEVEL;
+  const suggest = (last && !atMax && run >= s.consec) ? "sali" : "mantieni";
+  const dec = (exData && exData.decision && last && exData.decision.after===last.t) ? exData.decision.v : null;
+  let decision = last ? (dec || suggest) : null;
+  if(atMax && decision==="sali") decision = "mantieni";
+  return { last, ref, run, atMax, suggest, decision, manual: !!dec && dec!==suggest };
+}
+// Ultimo livello generato per esercizio (e settimana per il fascicolo), per gruppo: così
+// riaprendo l'app o passando a un altro gruppo/paziente il generatore riparte da dove era
+// rimasto quel gruppo, esercizio per esercizio — non serve una sessione registrata come per
+// l'interruttore mantieni/sali qui sopra, basta aver generato materiale almeno una volta.
+function rememberGroupLevel(){
+  const group = currentGroupKey();
+  if(!group) return;
+  const key = state.exercise === "fascicolo" ? "fascicolo" : state.exercise;
+  const lvl = state.exercise === "fascicolo" ? state.fascicoloWeek : state.level;
+  const d = progressLoad(group);
+  d.levels = d.levels || {};
+  let dirty = false;
+  if(d.levels[key] !== lvl){ d.levels[key] = lvl; dirty = true; }
+  if(state.exercise === "fascicolo"){
+    const partsJSON = JSON.stringify(state.fascicoloPartWeek || {});
+    if(JSON.stringify(d.fascicoloParts || {}) !== partsJSON){
+      d.fascicoloParts = Object.assign({}, state.fascicoloPartWeek);
+      dirty = true;
+    }
+  }
+  if(!dirty) return; // nessuna novità, non riscrivere ad ogni render
+  progressStore(group, d);
+}
+// Richiamata quando si (ri)inserisce il nome o il numero del gruppo: applica in silenzio i
+// livelli ricordati a tutti gli esercizi (e la settimana al fascicolo), poi rigenera solo se
+// quello attivo in questo momento è effettivamente cambiato.
+function recallGroupLevel(){
+  const group = currentGroupKey();
+  if(!group) return;
+  const stored = progressLoad(group);
+  const levels = stored.levels || {};
+  const parts = stored.fascicoloParts || {};
+  // Si riparte sempre dai valori di base (1, nessuna parte scostata) e si sovrascrive solo
+  // con quanto effettivamente registrato per QUESTO gruppo: così un gruppo mai usato prima
+  // non eredita per errore il livello (o le parti del fascicolo) lasciati a video da un
+  // altro gruppo appena lasciato.
+  let changed = false;
+  Object.keys(state.levels).forEach(exId=>{
+    const lvl = levels[exId] != null ? levels[exId] : 1;
+    if(lvl !== state.levels[exId]){
+      state.levels[exId] = lvl;
+      if(exId === state.exercise) changed = true;
+    }
+  });
+  const week = levels.fascicolo != null ? levels.fascicolo : 1;
+  if(week !== state.fascicoloWeek){
+    state.fascicoloWeek = week;
+    if(state.exercise === "fascicolo") changed = true;
+  }
+  if(JSON.stringify(parts) !== JSON.stringify(state.fascicoloPartWeek || {})){
+    state.fascicoloPartWeek = Object.assign({}, parts);
+    if(state.exercise === "fascicolo") changed = true;
+  }
+  if(state.exercise !== "fascicolo" && state.level !== state.levels[state.exercise]){
+    state.level = state.levels[state.exercise];
+    changed = true;
+  }
+  if(changed) generate();
+}
+function progEsc(s){ return String(s).replace(/[&<>"]/g, c=>({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;"})[c]); }
+
+function renderProgressPanel(){
+  const host = document.getElementById("progressPanel");
+  if(!host) return;
+  const exId = state.exercise;
+  if(exId==="fascicolo"){ host.style.display = "none"; host.innerHTML = ""; return; }
+  const group = currentGroupKey();
+  host.style.display = "block";
+  if(!group){
+    host.innerHTML = `<h3>Progressione del gruppo</h3><div class="level-note" style="margin-top:4px;">Inserisci il nome (o il numero) del gruppo qui sopra: il generatore riparte in automatico dall'ultimo livello usato con questo gruppo per ogni esercizio (fascicolo compreso, con le sue singole parti fatte avanzare separatamente), e qui potrai registrare l'andamento di ogni sessione: l'interruttore ti dirà se mantenere il livello o salire.</div>`;
+    return;
+  }
+  const oldPct = host.querySelector("#progPct") ? host.querySelector("#progPct").value : "";
+  const data = progressLoad(group);
+  const exData = data.ex[exId] || {log:[], del:[], decision:null};
+  const s = data.settings;
+  const st = progressState(exData, state.level, s);
+  const exName = EXERCISES.find(e=>e.id===exId).name;
+  const has = !!st.last;
+  const nextLevel = Math.min(MAX_LEVEL, st.ref+1);
+  const target = st.decision==="sali" ? nextLevel : st.ref;
+  let msg;
+  if(!has) msg = "Nessuna sessione registrata per questo esercizio. Dopo la prima sessione registra qui l'andamento: l'interruttore ti suggerirà se mantenere o salire.";
+  else if(st.atMax) msg = "Livello massimo raggiunto: si può solo mantenere.";
+  else if(st.suggest==="sali") msg = `Suggerito: <b>SALIRE</b> — ${st.run} sessione/i ≥ ${s.thr}% al livello ${st.ref} (ultima: ${st.last.pct}%).`;
+  else if(st.last.pct < s.thr) msg = `Suggerito: <b>MANTENERE</b> — ultima sessione ${st.last.pct}% (soglia ${s.thr}%).`;
+  else msg = `Suggerito: <b>MANTENERE</b> — servono ${s.consec} sessioni di fila ≥ ${s.thr}% allo stesso livello (finora ${st.run}).`;
+  if(has && st.manual) msg += ` <i>Scelta manuale: ${st.decision==="sali" ? "salire" : "mantenere"}.</i>`;
+  const recent = (exData.log||[]).slice(-5).reverse().map(r=>{
+    const d = new Date(r.t);
+    return `<li>livello ${r.level} · ${r.pct}% · ${d.toLocaleDateString("it-IT")}</li>`;
+  }).join("");
+  host.innerHTML = `
+    <h3>Progressione del gruppo</h3>
+    <div class="level-note" style="margin-top:0;">${progEsc(group)} · ${progEsc(exName)}${has ? ` · ultimo livello svolto: <b>${st.ref}</b>` : ""}</div>
+    <label for="progPct" style="margin-top:10px;">Andamento dell'ultima sessione (compilato dallo sperimentatore)</label>
+    <div class="prog-row">
+      <input type="number" id="progPct" min="0" max="100" step="1" placeholder="%" value="${progEsc(oldPct)}">
+      <span>% di riuscita al livello ${state.level}</span>
+      <button class="chip" id="progRecord">Registra</button>
+    </div>
+    <div class="prog-row">
+      Sale se ≥ <input type="number" id="progThr" min="1" max="100" value="${s.thr}"> % per
+      <select id="progConsec">${[1,2,3].map(n=>`<option value="${n}"${n===s.consec?" selected":""}>${n}</option>`).join("")}</select>
+      sessione/i di fila
+    </div>
+    <div class="prog-switch" role="group" aria-label="Decisione per la prossima sessione">
+      <button id="progKeep" class="${st.decision==="mantieni"?"on":""}" ${has?"":"disabled"}>Mantieni ${has ? st.ref : ""}</button>
+      <button id="progUp" class="${st.decision==="sali"?"on":""}" ${(has && !st.atMax)?"":"disabled"}>Sali a ${has ? nextLevel : ""}</button>
+    </div>
+    <div class="prog-suggest">${msg}</div>
+    ${has ? `<button class="action ghost" id="progApply" style="margin-top:10px;">Applica: livello ${target} e genera</button>` : ""}
+    ${has ? `<ul class="prog-log">${recent}</ul><button class="prog-undo" id="progUndo">Annulla l'ultima registrazione</button>` : ""}
+  `;
+  const persist = fn => {
+    const d = progressLoad(group);
+    d.ex[exId] = d.ex[exId] || {log:[], del:[], decision:null};
+    fn(d, d.ex[exId]);
+    progressStore(group, d);
+    renderProgressPanel();
+  };
+  host.querySelector("#progRecord").onclick = ()=>{
+    const inp = host.querySelector("#progPct");
+    const v = Number(inp.value);
+    if(inp.value==="" || !isFinite(v) || v<0 || v>100){ alert("Inserisci una percentuale tra 0 e 100."); return; }
+    inp.value = "";
+    persist((d,e)=>{ e.log.push({ t:Date.now(), level:state.level, pct:Math.round(v) }); e.log = e.log.slice(-40); e.decision = null; });
+  };
+  host.querySelector("#progThr").onchange = ev=>{
+    const v = Math.max(1, Math.min(100, Number(ev.target.value) || 80));
+    persist(d=>{ d.settings.thr = v; });
+  };
+  host.querySelector("#progConsec").onchange = ev=>{
+    const v = Number(ev.target.value) || 1;
+    persist(d=>{ d.settings.consec = v; });
+  };
+  const choose = v => persist((d,e)=>{ e.decision = (v===st.suggest) ? null : { v, after: st.last.t }; });
+  if(has){
+    host.querySelector("#progKeep").onclick = ()=>choose("mantieni");
+    host.querySelector("#progUp").onclick = ()=>{ if(!st.atMax) choose("sali"); };
+    host.querySelector("#progApply").onclick = ()=>{
+      state.level = target;
+      state.levels[exId] = target;
+      state.reveal = false;
+      generate();
+    };
+    host.querySelector("#progUndo").onclick = ()=>{
+      persist((d,e)=>{ const r = e.log.pop(); if(r){ e.del = (e.del||[]).concat([r.t]).slice(-100); } e.decision = null; });
+    };
+  }
+}
+
 const groupInput = document.getElementById("groupNameInput");
 groupInput.value = currentGroupName();
 groupInput.addEventListener("change", ()=>{
   localStorage.setItem("pdm_group_name", groupInput.value.trim());
   updateHistoryStatus();
+  recallGroupLevel();
 });
 initSharedHistory();
 updateHistoryStatus();
@@ -14383,6 +14845,7 @@ groupNumberInput.addEventListener("change", ()=>{
   state.groupNumber = groupNumberInput.value.trim();
   localStorage.setItem("pdm_group_number", state.groupNumber);
   updateHistoryStatus();
+  recallGroupLevel();
 });
 document.getElementById("btnClearGroupHistory").addEventListener("click", async ()=>{
   const key = currentGroupKey();
@@ -14395,6 +14858,7 @@ document.getElementById("btnClearGroupHistory").addEventListener("click", async 
 buildExList();
 renderExControls();
 generate();
+recallGroupLevel();
 </script>
 
 </body>
