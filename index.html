@@ -11541,12 +11541,7 @@ async function resolveTrialImages(trial) {
    funziona esattamente come prima, solo senza memoria tra un dispositivo e l'altro.
    ========================================================= */
 const firebaseConfig = {
-  apiKey: "AIzaSyCEFMdVHdANv1PsVlb-Wo65JHe4IKMtk3o",
-    authDomain: "pdmgenerator.firebaseapp.com",
-    projectId: "pdmgenerator",
-    storageBucket: "pdmgenerator.firebasestorage.app",
-    messagingSenderId: "203067967755",
-    appId: "1:203067967755:web:6ec8266c59798c852e3a0e"
+  // apiKey: "...", authDomain: "...", projectId: "...", ...
 };
 
 let sharedHistoryReady = false;
@@ -12045,7 +12040,10 @@ function exportFileName(exId, level, ext){
 // Dimensione FISSA a ogni livello: 5 righe × 7 colonne (35 celle), come negli originali.
 // La difficoltà non passa mai dalla dimensione/numerosità della griglia — solo dal tipo di
 // simbolo (asse 1) e dalla complessità/varietà delle regole disponibili (asse 2).
-const GRID_ROWS = 5, GRID_COLS = 7;
+// Dimensione della griglia in funzione del livello (numerosità di stimoli, righe e colonne
+// crescenti — segnalato da Rodrigo): 5×7 (livelli 1-8) → 6×8 (9-16) → 7×9 (17-24) → 8×10 (25-32).
+function gridRowsForLevel(level){ return level<=8 ? 5 : level<=16 ? 6 : level<=24 ? 7 : 8; }
+function gridColsForLevel(level){ return level<=8 ? 7 : level<=16 ? 8 : level<=24 ? 9 : 10; }
 
 // Categoria di simboli per fascia di livello (4 livelli per categoria, 1-32): 1-4 forme, 5-8 frecce,
 // 9-12 numeri, 13-16 lettere, 17-20 misto numeri/lettere, 21-24 cirillico, 25-28 ideogrammi, 29-32 ge'ez.
@@ -12126,7 +12124,7 @@ const INK_POOL = [
   { name:"marrone", css:"#7A3E0C", hue:"arancio" },
   { name:"viola", css:"#6A1FAE", hue:"viola" }
 ];
-const INK_CONFLICTS = [["rosso","marrone"], ["blu","viola"]];
+const INK_CONFLICTS = [["rosso","marrone"], ["blu","viola"], ["marrone","nero"]];
 // Sfondi troppo simili tra loro anche se di famiglie di tinta diverse (segnalato da Rodrigo:
 // "giallino" e "arancione chiaro" si confondono) — stessa logica di INK_CONFLICTS, ma per gli sfondi.
 const FILL_CONFLICTS = [["giallo","arancio chiaro"]];
@@ -12259,41 +12257,49 @@ const ANY_PRED = { plain:"Conta tutti gli elementi.", np:"gli elementi", f:()=>t
 
 // Criteri di posizione. La numerazione è quella "umana" (prima riga = riga 1 = dispari):
 // prima erano usati gli indici da 0 e "pari/dispari" risultava invertito.
-const isFrame = c => c.row===0 || c.row===GRID_ROWS-1 || c.col===0 || c.col===GRID_COLS-1;
 // Ogni opzione ha un peso di difficoltà `w`: 1 = un solo criterio di riga/colonna/bordo; 2 = criterio
 // composto (intersezione riga∩colonna, blocchi, scacchiera, righe/colonne non contigue). Le opzioni
 // con w=2 compaiono solo dal livello 9 (vedi GRID_POS_W2_FROM).
 const GRID_POS_W2_FROM = 9;
-const POS_OPTIONS = [
-  { w:1, text:"nelle righe pari", f:c=>(c.row+1)%2===0 },
-  { w:1, text:"nelle righe dispari", f:c=>(c.row+1)%2===1 },
-  { w:1, text:"nelle colonne pari", f:c=>(c.col+1)%2===0 },
-  { w:1, text:"nelle colonne dispari", f:c=>(c.col+1)%2===1 },
-  { w:1, text:"nelle prime 3 righe", f:c=>c.row<3 },
-  { w:1, text:"nelle ultime 3 righe", f:c=>c.row>=GRID_ROWS-3 },
-  { w:1, text:"nelle prime 2 righe", f:c=>c.row<2 },
-  { w:1, text:"nelle ultime 2 righe", f:c=>c.row>=GRID_ROWS-2 },
-  { w:1, text:"nelle prime 4 colonne", f:c=>c.col<4 },
-  { w:1, text:"nelle ultime 4 colonne", f:c=>c.col>=GRID_COLS-4 },
-  { w:1, text:"nelle prime 3 colonne", f:c=>c.col<3 },
-  { w:1, text:"nelle ultime 3 colonne", f:c=>c.col>=GRID_COLS-3 },
-  { w:1, text:"nelle righe centrali (2–4)", f:c=>c.row>=1 && c.row<=3 },
-  { w:1, text:"nelle colonne centrali (3–5)", f:c=>c.col>=2 && c.col<=4 },
-  { w:1, text:"sulla cornice della griglia (righe e colonne esterne)", f:c=>isFrame(c) },
-  { w:1, text:"nelle celle interne (non sulla cornice)", f:c=>!isFrame(c) },
-  { w:2, text:"nelle celle in riga dispari e colonna dispari", f:c=>(c.row+1)%2===1 && (c.col+1)%2===1 },
-  { w:2, text:"nelle celle in riga dispari e colonna pari", f:c=>(c.row+1)%2===1 && (c.col+1)%2===0 },
-  { w:2, text:"nelle celle in riga pari e colonna dispari", f:c=>(c.row+1)%2===0 && (c.col+1)%2===1 },
-  { w:2, text:"nelle celle in riga pari e colonna pari", f:c=>(c.row+1)%2===0 && (c.col+1)%2===0 },
-  { w:2, text:"nel blocco in alto a sinistra (righe 1–3, colonne 1–4)", f:c=>c.row<3 && c.col<4 },
-  { w:2, text:"nel blocco in alto a destra (righe 1–3, colonne 4–7)", f:c=>c.row<3 && c.col>=GRID_COLS-4 },
-  { w:2, text:"nel blocco in basso a sinistra (righe 3–5, colonne 1–4)", f:c=>c.row>=GRID_ROWS-3 && c.col<4 },
-  { w:2, text:"nel blocco in basso a destra (righe 3–5, colonne 4–7)", f:c=>c.row>=GRID_ROWS-3 && c.col>=GRID_COLS-4 },
-  { w:2, text:"nella prima e nell'ultima riga (righe 1 e 5)", f:c=>c.row===0 || c.row===GRID_ROWS-1 },
-  { w:2, text:"nelle colonne 1, 4 e 7", f:c=>c.col===0 || c.col===3 || c.col===GRID_COLS-1 },
-  { w:2, text:"nelle celle a scacchiera dello stesso tipo dell'angolo in alto a sinistra", f:c=>(c.row+c.col)%2===0 },
-  { w:2, text:"nelle celle a scacchiera opposte all'angolo in alto a sinistra", f:c=>(c.row+c.col)%2===1 }
-];
+// Testi e filtri di posizione si ricalcolano sulle dimensioni EFFETTIVE della griglia di questa
+// sessione (righe/colonne crescono col livello, vedi gridRowsForLevel/gridColsForLevel): prima
+// erano scritti per una 5×7 fissa (es. "colonne 1, 4 e 7"), ora restano corretti a ogni dimensione.
+function buildPosOptions(rows, cols){
+  const isFrame = c => c.row===0 || c.row===rows-1 || c.col===0 || c.col===cols-1;
+  const rMid = Math.floor((rows-3)/2), cMid = Math.floor((cols-3)/2);       // per le fasce "centrali"
+  const rowSpan = Math.ceil((rows+1)/2), colSpan = Math.ceil((cols+1)/2);   // per i blocchi (si sovrappongono di una riga/colonna in mezzo, come nell'originale 5×7)
+  const colMid = Math.ceil((cols+1)/2);                                    // colonna centrale per "colonne 1, mid e ultima"
+  return [
+    { w:1, text:"nelle righe pari", f:c=>(c.row+1)%2===0 },
+    { w:1, text:"nelle righe dispari", f:c=>(c.row+1)%2===1 },
+    { w:1, text:"nelle colonne pari", f:c=>(c.col+1)%2===0 },
+    { w:1, text:"nelle colonne dispari", f:c=>(c.col+1)%2===1 },
+    { w:1, text:"nelle prime 3 righe", f:c=>c.row<3 },
+    { w:1, text:"nelle ultime 3 righe", f:c=>c.row>=rows-3 },
+    { w:1, text:"nelle prime 2 righe", f:c=>c.row<2 },
+    { w:1, text:"nelle ultime 2 righe", f:c=>c.row>=rows-2 },
+    { w:1, text:"nelle prime 4 colonne", f:c=>c.col<4 },
+    { w:1, text:"nelle ultime 4 colonne", f:c=>c.col>=cols-4 },
+    { w:1, text:"nelle prime 3 colonne", f:c=>c.col<3 },
+    { w:1, text:"nelle ultime 3 colonne", f:c=>c.col>=cols-3 },
+    { w:1, text:`nelle righe centrali (${rMid+1}–${rMid+3})`, f:c=>c.row>=rMid && c.row<=rMid+2 },
+    { w:1, text:`nelle colonne centrali (${cMid+1}–${cMid+3})`, f:c=>c.col>=cMid && c.col<=cMid+2 },
+    { w:1, text:"sulla cornice della griglia (righe e colonne esterne)", f:c=>isFrame(c) },
+    { w:1, text:"nelle celle interne (non sulla cornice)", f:c=>!isFrame(c) },
+    { w:2, text:"nelle celle in riga dispari e colonna dispari", f:c=>(c.row+1)%2===1 && (c.col+1)%2===1 },
+    { w:2, text:"nelle celle in riga dispari e colonna pari", f:c=>(c.row+1)%2===1 && (c.col+1)%2===0 },
+    { w:2, text:"nelle celle in riga pari e colonna dispari", f:c=>(c.row+1)%2===0 && (c.col+1)%2===1 },
+    { w:2, text:"nelle celle in riga pari e colonna pari", f:c=>(c.row+1)%2===0 && (c.col+1)%2===0 },
+    { w:2, text:`nel blocco in alto a sinistra (righe 1–${rowSpan}, colonne 1–${colSpan})`, f:c=>c.row<rowSpan && c.col<colSpan },
+    { w:2, text:`nel blocco in alto a destra (righe 1–${rowSpan}, colonne ${cols-colSpan+1}–${cols})`, f:c=>c.row<rowSpan && c.col>=cols-colSpan },
+    { w:2, text:`nel blocco in basso a sinistra (righe ${rows-rowSpan+1}–${rows}, colonne 1–${colSpan})`, f:c=>c.row>=rows-rowSpan && c.col<colSpan },
+    { w:2, text:`nel blocco in basso a destra (righe ${rows-rowSpan+1}–${rows}, colonne ${cols-colSpan+1}–${cols})`, f:c=>c.row>=rows-rowSpan && c.col>=cols-colSpan },
+    { w:2, text:`nella prima e nell'ultima riga (righe 1 e ${rows})`, f:c=>c.row===0 || c.row===rows-1 },
+    { w:2, text:`nelle colonne 1, ${colMid} e ${cols}`, f:c=>c.col===0 || c.col===colMid-1 || c.col===cols-1 },
+    { w:2, text:"nelle celle a scacchiera dello stesso tipo dell'angolo in alto a sinistra", f:c=>(c.row+c.col)%2===0 },
+    { w:2, text:"nelle celle a scacchiera opposte all'angolo in alto a sinistra", f:c=>(c.row+c.col)%2===1 }
+  ];
+}
 
 // Un criterio è descritto da una "specifica": gruppo di simboli (uno, due in alternativa
 // "«A» o «B»", oppure una proprietà della famiglia) + vincoli su sfondo / bordo (colore e stile:
@@ -12312,10 +12318,6 @@ function specToRule(sp){
     if(sp.size && !inList(sp.size, c.size)) return false;
     if(sp.pos && !sp.pos.f(c)) return false;
     if(sp.adj && !c.nb.some(n => (sp.adj.kind==="fill" ? n.fill : n.border) === sp.adj.name)) return false;
-    if(sp.rel){
-      const nx = sp.rel==="destra" ? c.right : c.below;
-      if(!nx || nx.sym !== c.sym) return false;
-    }
     if(sp.notFill && inList(sp.notFill, c.fill)) return false;
     if(sp.notBorder && inList(sp.notBorder, c.border)) return false;
     if(sp.notInk && inList(sp.notInk, c.symColor)) return false;
@@ -12323,7 +12325,7 @@ function specToRule(sp){
   };
   const or = list => list.join(" o ");
   const clauses = (sp.fill?1:0) + (sp.border?1:0) + (sp.ink?1:0) + (sp.bstyle?1:0) + (sp.size?1:0) + (sp.pos?1:0)
-                + (sp.adj?1:0) + (sp.rel?1:0) + (sp.notFill||sp.notBorder||sp.notInk ? 1 : 0);
+                + (sp.adj?1:0) + (sp.notFill||sp.notBorder||sp.notInk ? 1 : 0);
   let text;
   if(clauses===0 && sp.pred) text = sp.pred.plain;
   else {
@@ -12336,7 +12338,6 @@ function specToRule(sp){
     if(withs.length) text += " con " + (withs.length===1 ? withs[0] : withs.slice(0,-1).join(", ") + " e " + withs[withs.length-1]);
     if(sp.pos) text += `, ${sp.pos.text}`;
     if(sp.adj) text += `, adiacenti a una cella con ${sp.adj.kind==="fill" ? "sfondo" : "bordo"} ${sp.adj.name}`;
-    if(sp.rel) text += `, identici al simbolo subito ${sp.rel==="destra" ? "a destra" : "sotto"}`;
     const negs = [];
     if(sp.notFill) negs.push(`non con sfondo ${or(sp.notFill)}`);
     if(sp.notBorder) negs.push(`non con bordo ${or(sp.notBorder)}`);
@@ -12350,11 +12351,11 @@ function specToRule(sp){
   // 0 → gradino 1 … 4+ → gradino 5.
   const lists = [sp.fill, sp.border, sp.ink, sp.bstyle, sp.size].filter(Boolean);
   const score = (sp.syms && sp.syms.length>1 ? 1 : 0) + lists.length + lists.filter(l=>l.length>1).length
-              + (sp.pos ? (sp.pos.w||1) : 0) + (sp.adj?2:0) + (sp.rel?2:0) + ((sp.notFill||sp.notBorder||sp.notInk) ? 2 : 0);
+              + (sp.pos ? (sp.pos.w||1) : 0) + (sp.adj?2:0) + ((sp.notFill||sp.notBorder||sp.notInk) ? 2 : 0);
   // Tipo di regola, per mescolare in modo uniforme: 'pos' = usa un criterio di POSIZIONE (righe, colonne,
-  // cornice, blocchi…); 'rel' = relazione con le celle vicine (adiacenza, identico al vicino); 'stim' =
+  // cornice, blocchi…); 'rel' = relazione con le celle vicine (adiacenza a uno sfondo/bordo); 'stim' =
   // solo caratteristiche degli STIMOLI (simbolo, sfondo, bordo, colore e dimensione del simbolo).
-  const kind = sp.pos ? "pos" : ((sp.adj || sp.rel) ? "rel" : "stim");
+  const kind = sp.pos ? "pos" : (sp.adj ? "rel" : "stim");
   return { text, matches, tier: Math.min(5, score+1), kind };
 }
 
@@ -12385,21 +12386,23 @@ function sampleSpec(symbols, famPreds, F, B, I, feat){
     // mescolare in modo uniforme regole sugli stimoli e regole sulla posizione.
     if(Math.random()<0.5) feats.push("pos");
     else {
-      const opts = ["fill","fill","border","border","ink","ink"];   // sfondo, bordo, colore del simbolo: peso uguale
+      // sfondo e bordo pesano più del colore del simbolo (segnalato di nuovo da Rodrigo:
+      // "non usi ancora abbastanza i colori degli sfondi e dei bordi") — sono i colori che il
+      // paziente vede meglio, a differenza del colore del tratto sottile del simbolo stesso.
+      const opts = ["fill","fill","fill","border","border","border","ink"];
       if(feat.sizes) opts.push("size","size");                       // dimensione del simbolo (dal livello 3)
       if(feat.bStyles) opts.push("bstyle");                          // stile del bordo (dal livello 5)
       feats.push(pick(opts));
     }
   } else {
-  if(Math.random()<0.55) feats.push("fill");
-  if(Math.random()<0.50) feats.push("border");
-  if(Math.random()<0.40) feats.push("ink");
+  if(Math.random()<0.65) feats.push("fill");
+  if(Math.random()<0.60) feats.push("border");
+  if(Math.random()<0.30) feats.push("ink");
   if(Math.random()<0.50) feats.push("pos");
   if(Math.random()<0.25) feats.push("neg");
   if(feat.bStyles && Math.random()<0.30) feats.push("bstyle");
   if(feat.sizes && Math.random()<0.35) feats.push("size");
   if(Math.random()<0.10) feats.push("adj");
-  if(Math.random()<0.20) feats.push("rel");
   }
   const nOf = pool => pickN(pool, (!simple && Math.random()<0.35) ? 2 : 1).map(c=>c.name);
   if(feats.includes("fill")) sp.fill = nOf(F);
@@ -12412,10 +12415,9 @@ function sampleSpec(symbols, famPreds, F, B, I, feat){
     const useFill = Math.random()<0.5;
     sp.adj = { kind: useFill ? "fill" : "border", name: pick(useFill ? F : B).name };
   }
-  if(feats.includes("rel")) sp.rel = Math.random()<0.5 ? "destra" : "sotto";
-  if(sp.pred===ANY_PRED && !sp.adj && !sp.rel){
-    if(Math.random()<0.5) sp.rel = Math.random()<0.5 ? "destra" : "sotto";
-    else { const useFill = Math.random()<0.5; sp.adj = { kind: useFill ? "fill" : "border", name: pick(useFill ? F : B).name }; }
+  if(sp.pred===ANY_PRED && !sp.adj){
+    const useFill = Math.random()<0.5;
+    sp.adj = { kind: useFill ? "fill" : "border", name: pick(useFill ? F : B).name };
   }
   // (adiacenza e negazione nella stessa regola non si combinano: troppo pesante da applicare)
   if(feats.includes("neg") && !sp.adj){
@@ -12440,14 +12442,14 @@ const BORDER_STYLE_POOL = [{name:"continuo"}, {name:"tratteggiato"}, {name:"punt
 // SEMPRE agganciata a un simbolo (o a una proprietà della famiglia): mai "conta gli sfondi
 // gialli" da solo, che non dipenderebbe dal materiale. Unica eccezione: i criteri relazionali
 // (adiacenza, identico al vicino), che dipendono comunque dalla disposizione dei simboli.
-function buildGridAttempt(symbols, level){
-  const n = GRID_ROWS*GRID_COLS;
-  const cells = Array.from({length:n}, (_,i)=>({ row:Math.floor(i/GRID_COLS), col:i%GRID_COLS }));
+function buildGridAttempt(symbols, level, effLevel, rows, cols){
+  const n = rows*cols;
+  const cells = Array.from({length:n}, (_,i)=>({ row:Math.floor(i/cols), col:i%cols }));
   const allIdx = cells.map((_,i)=>i);
   cells.forEach((c,i)=>{
-    c.right = c.col < GRID_COLS-1 ? cells[i+1] : null;
-    c.below = c.row < GRID_ROWS-1 ? cells[i+GRID_COLS] : null;
-    c.nb = [c.right, c.below, c.col>0 ? cells[i-1] : null, c.row>0 ? cells[i-GRID_COLS] : null].filter(Boolean);
+    c.right = c.col < cols-1 ? cells[i+1] : null;
+    c.below = c.row < rows-1 ? cells[i+cols] : null;
+    c.nb = [c.right, c.below, c.col>0 ? cells[i-1] : null, c.row>0 ? cells[i-cols] : null].filter(Boolean);
   });
 
   // 1) SIMBOLI — gruppi di dimensione variabile tra 4 e 14 (non più bilanciati).
@@ -12469,15 +12471,17 @@ function buildGridAttempt(symbols, level){
   // 2b) ATTRIBUTI EXTRA, in funzione del livello (32 livelli): dimensione del simbolo (grande/piccolo)
   //     dal livello 3; stile del bordo dal livello 5 (continuo/tratteggiato; dal 17 anche puntinato).
   //     Criteri di posizione composti (blocchi, intersezioni, scacchiera) dal livello GRID_POS_W2_FROM.
-  const feat = { bStyles:null, sizes:null, posOptions: POS_OPTIONS.filter(o => o.w===1 || level>=GRID_POS_W2_FROM) };
-  if(level>=3){
+  // Attributi extra e opzioni di posizione: gradiscono in base al livello EFFETTIVO (vedi
+  // tierEffectiveLevel), non al livello a video — stesso motivo delle quote di gradino più sotto.
+  const feat = { bStyles:null, sizes:null, posOptions: buildPosOptions(rows, cols).filter(o => o.w===1 || effLevel>=GRID_POS_W2_FROM) };
+  if(effLevel>=3){
     assignBinary(cells, allIdx, ["grande","piccolo"], "size");
     feat.sizes = ["grande","piccolo"];
   }
-  if(level>=17){
+  if(effLevel>=17){
     assignAttribute(cells, allIdx, BORDER_STYLE_POOL, "bStyle", 3);
     feat.bStyles = BORDER_STYLE_POOL.map(x=>x.name);
-  } else if(level>=5){
+  } else if(effLevel>=5){
     assignBinary(cells, allIdx, ["continuo","tratteggiato"], "bStyle");
     feat.bStyles = ["continuo","tratteggiato"];
   }
@@ -12510,6 +12514,11 @@ function buildGridAttempt(symbols, level){
 // (Gradino 5 abolito su richiesta di Rodrigo.)
 const GRID_QUOTA_START = [2, 5, 2, 1];   // livello 1
 const GRID_QUOTA_END   = [0, 3, 3, 4];   // livello 32
+const GRID_READABILITY_DELTA = { shapes:3, arrows:2, digits:4, letters:4, mixed:2, cyrillic:-3, cjk:-5, geez:-5 };
+function tierEffectiveLevel(level, category){
+  const delta = GRID_READABILITY_DELTA[category] || 0;
+  return Math.max(1, Math.min(MAX_LEVEL, level + delta));
+}
 function tierQuotaForLevel(level, u){
   // `u` (0..1): soglia di arrotondamento. Senza `u` arrotonda al più vicino (versione deterministica, usata
   // per le note di livello). Nella generazione di una griglia `u` è casuale: così il valore ATTESO della
@@ -12590,15 +12599,19 @@ function selectRules(evaluated, level, quotaIn){
   return out;
 }
 
-function genOneGrid(symbols, level){
+function genOneGrid(symbols, level, category, rows, cols){
   // Più tentativi, tenendo il migliore: prima chi riempie meglio le quote di gradino del
-  // livello, poi chi ha più conteggi diversi tra loro.
-  const quota = tierQuotaForLevel(level, Math.random());
+  // livello, poi chi ha più conteggi diversi tra loro. La COMBINATORIA (quote, attributi extra,
+  // regole relazionali) segue il livello EFFETTIVO, calibrato sulla leggibilità della categoria
+  // per un lettore italiano (vedi tierEffectiveLevel) — la dimensione della griglia (rows/cols)
+  // segue invece sempre il livello vero, uguale per tutte le categorie.
+  const effLevel = tierEffectiveLevel(level, category);
+  const quota = tierQuotaForLevel(effLevel, Math.random());
   const total = [1,2,3,4,5].reduce((a,t)=>a+quota[t],0);
   let best = null, bestScore = -1;
   for(let attempt=0; attempt<60; attempt++){
-    const { cells, evaluated } = buildGridAttempt(symbols, level);
-    const chosen = selectRules(evaluated, level, quota);
+    const { cells, evaluated } = buildGridAttempt(symbols, level, effLevel, rows, cols);
+    const chosen = selectRules(evaluated, effLevel, quota);
     const perTier = {1:0,2:0,3:0,4:0,5:0};
     chosen.forEach(r=>perTier[r.tier]++);
     const filled = [1,2,3,4,5].reduce((a,t)=>a+Math.min(perTier[t], quota[t]),0);
@@ -12627,19 +12640,20 @@ function genGriglie(level, excludeKeys){
   } else {
     symbols = fam.pool;
   }
+  const rows = gridRowsForLevel(level), cols = gridColsForLevel(level);
 
   // Una sola griglia per sessione, con tutte le regole valide (fino a 10) selezionabili
   // una alla volta — come nei materiali originali: non più griglie diverse, ma varianti
   // di regola sulla stessa griglia.
   const N_GRIDS = 1;
   const slides = Array.from({length:N_GRIDS}, ()=>{
-    const {cells, rules} = genOneGrid(symbols, level);
-    return { cells, rows:GRID_ROWS, cols:GRID_COLS, rules, ruleIndex:0 };
+    const {cells, rules} = genOneGrid(symbols, level, fam.category, rows, cols);
+    return { cells, rows, cols, rules, ruleIndex:0 };
   });
 
   return {
     type:"griglie",
-    rows:GRID_ROWS, cols:GRID_COLS,
+    rows, cols,
     slides,
     historyKeys: ctx.newKeys
   };
@@ -12810,12 +12824,28 @@ function buildIntrusoScreen(family, len, targetN, level, ctx){
     answer: `Posizione ${oddIndex+1}: «${items[oddIndex]}»`
   };
 }
-function lenForLevelIntruso(level){
-  // Il passaggio a coppie al livello 2 rendeva il livello 3 già troppo difficile (segnalato di nuovo
-  // da Rodrigo): spostato più avanti (coppie dal 6, terne dal 24) ora che i 32 livelli danno spazio
-  // per distribuirlo con calma, invece di comprimerlo nei primissimi livelli come prima.
-  // Tetto a 3: sequenze più lunghe non aggiungono discriminabilità utile, solo fatica di lettura.
-  return level<=5 ? 1 : (level<=23 ? 2 : 3);
+// Le famiglie testuali NON sono tutte uguali (segnalato da Rodrigo): le cifre (10 simboli, molto
+// familiari) reggono le coppie presto, un alfabeto enorme e poco familiare come il ge'ez (60
+// simboli) ne ha bisogno molto più avanti. Quanto più il pool è ampio, tanto più a lungo la
+// famiglia resta a SINGOLO simbolo prima di passare a coppie e poi terne.
+function textFamilyWarmup(poolSize){
+  if(poolSize<=12) return {pair:6, triple:22};    // cifre, numeri romani
+  if(poolSize<=20) return {pair:8, triple:24};    // minuscole, maiuscole+minuscole, cirillico arcaico
+  if(poolSize<=28) return {pair:9, triple:26};    // lettere, ebraico, greco, devanagari
+  if(poolSize<=40) return {pair:11, triple:99};   // cirillico, armeno, thai: pool ampi, mai terne
+  return {pair:13, triple:99};                    // katakana, hiragana, canadese, ge'ez: pool grandissimi, mai terne
+}
+// Lunghezza dell'elemento per UNA famiglia testuale, a un dato livello. Il conteggio dei livelli
+// di "rodaggio" in singolo parte da QUANDO LA FAMIGLIA SI SBLOCCA (family.unlockLevel), non dal
+// livello assoluto: così anche una famiglia sbloccata tardi (es. il thai al livello 13) ha comunque
+// i propri livelli in singolo prima di passare a coppie, invece di uscire già in coppia alla prima
+// comparsa solo perché il livello assoluto era già oltre la soglia generica.
+// Tetto a 3: sequenze più lunghe non aggiungono discriminabilità utile, solo fatica di lettura.
+function lenForFamily(family, level){
+  const w = textFamilyWarmup(family.pool.length);
+  const pairFrom = family.unlockLevel + w.pair;
+  const tripleFrom = family.unlockLevel + w.triple;
+  return level < pairFrom ? 1 : (level < tripleFrom ? 2 : 3);
 }
 function targetNForLevelIntruso(level, isAtomic, len){
   // Più elementi = più confronti per isolare l'unico singolo. Partenza più alta di prima (18 testo / 21
@@ -12864,11 +12894,10 @@ function genIntruso(level, excludeKeys){
   } else {
     fams = levelFamiliesIntruso(level, count, ctx);
   }
-  const len = lenForLevelIntruso(level);
   const slides = fams
     .map(fam=>{
       const isAtomic = INTRUSO_ATOMIC_FAMILIES.includes(fam);
-      const famLen = isAtomic ? intrusoLenFor(fam, level, 1) : len;
+      const famLen = isAtomic ? intrusoLenFor(fam, level, 1) : lenForFamily(fam, level);
       const targetN = niceIntrusoCount(targetNForLevelIntruso(level, isAtomic, famLen), 1333, 500, intrusoMaxItems(fam.id, famLen));
       return buildIntrusoScreen(fam, famLen, targetN, level, ctx);
     })
@@ -13233,16 +13262,22 @@ function levelNote(exId, level){
   switch(exId){
     case "griglie": {
       const cat = GRID_CATEGORY_BY_LEVEL[level], sub = (level-1)%4 + 1;
-      const q = tierQuotaForLevel(level);
+      const rows = gridRowsForLevel(level), cols = gridColsForLevel(level);
+      const effLevel = tierEffectiveLevel(level, cat);
+      const q = tierQuotaForLevel(effLevel);
       const extra = [];
-      if(level>=3) extra.push("simbolo grande/piccolo");
-      if(level>=17) extra.push("bordo continuo/tratteggiato/puntinato"); else if(level>=5) extra.push("bordo continuo/tratteggiato");
-      return `${GRID_CATEGORY_LABELS[cat]} (passo ${sub}/4). Mix di regole (indicativo): ${q[1]} sul solo simbolo · ${q[2]} con 1 vincolo · ${q[3]} con 2 vincoli · ${q[4]} composte; in ogni griglia circa metà sugli stimoli e metà sulla posizione${level>=GRID_POS_W2_FROM ? " (dal livello 9 anche posizioni composte: blocchi, scacchiera, riga∩colonna)" : ""}.` + (extra.length ? ` Attributi extra: ${extra.join(", ")}.` : "");
+      if(effLevel>=3) extra.push("simbolo grande/piccolo");
+      if(effLevel>=17) extra.push("bordo continuo/tratteggiato/puntinato"); else if(effLevel>=5) extra.push("bordo continuo/tratteggiato");
+      const readNote = effLevel!==level ? ` — combinazioni calibrate come al livello ${effLevel} (${GRID_CATEGORY_LABELS[cat].toLowerCase()} ${effLevel>level ? "è facile da leggere per un lettore italiano" : "è poco familiare per un lettore italiano"})` : "";
+      return `${GRID_CATEGORY_LABELS[cat]} (passo ${sub}/4) — griglia ${rows}×${cols}${readNote}. Mix di regole (indicativo): ${q[1]} sul solo simbolo · ${q[2]} con 1 vincolo · ${q[3]} con 2 vincoli · ${q[4]} composte; in ogni griglia circa metà sugli stimoli e metà sulla posizione${effLevel>=GRID_POS_W2_FROM ? " (posizioni composte incluse: blocchi, scacchiera, riga∩colonna)" : ""}.` + (extra.length ? ` Attributi extra: ${extra.join(", ")}.` : "");
     }
     case "intruso": {
-      const len = lenForLevelIntruso(level);
-      const nT = targetNForLevelIntruso(level, false, len), nA = targetNForLevelIntruso(level, true, 1);
-      const bits = [`${nT} elementi (testo a ${len} car.) / ${nA} (glifi)`];
+      const eligibleText = INTRUSO_TEXT_FAMILIES.filter(f=>f.unlockLevel<=level);
+      const lens = eligibleText.map(f=>lenForFamily(f, level));
+      const lenMin = Math.min(...lens), lenMax = Math.max(...lens);
+      const lenTxt = lenMin===lenMax ? `${lenMin}` : `${lenMin}-${lenMax} a seconda della famiglia`;
+      const nT = targetNForLevelIntruso(level, false, lenMax), nA = targetNForLevelIntruso(level, true, 1);
+      const bits = [`${nT} elementi (testo, ${lenTxt} car.) / ${nA} (glifi)`];
       if(level>=3) bits.push(`tipi «quasi uguali» nel ${Math.round(Math.min(1,(level-2)/30)*100)}% dei testi`);
       const newFam = INTRUSO_ALL_FAMILIES.filter(f=>f.unlockLevel===level).map(f=>f.label);
       const extra = [];
@@ -14313,7 +14348,8 @@ function exportGriglie(deck, level){
     slide.addNotes(`Regole valide su questa griglia (semplice → complessa):\n${groupedLines.join("\n")}`);
 
     // Cerchi (non rettangoli) dimensionati per riempire la slide 10x7.5" quasi per intero:
-    // il passo è il massimo che entra su entrambi gli assi (griglia GRID_ROWSxGRID_COLS),
+    // il passo è il massimo che entra su entrambi gli assi (dimensione EFFETTIVA di questa
+    // griglia, s.rows×s.cols — cresce col livello, vedi gridRowsForLevel/gridColsForLevel),
     // il diametro è il 96% del passo (margine minimo, cerchi quasi a contatto).
     const cols = s.cols, rows = s.rows;
     const PITCH = Math.min(SLIDE_W/cols, SLIDE_H/rows);
