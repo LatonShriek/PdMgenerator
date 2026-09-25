@@ -11541,12 +11541,7 @@ async function resolveTrialImages(trial) {
    funziona esattamente come prima, solo senza memoria tra un dispositivo e l'altro.
    ========================================================= */
 const firebaseConfig = {
- apiKey: "AIzaSyCEFMdVHdANv1PsVlb-Wo65JHe4IKMtk3o",
-    authDomain: "pdmgenerator.firebaseapp.com",
-    projectId: "pdmgenerator",
-    storageBucket: "pdmgenerator.firebasestorage.app",
-    messagingSenderId: "203067967755",
-    appId: "1:203067967755:web:6ec8266c59798c852e3a0e"
+  // apiKey: "...", authDomain: "...", projectId: "...", ...
 };
 
 let sharedHistoryReady = false;
@@ -12046,9 +12041,13 @@ function exportFileName(exId, level, ext){
 // La difficoltà non passa mai dalla dimensione/numerosità della griglia — solo dal tipo di
 // simbolo (asse 1) e dalla complessità/varietà delle regole disponibili (asse 2).
 // Dimensione della griglia in funzione del livello (numerosità di stimoli, righe e colonne
-// crescenti — segnalato da Rodrigo): 5×7 (livelli 1-8) → 6×8 (9-16) → 7×9 (17-24) → 8×10 (25-32).
-function gridRowsForLevel(level){ return level<=8 ? 5 : level<=16 ? 6 : level<=24 ? 7 : 8; }
-function gridColsForLevel(level){ return level<=8 ? 7 : level<=16 ? 8 : level<=24 ? 9 : 10; }
+// crescenti — segnalato da Rodrigo): 5×7 (livelli 1-11, invariato) → 6×8 (12-22, -12,5% di area
+// per cerchio) → 6×9 (23-32, -22%). Crescita più contenuta della prima versione (fino a 8×10,
+// -34%): l'area della slide/pagina è fissa, quindi più celle vuol dire per forza cerchi più
+// piccoli — qui non si va mai oltre un quarto in meno rispetto all'originale (segnalato di nuovo
+// da Rodrigo: leggibilità).
+function gridRowsForLevel(level){ return level<=11 ? 5 : 6; }
+function gridColsForLevel(level){ return level<=11 ? 7 : level<=22 ? 8 : 9; }
 
 // Categoria di simboli per fascia di livello (4 livelli per categoria, 1-32): 1-4 forme, 5-8 frecce,
 // 9-12 numeri, 13-16 lettere, 17-20 misto numeri/lettere, 21-24 cirillico, 25-28 ideogrammi, 29-32 ge'ez.
@@ -12852,12 +12851,25 @@ function lenForFamily(family, level){
   const tripleFrom = family.unlockLevel + w.triple;
   return level < pairFrom ? 1 : (level < tripleFrom ? 2 : 3);
 }
-function targetNForLevelIntruso(level, isAtomic, len){
+// Quanto velocemente cresce il numero di elementi per livello, in base all'ampiezza del pool: un
+// pool piccolo e familiare (es. le 10 cifre) regge una crescita rapida; uno grande e poco
+// familiare (es. braille, ge'ez, ideogrammi) ne regge una più lenta, perché ogni confronto in più
+// costa già di suo molto più fatica visiva — stessa suddivisione di textFamilyWarmup.
+function targetNGrowthRate(poolSize){
+  if(poolSize<=12) return 1.0;
+  if(poolSize<=20) return 0.8;
+  if(poolSize<=28) return 0.65;
+  if(poolSize<=40) return 0.5;
+  return 0.35;
+}
+function targetNForLevelIntruso(level, isAtomic, len, poolSize){
   // Più elementi = più confronti per isolare l'unico singolo. Partenza più alta di prima (18 testo / 21
-  // glifi, prima 15 / 18); poi +1 elemento ogni 2 livelli (testo) o ogni ~2,7 (glifi) fino a 30
-  // (27 per le terne di caratteri, che sono lunghe da leggere): ogni livello è un po' più impegnativo.
+  // glifi, prima 15 / 18); poi cresce fino a 30 (27 per le terne di caratteri, che sono lunghe da
+  // leggere), al ritmo di targetNGrowthRate — un livello in più è un po' più impegnativo, ma di
+  // meno per le famiglie già difficili da leggere per conto loro.
   const base = isAtomic ? 21 : 18;
-  const grown = isAtomic ? Math.floor((level-1)*3/8) : Math.floor((level-1)/2);
+  const rate = targetNGrowthRate(poolSize==null ? (isAtomic?12:10) : poolSize);
+  const grown = Math.floor((isAtomic ? (level-1)*3/8 : (level-1)/2) * rate);
   const cap = (!isAtomic && len>=3) ? 27 : 30;
   return Math.min(base + grown, cap);
 }
@@ -12903,7 +12915,7 @@ function genIntruso(level, excludeKeys){
     .map(fam=>{
       const isAtomic = INTRUSO_ATOMIC_FAMILIES.includes(fam);
       const famLen = isAtomic ? intrusoLenFor(fam, level, 1) : lenForFamily(fam, level);
-      const targetN = niceIntrusoCount(targetNForLevelIntruso(level, isAtomic, famLen), 1333, 500, intrusoMaxItems(fam.id, famLen));
+      const targetN = niceIntrusoCount(targetNForLevelIntruso(level, isAtomic, famLen, fam.pool.length), 1333, 500, intrusoMaxItems(fam.id, famLen));
       return buildIntrusoScreen(fam, famLen, targetN, level, ctx);
     })
     .filter(Boolean);
@@ -13278,11 +13290,14 @@ function levelNote(exId, level){
     }
     case "intruso": {
       const eligibleText = INTRUSO_TEXT_FAMILIES.filter(f=>f.unlockLevel<=level);
+      const eligibleAtomic = INTRUSO_ATOMIC_FAMILIES.filter(f=>f.unlockLevel<=level);
       const lens = eligibleText.map(f=>lenForFamily(f, level));
       const lenMin = Math.min(...lens), lenMax = Math.max(...lens);
       const lenTxt = lenMin===lenMax ? `${lenMin}` : `${lenMin}-${lenMax} a seconda della famiglia`;
-      const nT = targetNForLevelIntruso(level, false, lenMax), nA = targetNForLevelIntruso(level, true, 1);
-      const bits = [`${nT} elementi (testo, ${lenTxt} car.) / ${nA} (glifi)`];
+      const range = arr => { const lo = Math.min(...arr), hi = Math.max(...arr); return lo===hi ? `${lo}` : `${lo}-${hi}`; };
+      const nTTxt = range(eligibleText.map(f=>targetNForLevelIntruso(level, false, lenForFamily(f, level), f.pool.length)));
+      const nATxt = range(eligibleAtomic.map(f=>targetNForLevelIntruso(level, true, 1, f.pool.length)));
+      const bits = [`${nTTxt} elementi (testo, ${lenTxt} car.) / ${nATxt} (glifi) — a seconda di quanto la famiglia è ampia/familiare`];
       if(level>=3) bits.push(`tipi «quasi uguali» nel ${Math.round(Math.min(1,(level-2)/30)*100)}% dei testi`);
       const newFam = INTRUSO_ALL_FAMILIES.filter(f=>f.unlockLevel===level).map(f=>f.label);
       const extra = [];
