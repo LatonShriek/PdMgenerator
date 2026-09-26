@@ -11541,12 +11541,7 @@ async function resolveTrialImages(trial) {
    funziona esattamente come prima, solo senza memoria tra un dispositivo e l'altro.
    ========================================================= */
 const firebaseConfig = {
-  apiKey: "AIzaSyCEFMdVHdANv1PsVlb-Wo65JHe4IKMtk3o",
-    authDomain: "pdmgenerator.firebaseapp.com",
-    projectId: "pdmgenerator",
-    storageBucket: "pdmgenerator.firebasestorage.app",
-    messagingSenderId: "203067967755",
-    appId: "1:203067967755:web:6ec8266c59798c852e3a0e"
+  // apiKey: "...", authDomain: "...", projectId: "...", ...
 };
 
 let sharedHistoryReady = false;
@@ -12797,6 +12792,19 @@ const INTRUSO_ATOMIC_FAMILIES = [
 ];
 const INTRUSO_ALL_FAMILIES = [...INTRUSO_TEXT_FAMILIES, ...INTRUSO_ATOMIC_FAMILIES];
 
+// Curva di difficoltà di Intruso percettivo, ricalibrata perché ai livelli bassi/medi (segnalato
+// da Rodrigo: il livello 4 risultava molto facile) risultava troppo pianeggiante: quasi tutte le
+// famiglie restavano a singolo simbolo, pochi elementi, tipi ben distinti per parecchi livelli
+// prima che rodaggio/pool/quantità iniziassero a incidere. Con questa mappa concava (esponente <1)
+// la stessa progressione raggiunge un dato grado di difficoltà un po' prima: i livelli bassi e medi
+// diventano più sfidanti, mentre il livello 1 resta il più facile di tutti e il livello 32 resta il
+// tetto massimo di prima (nessuna esagerazione in cima alla scala) — sposta il gradiente verso
+// l'inizio senza cambiarne l'ampiezza complessiva. Usata SOLO per Intruso: non toglie nulla a
+// levelT(), che resta la curva lineare condivisa dagli altri esercizi.
+const INTRUSO_LEVEL_EASE = 0.75;
+function intrusoLevelT(level){ return Math.pow(levelT(level), INTRUSO_LEVEL_EASE); }
+function intrusoEffLevel(level){ return 1 + intrusoLevelT(level) * (MAX_LEVEL - 1); }
+
 function distinctIntrusoTypes(pool, len, k, avoid){
   if(len===1) return pickN(pool, Math.min(k,pool.length));
   const set = new Set();
@@ -12836,15 +12844,18 @@ function similarIntrusoTypes(pool, len, k){
 }
 // Pool effettivo di una famiglia a un dato livello (allargato per le famiglie `small`).
 function intrusoPoolFor(family, level){
-  if(family.small && family.extra && level>=family.extraFrom) return family.pool.concat(family.extra);
+  if(family.small && family.extra && intrusoEffLevel(level)>=family.extraFrom) return family.pool.concat(family.extra);
   return family.pool;
 }
 // Lunghezza dell'elemento: 1 per le famiglie atomiche normali; per quelle `small`, 2 e poi 3
-// simboli dai livelli alti.
+// simboli dai livelli alti. Confrontato sul livello effettivo (vedi intrusoEffLevel): le soglie
+// pairsFrom/triplesFrom restano le stesse dichiarate sulla famiglia, cambia solo quanto in fretta
+// il livello selezionato le raggiunge.
 function intrusoLenFor(family, level, textLen){
   if(!family.small) return textLen;
-  if(level>=family.triplesFrom) return 3;
-  if(level>=family.pairsFrom) return 2;
+  const lvl = intrusoEffLevel(level);
+  if(lvl>=family.triplesFrom) return 3;
+  if(lvl>=family.pairsFrom) return 2;
   return 1;
 }
 function buildIntrusoScreen(family, len, targetN, level, ctx){
@@ -12861,7 +12872,7 @@ function buildIntrusoScreen(family, len, targetN, level, ctx){
   const oKey = t => "O:" + family.id + "|" + t;
   let types;
   if(len===1) types = ctx ? lruOrder(pool, tKey, ctx).slice(0, k) : pickN(pool, Math.min(k, pool.length));
-  else if(family.small || (len>=2 && level>=3 && Math.random() < (level-2)/30)) types = similarIntrusoTypes(pool, len, k);   // dal livello 3, quota crescente (+1/30 a livello) di tipi che differiscono per UN solo carattere (o per l'ordine): al 32 sempre
+  else if(family.small || (len>=2 && intrusoEffLevel(level)>=3 && Math.random() < (intrusoEffLevel(level)-2)/30)) types = similarIntrusoTypes(pool, len, k);   // dal livello effettivo 3, quota crescente (+1/30) di tipi che differiscono per UN solo carattere (o per l'ordine): al 32 sempre
   else types = distinctIntrusoTypes(pool, len, k, ctx ? (c=>ctx.last.has(tKey(c))) : null);
   if(types.length<k) k = types.length;
   if(k<2) return null;
@@ -12905,10 +12916,11 @@ function textFamilyWarmup(poolSize){
 // comparsa solo perché il livello assoluto era già oltre la soglia generica.
 // Tetto a 3: sequenze più lunghe non aggiungono discriminabilità utile, solo fatica di lettura.
 function lenForFamily(family, level){
+  const lvl = intrusoEffLevel(level);
   const w = textFamilyWarmup(family.pool.length);
   const pairFrom = family.unlockLevel + w.pair;
   const tripleFrom = family.unlockLevel + w.triple;
-  return level < pairFrom ? 1 : (level < tripleFrom ? 2 : 3);
+  return lvl < pairFrom ? 1 : (lvl < tripleFrom ? 2 : 3);
 }
 // Quanto velocemente cresce il numero di elementi per livello, in base all'ampiezza del pool: un
 // pool piccolo e familiare (es. le 10 cifre) regge una crescita rapida; uno grande e poco
@@ -12925,10 +12937,12 @@ function targetNForLevelIntruso(level, isAtomic, len, poolSize){
   // Più elementi = più confronti per isolare l'unico singolo. Partenza più alta di prima (18 testo / 21
   // glifi, prima 15 / 18); poi cresce fino a 30 (27 per le terne di caratteri, che sono lunghe da
   // leggere), al ritmo di targetNGrowthRate — un livello in più è un po' più impegnativo, ma di
-  // meno per le famiglie già difficili da leggere per conto loro.
+  // meno per le famiglie già difficili da leggere per conto loro. Cresce sul livello effettivo
+  // (intrusoEffLevel), non su quello nominale: stesso tetto finale, raggiunto un po' prima.
+  const lvl = intrusoEffLevel(level);
   const base = isAtomic ? 21 : 18;
   const rate = targetNGrowthRate(poolSize==null ? (isAtomic?12:10) : poolSize);
-  const grown = Math.floor((isAtomic ? (level-1)*3/8 : (level-1)/2) * rate);
+  const grown = Math.floor((isAtomic ? (lvl-1)*3/8 : (lvl-1)/2) * rate);
   const cap = (!isAtomic && len>=3) ? 27 : 30;
   return Math.min(base + grown, cap);
 }
@@ -12961,7 +12975,7 @@ function intrusoFamilyDifficulty(family, level){
   const familiarityScore = Math.min(1, family.unlockLevel/MAX_LEVEL);
   let similarityScore = 0;
   if(family.small && len>=2) similarityScore = 1; // pool ristretto in coppia/terna: SEMPRE distrattori quasi identici
-  else if(!family.small && len>=2 && level>=3) similarityScore = Math.min(1, (level-2)/30);
+  else if(!family.small && len>=2 && intrusoEffLevel(level)>=3) similarityScore = Math.min(1, (intrusoEffLevel(level)-2)/30);
   const targetN = targetNForLevelIntruso(level, isAtomic, len, family.pool.length);
   const countScore = Math.max(0, Math.min(1, (targetN-18)/12));
   return 0.4*lenScore + 0.3*familiarityScore + 0.2*similarityScore + 0.1*countScore;
@@ -12975,7 +12989,8 @@ function levelFamiliesIntruso(level, count, ctx){
   // così ai livelli con poche famiglie sbloccate la sessione resta comunque piena.
   count = count || 9;
   const eligible = INTRUSO_ALL_FAMILIES.filter(f=>f.unlockLevel<=level);
-  const target = levelT(level);
+  const target = intrusoLevelT(level); // stessa curva concava di intrusoEffLevel: la banda di difficoltà
+  // cercata è quella "spostata avanti", coerente con l'intensità che le famiglie hanno già a questo livello.
   let band = 0.18, pool = [];
   while(pool.length < Math.min(count, eligible.length) && band<=1){
     pool = eligible.filter(f => Math.abs(intrusoFamilyDifficulty(f, level)-target) <= band);
@@ -13393,12 +13408,17 @@ function levelNote(exId, level){
       const nTTxt = range(eligibleText.map(f=>targetNForLevelIntruso(level, false, lenForFamily(f, level), f.pool.length)));
       const nATxt = range(eligibleAtomic.map(f=>targetNForLevelIntruso(level, true, 1, f.pool.length)));
       const bits = [`${nTTxt} elementi (testo, ${lenTxt} car.) / ${nATxt} (glifi) — a seconda di quanto la famiglia è ampia/familiare`];
-      if(level>=3) bits.push(`tipi «quasi uguali» nel ${Math.round(Math.min(1,(level-2)/30)*100)}% dei testi`);
+      const effLevelIntruso = intrusoEffLevel(level);
+      if(effLevelIntruso>=3) bits.push(`tipi «quasi uguali» nel ${Math.round(Math.min(1,(effLevelIntruso-2)/30)*100)}% dei testi`);
       const newFam = INTRUSO_ALL_FAMILIES.filter(f=>f.unlockLevel===level).map(f=>f.label);
+      // "Appena raggiunta questa soglia": confronta il livello effettivo di QUESTO livello con quello del
+      // precedente, perché con la curva concava la soglia (pairsFrom/triplesFrom, fissa) può essere
+      // superata anche senza che level la tocchi esattamente.
+      const prevEffLevelIntruso = level>1 ? intrusoEffLevel(level-1) : -Infinity;
       const extra = [];
       INTRUSO_ATOMIC_FAMILIES.filter(f=>f.small).forEach(f=>{
-        if(f.triplesFrom===level) extra.push(`terne per ${f.label}`);
-        else if(f.pairsFrom===level && level>1) extra.push(`coppie per ${f.label}`);
+        if(effLevelIntruso>=f.triplesFrom && prevEffLevelIntruso<f.triplesFrom) extra.push(`terne per ${f.label}`);
+        else if(effLevelIntruso>=f.pairsFrom && prevEffLevelIntruso<f.pairsFrom && level>1) extra.push(`coppie per ${f.label}`);
       });
       let s = bits.join("; ") + ".";
       if(level===1) s += " Famiglie di partenza: " + newFam.join(", ") + " (glifi singoli).";
