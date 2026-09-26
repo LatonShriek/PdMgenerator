@@ -11541,12 +11541,7 @@ async function resolveTrialImages(trial) {
    funziona esattamente come prima, solo senza memoria tra un dispositivo e l'altro.
    ========================================================= */
 const firebaseConfig = {
-  apiKey: "AIzaSyCEFMdVHdANv1PsVlb-Wo65JHe4IKMtk3o",
-    authDomain: "pdmgenerator.firebaseapp.com",
-    projectId: "pdmgenerator",
-    storageBucket: "pdmgenerator.firebasestorage.app",
-    messagingSenderId: "203067967755",
-    appId: "1:203067967755:web:6ec8266c59798c852e3a0e"
+  // apiKey: "...", authDomain: "...", projectId: "...", ...
 };
 
 let sharedHistoryReady = false;
@@ -12806,7 +12801,7 @@ const INTRUSO_ALL_FAMILIES = [...INTRUSO_TEXT_FAMILIES, ...INTRUSO_ATOMIC_FAMILI
 // tetto massimo di prima (nessuna esagerazione in cima alla scala) — sposta il gradiente verso
 // l'inizio senza cambiarne l'ampiezza complessiva. Usata SOLO per Intruso: non toglie nulla a
 // levelT(), che resta la curva lineare condivisa dagli altri esercizi.
-const INTRUSO_LEVEL_EASE = 0.75;
+const INTRUSO_LEVEL_EASE = 0.6; // era 0.75: ulteriore richiesta di Rodrigo di spostare ancora avanti il gradiente
 function intrusoLevelT(level){ return Math.pow(levelT(level), INTRUSO_LEVEL_EASE); }
 function intrusoEffLevel(level){ return 1 + intrusoLevelT(level) * (MAX_LEVEL - 1); }
 
