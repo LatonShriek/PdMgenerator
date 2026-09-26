@@ -11541,12 +11541,7 @@ async function resolveTrialImages(trial) {
    funziona esattamente come prima, solo senza memoria tra un dispositivo e l'altro.
    ========================================================= */
 const firebaseConfig = {
-  apiKey: "AIzaSyCEFMdVHdANv1PsVlb-Wo65JHe4IKMtk3o",
-    authDomain: "pdmgenerator.firebaseapp.com",
-    projectId: "pdmgenerator",
-    storageBucket: "pdmgenerator.firebasestorage.app",
-    messagingSenderId: "203067967755",
-    appId: "1:203067967755:web:6ec8266c59798c852e3a0e"
+  // apiKey: "...", authDomain: "...", projectId: "...", ...
 };
 
 let sharedHistoryReady = false;
@@ -11755,12 +11750,19 @@ const SERIE_RULES = [
   "Mano dx se A, «No» se B, sx se 1, «Sì» se 2 + 1 No-Go casualmente.",
   "Mano sx se A, «Sì» se B, dx se 1, «No» se 2.",
   "Mano sx se A, «Sì» se B, dx se 1, «No» se 2 + 1 No-Go casualmente.",
-  "Mano dx se lettera nera, No-Go se lettera rossa; sx se numero rosso, No-Go se numero nero.",
-  "Mano sx se lettera nera, No-Go se lettera rossa; «Sì» se numero rosso, No-Go se numero nero.",
+  // Livelli 17-22: riordinati rispetto alla stesura originale (segnalato da Rodrigo — il go/no-go
+  // a 3 uscite sembrava più difficile della mappatura a 4 vie). La regola con inibizione incrociata
+  // (colore E categoria insieme, con No-Go) richiede di leggere due caratteristiche insieme E di
+  // inibire in base a quella combinazione: due carichi nuovi insieme. La regola "OR cross-
+  // dimensionale" richiede di leggere le stesse due caratteristiche insieme ma SENZA inibire mai.
+  // Ora si introduce prima l'incrocio delle due caratteristiche da solo (ex 19-22), poi si aggiunge
+  // l'inibizione sopra un incrocio già padroneggiato (ex 17-18), invece delle due cose insieme.
   "Mano dx se lettera nera o numero rosso; sx se lettera rossa o numero nero.",
   "Mano sx se lettera nera o numero rosso; «Sì» se lettera rossa o numero nero.",
   "Mano dx se lettera rossa o numero nero; «No» se lettera nera o numero rosso.",
   "Mano sx se lettera nera o numero rosso; «No» se lettera rossa o numero nero.",
+  "Mano dx se lettera nera, No-Go se lettera rossa; sx se numero rosso, No-Go se numero nero.",
+  "Mano sx se lettera nera, No-Go se lettera rossa; «Sì» se numero rosso, No-Go se numero nero.",
   "n-1 back: risposta basata sullo stimolo precedente (dx se era nero/lettera, sx se era rosso/numero).",
   "n-1 back: risposta basata sullo stimolo precedente (dx se era nero/lettera, «Sì» se era rosso/numero).",
   // ---- Livelli 25-32: PROPOSTA da validare (estensione della progressione n-back, stessa formulazione dei livelli 23-24) ----
@@ -12202,6 +12204,26 @@ function assignAttribute(cells, allIdx, pool, propName, n){
   });
   return chosen;
 }
+// Sfondo assegnato come sopra, ma riservando un gruppo di celle "vuote" (nessun colore, il cerchio
+// mostra solo il contorno). Prima "pieno/vuoto" esisteva SOLO per la famiglia forme, cambiando il
+// GLIFO stesso (● vs ○): non generalizzabile alle altre famiglie (cifre, lettere, cirillico...).
+// Qui "vuoto" diventa un valore dello SFONDO, indipendente dal simbolo mostrato — vale quindi per
+// QUALUNQUE famiglia (richiesta di Rodrigo). export/exportGriglie non cambia: una cella con
+// fill=null è già disegnata senza sfondo colorato.
+function assignFillWithVoid(cells, allIdx, pool, n){
+  const chosen = pickN(pool, Math.min(n, pool.length));
+  const idx = shuffle(allIdx);
+  const voidCount = 8 + rnd(9); // 8-16 celle su 35 restano vuote (nessuno sfondo)
+  const voidIdx = idx.slice(0, voidCount), rest = idx.slice(voidCount);
+  voidIdx.forEach(i=> cells[i].fill = null);
+  const sizes = weightedComposition(rest.length, chosen.length, 3, 16, Math.min(2, chosen.length));
+  let cursor = 0;
+  chosen.forEach((color,ci)=>{
+    rest.slice(cursor, cursor+sizes[ci]).forEach(i=>{ cells[i].fill = color.name; });
+    cursor += sizes[ci];
+  });
+  return chosen;
+}
 
 // Proprietà "interne" della famiglia di simboli USATA (pari/dispari solo per le cifre,
 // vocale/consonante solo per le lettere, direzione solo per le frecce, pieno/vuoto solo
@@ -12321,6 +12343,8 @@ function specToRule(sp){
   const matches = c => {
     if(sp.pred ? !sp.pred.f(c) : !sp.syms.includes(c.sym)) return false;
     if(sp.fill && !inList(sp.fill, c.fill)) return false;
+    if(sp.fillState==="vuoto" && c.fill) return false;
+    if(sp.fillState==="pieno" && !c.fill) return false;
     if(sp.border && !inList(sp.border, c.border)) return false;
     if(sp.ink && !inList(sp.ink, c.symColor)) return false;
     if(sp.bstyle && !inList(sp.bstyle, c.bStyle)) return false;
@@ -12333,7 +12357,7 @@ function specToRule(sp){
     return true;
   };
   const or = list => list.join(" o ");
-  const clauses = (sp.fill?1:0) + (sp.border?1:0) + (sp.ink?1:0) + (sp.bstyle?1:0) + (sp.size?1:0) + (sp.pos?1:0)
+  const clauses = (sp.fill?1:0) + (sp.fillState?1:0) + (sp.border?1:0) + (sp.ink?1:0) + (sp.bstyle?1:0) + (sp.size?1:0) + (sp.pos?1:0)
                 + (sp.adj?1:0) + (sp.notFill||sp.notBorder||sp.notInk ? 1 : 0);
   let text;
   if(clauses===0 && sp.pred) text = sp.pred.plain;
@@ -12342,6 +12366,7 @@ function specToRule(sp){
     if(sp.ink) text += ` di colore ${or(sp.ink)}`;
     const withs = [];
     if(sp.fill) withs.push(`sfondo ${or(sp.fill)}`);
+    else if(sp.fillState) withs.push(sp.fillState==="vuoto" ? "sfondo vuoto (nessun colore)" : "sfondo pieno (un colore qualsiasi)");
     if(sp.border || sp.bstyle) withs.push("bordo " + [sp.border ? or(sp.border) : null, sp.bstyle ? or(sp.bstyle) : null].filter(Boolean).join(" "));
     if(sp.size) withs.push(`simbolo ${or(sp.size)}`);
     if(withs.length) text += " con " + (withs.length===1 ? withs[0] : withs.slice(0,-1).join(", ") + " e " + withs[withs.length-1]);
@@ -12360,6 +12385,7 @@ function specToRule(sp){
   // 0 → gradino 1 … 4+ → gradino 5.
   const lists = [sp.fill, sp.border, sp.ink, sp.bstyle, sp.size].filter(Boolean);
   const score = (sp.syms && sp.syms.length>1 ? 1 : 0) + lists.length + lists.filter(l=>l.length>1).length
+              + (sp.fillState?1:0)
               + (sp.pos ? (sp.pos.w||1) : 0) + (sp.adj?2:0) + ((sp.notFill||sp.notBorder||sp.notInk) ? 2 : 0);
   // Tipo di regola, per mescolare in modo uniforme: 'pos' = usa un criterio di POSIZIONE (righe, colonne,
   // cornice, blocchi…); 'rel' = relazione con le celle vicine (adiacenza a uno sfondo/bordo); 'stim' =
@@ -12371,7 +12397,7 @@ function specToRule(sp){
 // Estrae a caso una specifica. Il filtro sui conteggi (4-14) è a valle. `feat` elenca gli
 // attributi extra attivi in questa griglia (stile del bordo, dimensione: dipendono dal livello).
 function sampleSpec(symbols, famPreds, F, B, I, feat){
-  const sp = { syms:null, pred:null, fill:null, border:null, ink:null, bstyle:null, size:null, pos:null, adj:null, rel:null, notFill:null, notBorder:null, notInk:null };
+  const sp = { syms:null, pred:null, fill:null, fillState:null, border:null, ink:null, bstyle:null, size:null, pos:null, adj:null, rel:null, notFill:null, notBorder:null, notInk:null };
   const r = Math.random();
   // Criterio "intermedio": simbolo (o proprietà della famiglia) + UNA sola caratteristica, a
   // valore singolo. Richiesti in numero maggiore da Rodrigo (prima i criteri con 3+ caratteristiche
@@ -12401,10 +12427,14 @@ function sampleSpec(symbols, famPreds, F, B, I, feat){
       const opts = ["fill","fill","fill","border","border","border","ink"];
       if(feat.sizes) opts.push("size","size");                       // dimensione del simbolo (dal livello 3)
       if(feat.bStyles) opts.push("bstyle");                          // stile del bordo (dal livello 5)
+      if(feat.fillVoid) opts.push("fillstate","fillstate");          // sfondo vuoto, qualunque famiglia (dal livello 5)
       feats.push(pick(opts));
     }
   } else {
-  if(Math.random()<0.65) feats.push("fill");
+  // Sfondo: o un colore preciso, o (se sbloccato) "vuoto" — mai entrambi sulla stessa regola.
+  const fillRoll = Math.random();
+  if(feat.fillVoid && fillRoll<0.15) feats.push("fillstate");
+  else if(fillRoll<0.65) feats.push("fill");
   if(Math.random()<0.60) feats.push("border");
   if(Math.random()<0.30) feats.push("ink");
   if(Math.random()<0.50) feats.push("pos");
@@ -12415,6 +12445,10 @@ function sampleSpec(symbols, famPreds, F, B, I, feat){
   }
   const nOf = pool => pickN(pool, (!simple && Math.random()<0.35) ? 2 : 1).map(c=>c.name);
   if(feats.includes("fill")) sp.fill = nOf(F);
+  // "vuoto" è l'unico stato utile come criterio da solo: "pieno" (qualunque colore) copre quasi
+  // tutte le altre celle e non passa quasi mai il filtro sui conteggi (4-14) — coerente con come
+  // già si comportano dimensione e stile del bordo.
+  if(feats.includes("fillstate")) sp.fillState = "vuoto";
   if(feats.includes("border")) sp.border = nOf(B);
   if(feats.includes("ink")) sp.ink = nOf(I);
   if(feats.includes("pos")) sp.pos = pick(feat.posOptions || POS_OPTIONS);
@@ -12472,17 +12506,25 @@ function buildGridAttempt(symbols, level, effLevel, rows, cols){
   });
 
   // 2) COLORE — tre assi indipendenti, 3 colori a testa; palette senza gemelli chiaro/scuro (vedi pickGridPalette).
+  // Lo sfondo può anche essere "vuoto" (nessun colore, solo contorno) dal livello 5 — stessa soglia
+  // dello stile del bordo, perché è un altro vincolo semplice su un solo attributo visivo, ora
+  // disponibile per QUALUNQUE famiglia di simboli e non solo per le forme piene/vuote (richiesta di
+  // Rodrigo). Vedi assignFillWithVoid.
+  const fillVoidOn = effLevel>=5;
   const palette = pickGridPalette();
-  const fillChosen = assignAttribute(cells, allIdx, palette.fills, "fill", 3);
+  const fillChosen = fillVoidOn
+    ? assignFillWithVoid(cells, allIdx, palette.fills, 3)
+    : assignAttribute(cells, allIdx, palette.fills, "fill", 3);
   const borderChosen = assignAttribute(cells, allIdx, palette.inks, "border", 3);
   const symColorChosen = assignAttribute(cells, allIdx, palette.inks, "symColor", 3);
 
   // 2b) ATTRIBUTI EXTRA, in funzione del livello (32 livelli): dimensione del simbolo (grande/piccolo)
-  //     dal livello 3; stile del bordo dal livello 5 (continuo/tratteggiato; dal 17 anche puntinato).
+  //     dal livello 3; stile del bordo dal livello 5 (continuo/tratteggiato; dal 17 anche puntinato);
+  //     sfondo vuoto dal livello 5 (vedi sopra).
   //     Criteri di posizione composti (blocchi, intersezioni, scacchiera) dal livello GRID_POS_W2_FROM.
   // Attributi extra e opzioni di posizione: gradiscono in base al livello EFFETTIVO (vedi
   // tierEffectiveLevel), non al livello a video — stesso motivo delle quote di gradino più sotto.
-  const feat = { bStyles:null, sizes:null, posOptions: buildPosOptions(rows, cols).filter(o => o.w===1 || effLevel>=GRID_POS_W2_FROM) };
+  const feat = { bStyles:null, sizes:null, fillVoid:fillVoidOn, posOptions: buildPosOptions(rows, cols).filter(o => o.w===1 || effLevel>=GRID_POS_W2_FROM) };
   if(effLevel>=3){
     assignBinary(cells, allIdx, ["grande","piccolo"], "size");
     feat.sizes = ["grande","piccolo"];
@@ -12517,12 +12559,16 @@ function buildGridAttempt(symbols, level, effLevel, rows, cols){
 // fisse (4/3/3/2) a ogni livello, quindi al livello 16 comparivano gli stessi criteri del
 // livello 1 e quelli complessi erano pochi (segnalato da Rodrigo). Ora ai livelli bassi
 // dominano i criteri semplici, ai livelli alti quelli con più vincoli, alternative e negazioni.
-// Le quote passano in modo LINEARE dal livello 1 al 32 (prima erano 3 scalini fissi): a ogni livello
-// una regola in più/in meno cambia gradino, con somma sempre 10. Gradino 1 = singolo simbolo/proprietà;
-// 2 = un vincolo; 3 = due vincoli; 4 = combinazioni di più vincoli/alternative/negazione/relazioni.
-// (Gradino 5 abolito su richiesta di Rodrigo.)
-const GRID_QUOTA_START = [2, 5, 2, 1];   // livello 1
-const GRID_QUOTA_END   = [0, 3, 3, 4];   // livello 32
+// Le quote passano dal livello 1 al 32 con una curva "ease-in" (non più lineare): a parità di
+// estremi (livello 1 e 32 uguali a prima), il gradino 4 (combinazioni di più vincoli/alternative/
+// negazione/relazioni) resta a ZERO per i primi livelli e sale via via più ripido verso l'alto,
+// invece di essere già presente 1 volta su 10 fin dal livello 1 — segnalato da Rodrigo: ai livelli
+// bassi uscivano già criteri "molto astratti" tipo elemento-vicino-a-elemento. Gradino 1 = singolo
+// simbolo/proprietà; 2 = un vincolo; 3 = due vincoli; 4 = combinazioni complesse. (Gradino 5 abolito
+// su richiesta di Rodrigo.)
+const GRID_QUOTA_START = [3, 6, 1, 0];   // livello 1 — nessuna combinazione complessa
+const GRID_QUOTA_END   = [0, 3, 3, 4];   // livello 32 — invariato
+const GRID_QUOTA_EASE = 1.5;             // >1 = ritarda la salita nei primi livelli, converge comunque a GRID_QUOTA_END al livello 32
 const GRID_READABILITY_DELTA = { shapes:3, arrows:2, digits:4, letters:4, mixed:2, cyrillic:-3, cjk:-5, geez:-5 };
 function tierEffectiveLevel(level, category){
   const delta = GRID_READABILITY_DELTA[category] || 0;
@@ -12534,7 +12580,7 @@ function tierQuotaForLevel(level, u){
   // difficoltà sale in modo uniforme a OGNI livello (con 10 sole regole per griglia, quote intere darebbero
   // solo una manciata di scalini), pur restando ogni griglia entro ±1 regola dalla quota lineare.
   if(u==null) u = 0.5;
-  const t = levelT(level);
+  const t = Math.pow(levelT(level), GRID_QUOTA_EASE);
   const raw = GRID_QUOTA_START.map((s,i)=> s + (GRID_QUOTA_END[i]-s)*t);
   // Arrotondamento sulle somme CUMULATE (non su ogni gradino), con la stessa `u` per tutte: la quota del
   // gradino 1 scende e quella del 4 sale sempre in modo monotono e la somma resta 10.
@@ -12557,7 +12603,10 @@ function selectRules(evaluated, level, quotaIn){
   const usedCount = {};
   const kindCount = {stim:0, pos:0, rel:0};
   const chosen = [];
-  const REL_MAX = level>=12 ? 2 : 1;   // le regole relazionali (adiacenza, identico al vicino) restano una minoranza
+  // Le regole relazionali (adiacenza, identico al vicino) sono le più astratte: prima potevano
+  // comparire (al massimo 1) fin dal livello 1, ora sono assenti fino al livello 8 (segnalato da
+  // Rodrigo) e restano comunque una minoranza anche dopo.
+  const REL_MAX = level<8 ? 0 : (level>=16 ? 2 : 1);
   // Estrae dalla lista la regola il cui conteggio è meno usato tra quelle già scelte: le regole di una
   // stessa griglia non danno tutte lo stesso risultato.
   const popLeastUsed = list => {
@@ -12888,18 +12937,53 @@ function intrusoMaxItems(famId, len){
   if(famId==="suits") return len>=2 ? 12 : 15;
   return Infinity;
 }
+// Punteggio di difficoltà (0..1) di UNA famiglia a un dato livello, comparabile fra famiglie
+// diverse. Prima le famiglie di una sessione erano scelte a rotazione fra tutte quelle sbloccate,
+// senza guardare a che punto della propria scala INTERNA (singolo/coppia/terna, distrattori simili
+// o no, pool più o meno familiare) si trovasse ciascuna: risultato, famiglie a pool piccolo (semi,
+// note, dadi, cerchi parziali) passavano a coppie di simboli quasi identici già dal livello 2-3,
+// mentre cifre e lettere restavano a singolo per molti livelli — nella stessa sessione comparivano
+// fianco a fianco schermate obiettivamente molto più difficili di altre allo stesso livello
+// (segnalato da Rodrigo: "crescita della difficoltà non omogenea, mescolate"). Pesi: la lunghezza
+// dell'elemento (singolo/coppia/terna) conta di più perché cambia il tipo di confronto richiesto;
+// la familiarità della famiglia (unlockLevel, già ordinato da Rodrigo dal più facile al più
+// ostico) e la presenza di distrattori "quasi identici" pesano meno; il numero di elementi per
+// schermata meno ancora (conta, ma resta un fattore di fatica, non di strategia).
+function intrusoFamilyDifficulty(family, level){
+  const isAtomic = INTRUSO_ATOMIC_FAMILIES.includes(family);
+  const len = isAtomic ? intrusoLenFor(family, level, 1) : lenForFamily(family, level);
+  const lenScore = (len-1)/2; // 0 singolo, 0.5 coppia, 1 terna
+  const familiarityScore = Math.min(1, family.unlockLevel/MAX_LEVEL);
+  let similarityScore = 0;
+  if(family.small && len>=2) similarityScore = 1; // pool ristretto in coppia/terna: SEMPRE distrattori quasi identici
+  else if(!family.small && len>=2 && level>=3) similarityScore = Math.min(1, (level-2)/30);
+  const targetN = targetNForLevelIntruso(level, isAtomic, len, family.pool.length);
+  const countScore = Math.max(0, Math.min(1, (targetN-18)/12));
+  return 0.4*lenScore + 0.3*familiarityScore + 0.2*similarityScore + 0.1*countScore;
+}
 function levelFamiliesIntruso(level, count, ctx){
   // Schermate per sessione (di default 9, nel range 8-11 osservato negli originali,
   // ma regolabile dal controllo "Numero di schermate"). Si pesca SOLO tra le famiglie
-  // già "sbloccate" a questo livello (unlockLevel<=level). Con cronologia (ctx) si scelgono le
-  // famiglie usate meno di recente da questo gruppo: ai livelli alti, dove le famiglie sbloccate
-  // sono più delle schermate, cambiano davvero a ogni sessione; ai livelli bassi, dove le famiglie
-  // sono poche e finiscono tutte in sessione, restano le stesse (ruotano però i contenuti).
+  // già "sbloccate" a questo livello (unlockLevel<=level) E il cui punteggio di difficoltà
+  // (vedi intrusoFamilyDifficulty) è vicino a quello atteso per questo livello — non più "tutte
+  // le sbloccate a rotazione": la banda si allarga finché non ci sono abbastanza famiglie idonee,
+  // così ai livelli con poche famiglie sbloccate la sessione resta comunque piena.
   count = count || 9;
   const eligible = INTRUSO_ALL_FAMILIES.filter(f=>f.unlockLevel<=level);
+  const target = levelT(level);
+  let band = 0.18, pool = [];
+  while(pool.length < Math.min(count, eligible.length) && band<=1){
+    pool = eligible.filter(f => Math.abs(intrusoFamilyDifficulty(f, level)-target) <= band);
+    band += 0.06;
+  }
+  if(pool.length < count) pool = eligible; // sicurezza: se la scala non basta, si riparte da tutte le sbloccate
   const order = [];
-  while(order.length<count) order.push(...(ctx ? lruOrder(eligible, f=>"F:"+f.id, ctx) : shuffle(eligible)));
-  return shuffle(order.slice(0,count));
+  while(order.length<count) order.push(...(ctx ? lruOrder(pool, f=>"F:"+f.id, ctx) : shuffle(pool)));
+  const chosen = order.slice(0, count);
+  // Dentro la sessione, le schermate vanno in ordine di difficoltà CRESCENTE (come già le regole
+  // delle griglie): anche a parità di livello, un salto brusco da una famiglia facile a una
+  // difficile spiazza di più di una rampa graduale.
+  return chosen.sort((a,b)=> intrusoFamilyDifficulty(a, level) - intrusoFamilyDifficulty(b, level));
 }
 
 function genIntruso(level, excludeKeys){
@@ -13243,11 +13327,11 @@ const LEVEL_NOTES_BASE = {   // note originali a 16 fasce: base per le note dei 
     "Come sopra, con No-Go casuale.",
     "Doppia modalità, mappatura invertita rispetto al livello 13.",
     "Come sopra, con No-Go casuale.",
-    "Regola congiunta colore×categoria, con inibizione su un lato.",
-    "Come sopra, mappatura invertita.",
     "Regola congiuntiva OR cross-dimensionale (colore O categoria).",
     "Come sopra, mappatura invertita.",
     "Regola congiuntiva OR, altra combinazione.",
+    "Come sopra, mappatura invertita.",
+    "Regola congiunta colore×categoria, con inibizione su un lato.",
     "Come sopra, mappatura invertita.",
     "N-1 back: risposta sullo stimolo precedente (doppia manuale).",
     "N-1 back: risposta sullo stimolo precedente (manuale + verbale)."
@@ -13290,6 +13374,7 @@ function levelNote(exId, level){
       const extra = [];
       if(effLevel>=3) extra.push("simbolo grande/piccolo");
       if(effLevel>=17) extra.push("bordo continuo/tratteggiato/puntinato"); else if(effLevel>=5) extra.push("bordo continuo/tratteggiato");
+      if(effLevel>=5) extra.push("sfondo pieno/vuoto");
       const readNote = effLevel!==level ? ` — combinazioni calibrate come al livello ${effLevel} (${GRID_CATEGORY_LABELS[cat].toLowerCase()} ${effLevel>level ? "è facile da leggere per un lettore italiano" : "è poco familiare per un lettore italiano"})` : "";
       return `${GRID_CATEGORY_LABELS[cat]} (passo ${sub}/4) — griglia ${rows}×${cols}${readNote}. Mix di regole (indicativo): ${q[1]} sul solo simbolo · ${q[2]} con 1 vincolo · ${q[3]} con 2 vincoli · ${q[4]} composte; in ogni griglia circa metà sugli stimoli e metà sulla posizione${effLevel>=GRID_POS_W2_FROM ? " (posizioni composte incluse: blocchi, scacchiera, riga∩colonna)" : ""}.` + (extra.length ? ` Attributi extra: ${extra.join(", ")}.` : "");
     }
