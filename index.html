@@ -11605,12 +11605,7 @@ async function resolveTrialImages(trial) {
    funziona esattamente come prima, solo senza memoria tra un dispositivo e l'altro.
    ========================================================= */
 const firebaseConfig = {
-  apiKey: "AIzaSyCEFMdVHdANv1PsVlb-Wo65JHe4IKMtk3o",
-    authDomain: "pdmgenerator.firebaseapp.com",
-    projectId: "pdmgenerator",
-    storageBucket: "pdmgenerator.firebasestorage.app",
-    messagingSenderId: "203067967755",
-    appId: "1:203067967755:web:6ec8266c59798c852e3a0e"
+  // apiKey: "...", authDomain: "...", projectId: "...", ...
 };
 
 let sharedHistoryReady = false;
@@ -13157,14 +13152,36 @@ function targetNForLevelIntruso(level, isAtomic, len, poolSize){
   return Math.min(base + grown, cap);
 }
 // Famiglie a "tessera" (mahjong, domino, semi delle carte): il glifo occupa solo una parte del
-// riquadro del carattere, quindi a 15-30 elementi per schermata risultava minuscolo. Su richiesta
-// di Rodrigo si sacrifica la numerosità (meno righe e colonne, celle più grandi) e non la
-// dimensione degli stimoli. Il vincolo "un solo singolo, tutti gli altri almeno 2 volte" resta
-// valido anche con pochi elementi (12 → 6 tipi diversi).
-function intrusoMaxItems(famId, len){
-  if(famId==="mahjong" || famId==="domino") return 12;
-  if(famId==="suits") return len>=2 ? 12 : 15;
-  return Infinity;
+// riquadro del carattere, quindi a 18-30 elementi per schermata risultava molto piccolo. Prima
+// avevano un tetto fisso (12, o 15 per i semi singoli) uguale a ogni livello: nella stessa sessione
+// comparivano schermate con 12 elementi accanto ad altre con 25-30 (segnalato da Rodrigo:
+// numerosità non coerente tra famiglie). Ora la numerosità segue lo stesso andamento per livello di
+// tutte le altre famiglie, moltiplicata per un fattore di riconoscibilità fisso (0,8, scelto da
+// Rodrigo): un po' meno elementi dove il glifo si legge peggio, senza un tetto assoluto.
+// Il vincolo "un solo singolo, tutti gli altri almeno 2 volte" vale a qualsiasi numero.
+// Per le famiglie a tessera: tra n-3 e n+3 (mai sopra maxN, almeno 6) sceglie il numero di elementi
+// che, disposto in griglia piena sull'area utile della slide esportata (13,33×7,5 in con margine
+// 0,3), permette il corpo più grande — stessa stima usata in exportIntruso (altezza e larghezza
+// della cella, coppie/terne al 62%/74% della cella). A parità di corpo vince il numero più vicino
+// a quello voluto. (niceIntrusoCount usa invece 1333×500, un rapporto più largo di quello della
+// slide: per le coppie di simboli favoriva griglie a 7 colonne strette.)
+function bestTileCount(n, len, famId, maxN){
+  const areaW = 13.33-0.6, areaH = 7.5-0.6;
+  const cw = (len>=2 && INTRUSO_GROUP_CHAR_WIDTH[famId]) || INTRUSO_FAMILY_CHAR_WIDTH[famId] || INTRUSO_DEFAULT_ATOMIC_CHAR_WIDTH;
+  const frac = len>=3 ? 0.74 : (len===2 ? 0.62 : 0.85);
+  let best = Math.min(n, maxN), bestScore = -1, bestDist = Infinity;
+  for(let cand=Math.max(6,n-3); cand<=Math.min(maxN,n+3); cand++){
+    const cols = bestGridCols(cand, areaW, areaH), rows = cand/cols;
+    const cellW = areaW/cols, cellH = areaH/rows;
+    const score = len===1 ? Math.min(cellW, cellH)*72 : Math.min(cellH*32, cellW*72*frac/len/cw);
+    const dist = Math.abs(cand-n);
+    if(score > bestScore + 1e-9 || (Math.abs(score-bestScore) <= 1e-9 && dist < bestDist)){ bestScore = score; best = cand; bestDist = dist; }
+  }
+  return best;
+}
+const INTRUSO_RECOGNIZABILITY = { mahjong:0.8, domino:0.8, suits:0.8 };
+function intrusoRecognizability(famId){
+  return INTRUSO_RECOGNIZABILITY[famId] ?? 1;
 }
 // Punteggio di difficoltà (0..1) di UNA famiglia a un dato livello, comparabile fra famiglie
 // diverse. Prima le famiglie di una sessione erano scelte a rotazione fra tutte quelle sbloccate,
@@ -13253,7 +13270,14 @@ function genIntruso(level, excludeKeys){
     .map(fam=>{
       const isAtomic = INTRUSO_ATOMIC_FAMILIES.includes(fam);
       const famLen = Math.min(intrusoPlanLen(level), intrusoMaxLen(fam));   // stessa lunghezza per tutta la sessione
-      const targetN = niceIntrusoCount(targetNForLevelIntruso(level, isAtomic, famLen, fam.pool.length), 1333, 500, intrusoMaxItems(fam.id, famLen));
+      const levelN = targetNForLevelIntruso(level, isAtomic, famLen, fam.pool.length);
+      const recog = intrusoRecognizability(fam.id);
+      // fattore < 1 (famiglie a tessera): numerosità ridotta in proporzione, poi si sceglie, entro
+      // qualche unità, il numero che dà i simboli più grandi sull'area REALE della slide
+      // (mai sopra la numerosità piena del livello)
+      const targetN = recog < 1
+        ? bestTileCount(Math.max(6, Math.round(levelN*recog)), famLen, fam.id, levelN)
+        : niceIntrusoCount(levelN, 1333, 500);
       return buildIntrusoScreen(fam, famLen, targetN, level, ctx);
     })
     .filter(Boolean);
