@@ -948,6 +948,22 @@ const WORD_BANK_SCORED = {
 };
 // Compatibilità: alcune parti del codice si aspettano solo l'elenco delle parole,
 // senza il punteggio (es. se in futuro serve altrove).
+// Ampliamento della banca (richiesta di Rodrigo: un gruppo non deve MAI rivedere la stessa parola in
+// più fascicoli). Sostantivi comuni aggiunti a mano, senza punteggio di frequenza reale: ricevono un
+// punteggio convenzionale (deterministico) sparso nella fascia media-alta, così finiscono a ogni
+// altezza della scala e le finestre di ogni settimana hanno abbastanza parole nuove.
+const WORD_BANK_EXTRA = "ARCO ASSE BAGNO BALLO BANCA BARBA BOCCA BRACE BURRO CALCE CALZA CAPRA CARNE CASCO CERA CIGLIO COCCO COLLA COPPA CUOCO CURVA DADO DOLCE FARO FIORE FOLLA FORNO FUOCO GAMBA GELSO GOMMA GUFO LANA LARDO LEGNA LIMA LINGUA LOTTA MAGLIA MANTA MELO MENSA MENTA MIELE MORA MOSCA MURO NASO NEBBIA NOCE OLIO ORTO OSSO PALMA PASTA PELLE PERA PESCE PIANO PINO PISTA POLPA PORCO PRATO PUGNO RAGGIO RANA REGNO RENNA RETE RIVA ROCCA ROSA RUOTA SALE SCIA SELLA SERA SETA SPINA STELLA TASSO TAZZA TELA TETTO TIMBRO TONNO TORTA TRAVE UOVO VASO VELO VENA VIGNA VOLPE ZAMPA ZUCCA ANCORA ARENA BANCO BORSA BOSCO CARTA CERVO CESTO CIRCO COLLO CORDA COSTA DENTE FESTA FALCO GIOCO GONNA GRANO ISOLA LATTE LEGNO LETTO LIBRO LINEA LUOGO MANGO MERLO MONDO MUSEO NOTTE OLIVA PALCO PANCA PARCO PENNA PERLA PESCA PIEDE PIUMA PIZZA POLLO PORTO RADIO RAGNO RAMPA ROSSO SALSA SCALA SCENA SCUDO SEGNO SERRA SPADA SPIGA STOLA STUFA TASCA TENDA TERRA TESTA TIGRE TORRE TRAMA TRONO TUONO VALLE VENTO VERDE VIOLA VOLTO ZAINO ZEBRA ZOLLA ZUPPA AMICO ANIMA ANNO ARIA BACIO BANDA BIRRA BRODO BUCCIA CAMPANA CAVOLO CEDRO CERCHIO CHINA CIGNO CINEMA CLASSE COCCHIO COLLE CONTO COPIA CORPO CRETA CROCE CUORE DANZA DIAVOLO DISCO DONNA DRAGO ERBA FALCE FERRO FILA FILO FONDO FORMA FORZA FUMO GELO GESSO GIRO GOLFO GRILLO GRUPPO GUANTO LAMPO LANCIA LAPIS LENTE LETTERA LIMITE LUCCIO MAGO MAIALE MANICO MARCA MENTE METRO MIRTO MOTTO MUSICA NASTRO NEMICO NIPOTE NODO NONNO OCCHIO OGGETTO OPERA ORGANO ORTICA OSPITE PADRE PALLA PAROLA PASSO PIAZZA PIETRA PIOGGIA PIRATA POLSO PORTICO POZZO PRESA PUNTA QUADRO RAMO REGINA RIGA RIMA RITMO ROSTRO RUGA SABBIA SACCO SALUTE SANGUE SAPONE SCIALLE SCOGLIO SEME SERPE SIGARO SOGNO SOLDO SOMMA SORGO SPALLA SPESA SPUGNA STALLA STANZA STAMPA STATUA STELO STOFFA STORIA STRISCIA SUONO TAPPO TARGA TASSA TAVOLA TEMPO TENORE TERMINE TESORO TIMONE TITOLO TOMBA TRACCIA TRAMPOLO TRENO TRIBU TUBO TUFFO UMORE URLO VAPORE VELENO VESTE VIAGGIO VIALE VIZIO VOLO ZATTERA ALBERO ANELLO ANATRA BANANA BARBIERE BARILE BICCHIERE BISCOTTO BOTTEGA BRACCIO BUSTA CALZINO CANDELA CAPPOTTO CARROZZA CASSETTA CERVELLO CICOGNA CILIEGIA CINTURA COLTELLO COLOMBA COMODINO CONIGLIO COPERTA CORNICE CORTILE COTTURA CRAVATTA CUSCINO DIVANO FARFALLA FATTORIA FIAMMA FINESTRA FONTANA FORBICE FORMAGGIO FRAGOLA FRECCIA GALLINA GAMBERO GELATO GIRAFFA GIORNALE GOMITO GRONDAIA GRUCCIA INSALATA LAMPADA LATTUGA LENZUOLO LIBRERIA LUCERNA LUMACA MAGLIONE MANDORLA MARITO MARTELLO MATITA MEDUSA MERENDA MINESTRA MOLLETTA MONETA MUCCA NOCCIOLA OCCHIALI OMBRELLO ORECCHIO ORTAGGIO PADELLA PAGLIA PALAZZO PALLONE PANCIA PAPERA PARETE PASTORE PATATA PECORA PENNELLO PEPERONE PESCATORE PIGNA PINGUINO PITTORE POLTRONA POMODORO PONTILE PORTONE PRATERIA PRUGNA PUPAZZO QUADERNO RAGAZZO RASOIO RIMORCHIO RUBINETTO SALAME SALOTTO SANDALO SCIARPA SCIMMIA SCOPA SEMAFORO SERPENTE SEDANO SIRENA SPAZZOLA SPECCHIO SPIAGGIA STIVALE STRADA TARTARUGA TEIERA TENAGLIA TOVAGLIA TRATTORE TROMBA TROTTOLA TULIPANO UCCELLO VALIGIA VETRINA VIOLINO VOLANTE ZANZARA ZUCCHINA ZUCCHERO ARMADIO BAMBINO BARCONE BOTTONE CALAMITA CAMICIA CAMPANILE CAPPELLO CARAMELLA CARCIOFO CARTOLINA CERNIERA CHIODINO CIMITERO CIPOLLA CONTADINO CORRIDOIO CORTECCIA CRICETO CUCCHIAIO DOMENICA ELEFANTE FALEGNAME FAGIANO FARMACIA FATICA FINOCCHIO FORCHETTA FRAGRANZA FRUTTETO GABBIANO GAROFANO GHIANDA GINESTRA GIRASOLE GLICINE GRANCHIO GRATTUGIA LAVANDA LAVAGNA LAVATRICE LEGGENDA LIBELLULA LUCCIOLA MAGLIETTA MAIOLICA MANDARINO MATERASSO MELAGRANA MELANZANA MERCATO MINIERA MOSAICO OFFICINA ORCHIDEA ORTOLANO OSTRICA PANTOFOLA PAPAVERO PARAPETTO PAVIMENTO PERGOLATO PESCHERIA PETTINE PLATANO PRIMULA PROFUMO RAGAZZINO RANOCCHIO ROSMARINO ROTONDA SALSICCIA SCARABEO SCARPONE SCHIENALE SCRIGNO SIGNORINA SOFFITTA SOGGIORNO SOLAIO SPAZZINO SPINACIO SPIRALE STAZIONE STUDENTE TAVOLINO TEMPORALE TERRAZZA TORRENTE TRAMONTO TRAPUNTA TRICICLO TRIFOGLIO VERANDA VIGNAIOLO VILLAGGIO ZAFFERANO ACQUARIO ALBICOCCA AMBULANZA ARANCIATA ASCENSORE AUTOBUS AVVOCATO BAGAGLIO BARACCA BATTELLO BINOCOLO BUSSOLA CALZOLAIO CANARINO CARRIOLA CATTEDRA CHIOSCO CIABATTA CIMINIERA COLAPASTA COLLANA COLOMBAIA COPERCHIO CORRIMANO CROCIERA CUCCIOLO DENTISTA DISPENSA DOCCIA ERBORISTA FIORAIO GALLERIA GELATAIO IDRAULICO LAMPIONE LIBRAIO LIMONAIA MACELLAIO MARINAIO MARSUPIO MERCERIA MUSICISTA NAVICELLA ORCHESTRA OSTERIA PANCHINA PANETTONE PELLICANO PIROETTA PISCINA PIZZAIOLO POLLAIO PRESEPIO RAGAZZINA SARTORIA SCARPIERE SCOPETTA SPAGHETTI STRUMENTO TRAMVIA TROMBETTA VELIERO VENDITORE VETRAIO CORRIDORE FOTOGRAFO IMPIEGATO MOTOSCAFO OCULISTA PANIFICIO TRIBUNALE VENTAGLIO VIDEOTECA BALENA CALICE CIALDA COLTRE FAGGIO CAROTA CIPRIA LAGUNA MOLLICA MONTONE PISTOLA REGALO RISATA ROTAIA RUBINO SALICE SCHERMO TEMPIO TENNIS ANGELO ARIETE AVORIO CABINA CAPANNA CARTONE CASTORO CIOTOLA CANNONE FORNACE FORNAIO LOCANDA MATTONE PANTERA PIGIAMA POLENTA RIVISTA SORELLA CASETTA AGNELLO ARCIERE BASTONE".split(" ");
+(function extendWordBank() {
+  const have = new Set();
+  Object.values(WORD_BANK_SCORED).forEach(a => a.forEach(([w]) => have.add(w)));
+  WORD_BANK_EXTRA.forEach(w => {
+    if (have.has(w) || !WORD_BANK_SCORED[w.length]) return;
+    have.add(w);
+    let h = 0; for (const ch of w) h = (h * 31 + ch.charCodeAt(0)) >>> 0;
+    WORD_BANK_SCORED[w.length].push([w, Math.round((2.6 + (h % 1500) / 1000) * 1000) / 1000]);
+  });
+  Object.values(WORD_BANK_SCORED).forEach(a => a.sort((x, y) => y[1] - x[1]));
+})();
 const WORD_BANK = Object.fromEntries(Object.entries(WORD_BANK_SCORED).map(([k, v]) => [k, v.map(([w]) => w)]));
 
 // ---------------------------------------------------------------------------
@@ -1037,18 +1053,34 @@ function anagramWordPool(wordLen, week) {
   return bank.slice(start, start + windowSize).map(([w]) => w);
 }
 
+// Sceglie fino a `count` parole MAI usate (`excl`): prima quelle della finestra di frequenza della
+// settimana; se non bastano, le più vicine alla finestra fuori da essa (la difficoltà si sposta di
+// poco); se non bastano ancora, ne restituisce di meno — mai duplicati né ripescaggi.
+function pickFreshWords(entries, windowWords, count, excl, rnd) {
+  const isFresh = w => !excl || !excl.has(w);
+  const inWin = windowWords.filter(isFresh);
+  let picked = pickN(rnd, inWin, Math.min(count, inWin.length));
+  if (picked.length < count) {
+    const winSet = new Set(windowWords);
+    const idx = windowWords.map(w => entries.findIndex(e => e[0] === w)).filter(i => i >= 0);
+    const centre = idx.length ? (Math.min(...idx) + Math.max(...idx)) / 2 : 0;
+    const taken = new Set(picked);
+    const outside = entries.map((e, i) => ({ w: e[0], d: Math.abs(i - centre) }))
+      .filter(o => !winSet.has(o.w) && isFresh(o.w) && !taken.has(o.w))
+      .sort((x, y) => x.d - y.d);
+    picked = picked.concat(outside.slice(0, count - picked.length).map(o => o.w));
+  }
+  return picked;
+}
+
 function generateAnagrams(count, wordLen, rnd, excludeWords, week) {
   week = week || 1;
-  const pool = anagramWordPool(wordLen, week);
+  const entries = WORD_BANK_SCORED[wordLen] || WORD_BANK_SCORED[Math.max(...Object.keys(WORD_BANK_SCORED).map(Number))];
   const excl = excludeWords ? new Set(excludeWords) : null;
-  let effectivePool = pool;
-  if (excl && excl.size) {
-    const fresh = pool.filter(w => !excl.has(w));
-    if (fresh.length >= Math.min(count, pool.length)) effectivePool = fresh;
-  }
-  const words = pickN(rnd, effectivePool, Math.min(count, effectivePool.length));
-  while (words.length < count) words.push(pick(rnd, effectivePool));
-  return words.map(w => ({ solution: w, scrambled: scrambleGraded(w, week, rnd) }));
+  const words = pickFreshWords(entries, anagramWordPool(wordLen, week), count, excl, rnd);
+  const res = words.map(w => ({ solution: w, scrambled: scrambleGraded(w, week, rnd) }));
+  res.shortfall = count - res.length;
+  return res;
 }
 
 // ---------------------------------------------------------------------------
@@ -1245,7 +1277,7 @@ function findAllDictionaryWords(grid) {
   return results;
 }
 
-function generateItalianCrucipuzzle(rows, cols, rnd, week) {
+function generateItalianCrucipuzzle(rows, cols, rnd, week, excludeWords) {
   week = week || 1;
   const w = Math.max(1, Math.min(12, week));
   // Quante parole garantire in griglia: 6 alla settimana 1, 12 alla settimana 12.
@@ -1254,7 +1286,10 @@ function generateItalianCrucipuzzle(rows, cols, rnd, week) {
   const minLen = Math.min(8, 4 + Math.floor((w - 1) / 3));
   const maxLen = Math.min(9, minLen + 2);
   const pool = italianWordPool(minLen, maxLen, w);
-  const chosen = pickN(rnd, pool, Math.min(nWords, pool.length));
+  let entries = [];
+  for (let len = minLen; len <= maxLen; len++) if (WORD_BANK_SCORED[len]) entries = entries.concat(WORD_BANK_SCORED[len]);
+  entries.sort((a, b) => b[1] - a[1]);
+  const chosen = pickFreshWords(entries, pool, nWords, excludeWords ? new Set(excludeWords) : null, rnd);
 
   const grid = Array.from({ length: rows }, () => Array.from({ length: cols }, () => pick(rnd, ITALIAN_FILLER_LETTERS)));
   const occupied = new Set();
@@ -1303,6 +1338,7 @@ function generateItalianCrucipuzzle(rows, cols, rnd, week) {
     grid, rows, cols,
     minWordsToFind: placedWords.length,
     plantedWords: placedWords,
+    shortfall: nWords - chosen.length,
     foundWords, // [{word, cells}] — TUTTE le parole realmente presenti, per il foglio soluzioni
   };
 }
@@ -1487,19 +1523,20 @@ const CATEGORY_POOL = {
   // 12 fasce (una per settimana), stesse 89 categorie di prima ma redistribuite
   // in gradini più fini invece di 3 blocchi larghi — dalla più comune/concreta
   // alla più stretta/insolita.
-  1: ['Alimenti', 'Animali', 'Colori', 'Mobili', 'Indumenti', 'Mezzi di trasporto', 'Giochi', 'Frutta'],
-  2: ['Verdura', 'Bevande', 'Utensili', 'Edifici', 'Parti del corpo', 'Strumenti musicali', 'Sport', 'Dolci'],
-  3: ['Fiori', 'Alberi', 'Uccelli', 'Insetti', 'Elettrodomestici', 'Metalli', 'Pianeti', 'Scarpe'],
-  4: ['Frutti di mare', 'Frutti tropicali', 'Ortaggi a radice', 'Formaggi', 'Salumi', 'Gioielli', 'Giochi da tavolo', 'Festività'],
-  5: ['Pesci', 'Frutta secca', 'Combustibili', 'Contenitori per liquidi', 'Edifici pubblici', 'Organi', 'Animali esotici', 'Strumenti da scrivania'],
-  6: ['Province italiane', 'Strumenti da cucina', 'Materiali tessili', 'Capitali europee', 'Fiumi italiani', 'Razze di cani', 'Pietre preziose', 'Dispositivi elettronici'],
-  7: ['Professioni sanitarie', 'Strumenti da giardinaggio', 'Mezzi di soccorso', 'Strumenti da disegno', 'Parti dell\u2019auto', 'Negozi', 'Attrezzi in officina'],
-  8: ['Stanze della casa', 'Materiali tessili industriali', 'Strumenti da falegname', 'Monumenti famosi', 'Insegne stradali', 'Attrezzi in campagna', 'Materiale da costruzione'],
-  9: ['Oggetti che richiedono precisione nell\u2019uso', 'Cose che si trovano in cucina ma non si mangiano', 'Strumenti che tagliano', 'Mestieri artigianali', 'Oggetti che producono luce', 'Strumenti di misura'],
-  10: ['Cose che si trovano in un ufficio ma non su una scrivania', 'Oggetti che emettono un suono', 'Strumenti usati in giardinaggio', 'Oggetti che si trovano in una valigia da viaggio', 'Cose che si indossano solo in inverno', 'Mestieri che richiedono una divisa'],
-  11: ['Oggetti che contengono un liquido', 'Strumenti musicali a corda', 'Attrezzi da disegno tecnico', 'Oggetti che si usano per pulire', 'Cose che si trovano in una cassetta degli attrezzi', 'Animali che vivono in tana'],
-  12: ['Oggetti che fanno rumore quando cadono', 'Cose fredde', 'Strumenti a fiato', 'Animali a sangue freddo', 'Oggetti rotondi', 'Mestieri che si svolgono all\u2019aperto', 'Cose a righe', 'Mestieri notturni'],
+  1: ['Alimenti', 'Animali', 'Colori', 'Mobili', 'Indumenti', 'Mezzi di trasporto', 'Giochi', 'Frutta', 'Animali domestici', 'Animali della fattoria', 'Oggetti del bagno', 'Oggetti della camera da letto', 'Cose che si mettono in tavola', 'Cose da mangiare a colazione', 'Oggetti del salotto', 'Cose che si trovano in giardino', 'Cose da mangiare a cena'],
+  2: ['Verdura', 'Bevande', 'Utensili', 'Edifici', 'Parti del corpo', 'Strumenti musicali', 'Sport', 'Dolci', 'Mestieri', 'Cose che si trovano in cucina', 'Cose che si trovano al mare', 'Membri della famiglia', 'Cose che si comprano in farmacia', 'Cose che si comprano dal fornaio'],
+  3: ['Fiori', 'Alberi', 'Uccelli', 'Insetti', 'Elettrodomestici', 'Metalli', 'Pianeti', 'Scarpe', 'Cereali e legumi', 'Erbe aromatiche', 'Spezie', 'Animali marini', 'Animali del bosco', 'Corsi d’acqua'],
+  4: ['Frutti di mare', 'Frutti tropicali', 'Ortaggi a radice', 'Formaggi', 'Salumi', 'Gioielli', 'Giochi da tavolo', 'Festività', 'Tipi di pasta', 'Tipi di pane', 'Salse e condimenti', 'Dolci natalizi', 'Mezzi di trasporto pubblico', 'Fiori di campo'],
+  5: ['Pesci', 'Frutta secca', 'Combustibili', 'Contenitori per liquidi', 'Edifici pubblici', 'Organi', 'Animali esotici', 'Strumenti da scrivania', 'Cappelli e copricapo', 'Tipi di abitazione', 'Tessuti', 'Vini e liquori', 'Uccelli rapaci', 'Ossa del corpo'],
+  6: ['Province italiane', 'Strumenti da cucina', 'Materiali tessili', 'Capitali europee', 'Fiumi italiani', 'Razze di cani', 'Pietre preziose', 'Dispositivi elettronici', 'Isole italiane', 'Laghi italiani', 'Montagne famose', 'Città d’arte italiane', 'Regioni italiane', 'Mari e oceani'],
+  7: ['Professioni sanitarie', 'Strumenti da giardinaggio', 'Mezzi di soccorso', 'Strumenti da disegno', 'Parti dell\u2019auto', 'Negozi', 'Attrezzi in officina', 'Parti della bicicletta', 'Strumenti del medico', 'Strumenti del muratore', 'Strumenti del sarto', 'Negozi di alimentari', 'Mestieri del cantiere'],
+  8: ['Stanze della casa', 'Materiali tessili industriali', 'Strumenti da falegname', 'Monumenti famosi', 'Insegne stradali', 'Attrezzi in campagna', 'Materiale da costruzione', 'Parti del computer', 'Parti di una nave', 'Parti di un aereo', 'Parti di una chiesa', 'Attrezzi del calzolaio', 'Oggetti del barbiere'],
+  9: ['Oggetti che richiedono precisione nell\u2019uso', 'Cose che si trovano in cucina ma non si mangiano', 'Strumenti che tagliano', 'Mestieri artigianali', 'Oggetti che producono luce', 'Strumenti di misura', 'Oggetti che servono a scrivere', 'Cose che si trovano in ospedale', 'Cose che si trovano a scuola', 'Strumenti che servono a fissare', 'Oggetti che servono a chiudere', 'Cose che si usano per viaggiare'],
+  10: ['Cose che si trovano in un ufficio ma non su una scrivania', 'Oggetti che emettono un suono', 'Strumenti usati in giardinaggio', 'Oggetti che si trovano in una valigia da viaggio', 'Cose che si indossano solo in inverno', 'Mestieri che richiedono una divisa', 'Cose che si portano in spiaggia', 'Oggetti che si trovano in una farmacia', 'Cose che si usano per dipingere', 'Cose che si indossano solo in estate', 'Oggetti che si usano per cucire', 'Oggetti che servono a pesare o misurare'],
+  11: ['Oggetti che contengono un liquido', 'Strumenti musicali a corda', 'Attrezzi da disegno tecnico', 'Oggetti che si usano per pulire', 'Cose che si trovano in una cassetta degli attrezzi', 'Animali che vivono in tana', 'Oggetti che contengono altri oggetti', 'Oggetti di vetro', 'Oggetti di legno', 'Oggetti di metallo', 'Oggetti che si accendono', 'Oggetti che si aprono e si chiudono'],
+  12: ['Oggetti che fanno rumore quando cadono', 'Cose fredde', 'Strumenti a fiato', 'Animali a sangue freddo', 'Oggetti rotondi', 'Mestieri che si svolgono all\u2019aperto', 'Cose a righe', 'Mestieri notturni', 'Cose che volano', 'Cose che galleggiano', 'Cose che pungono', 'Cose calde', 'Cose che si piegano', 'Animali che vivono in gruppo'],
 };
+const LETTER_POOL_RARE = ['H', 'Z']; // lettere iniziali meno comuni: usate solo quando quelle di LETTER_POOL sono già state tutte proposte al gruppo
 const LETTER_POOL = 'A B C D E F G I L M N O P R S T U V'.split(' '); // usata per l'iniziale libera: già esclude lettere rare come inizio (H,Q,X,Y,W,J,K,Z)
 
 // ---------------------------------------------------------------------------
@@ -1561,24 +1598,23 @@ const LEXICAL_LABELS = {
 function buildPositionalPrompts(kind, rnd, count = 10, excludeKeys) {
   const bank = PHONEMIC_DB[kind];
   const excl = excludeKeys ? new Set(excludeKeys) : null;
-  let effectiveBank = bank;
-  if (excl && excl.size) {
-    const fresh = bank.filter(e => !excl.has(e.l1 + e.l2));
-    if (fresh.length) effectiveBank = fresh;
-  }
-  const order = [];
-  while (order.length < count) order.push(...shuffleArr(rnd, effectiveBank));
-  const chosen = order.slice(0, count);
+  // Solo coppie MAI proposte a questo gruppo: niente ripescaggi né duplicati. Se ne restano meno di
+  // `count`, se ne restituiscono meno (`shortfall` lo segnala all'app).
+  const fresh = excl && excl.size ? bank.filter(e => !excl.has(e.l1 + e.l2)) : bank;
+  const chosen = shuffleArr(rnd, fresh).slice(0, count);
   const posLabel = { firstPenultimate: 'iniziale', secondPenultimate: 'seconda lettera', thirdPenultimate: 'terza lettera' };
-  return chosen.map(({l1,l2}) => {
+  const out = chosen.map(({l1,l2}) => {
     if (kind === 'joined') return `..${l1}${l2}..`;
     if (kind === 'disjoint') return `${l1} ; ${l2}`;
     return `${posLabel[kind]} «${l1}», penultima «${l2}»`;
   });
+  out.shortfall = count - out.length;
+  return out;
 }
 
-function buildCombinedPrompts(kind, rnd, count = 10, excludeKeys) {
+function buildCombinedPrompts(kind, rnd, count = 10, excludeKeys, excludeCategories) {
   const excl = excludeKeys ? new Set(excludeKeys) : null;
+  const catExclSet = excludeCategories && excludeCategories.length ? new Set(excludeCategories) : null;
   const rows = [];
   const used = new Set();
   let guard = 0;
@@ -1590,7 +1626,10 @@ function buildCombinedPrompts(kind, rnd, count = 10, excludeKeys) {
     guard++;
     let key, text;
     if (kind === 'initialCategory' || kind === 'secondCategory' || kind === 'thirdCategory') {
-      const letter = pick(rnd, catLetterPool[kind]), cat = pick(rnd, BROAD_CATEGORIES);
+      const letter = pick(rnd, catLetterPool[kind]);
+      // categorie larghe: si preferiscono quelle non ancora usate come pagina "categorie" di questo gruppo
+      const freshCats = catExclSet ? BROAD_CATEGORIES.filter(c => !catExclSet.has(c)) : BROAD_CATEGORIES;
+      const cat = pick(rnd, freshCats.length && guard < 300 ? freshCats : BROAD_CATEGORIES);
       key = letter + '|' + cat;
       text = `${catLabel[kind]} «${letter}», categoria: ${cat}`;
     } else { // initialLength / secondLength / thirdLength
@@ -1603,7 +1642,8 @@ function buildCombinedPrompts(kind, rnd, count = 10, excludeKeys) {
     used.add(key);
     rows.push(text);
   }
-  while (rows.length < count) rows.push(rows[rows.length % Math.max(1, rows.length)] || 'Lettera iniziale «A», 5 lettere');
+  // Niente più riempimento con righe duplicate: se le combinazioni nuove finiscono, se ne restituiscono meno.
+  rows.shortfall = count - rows.length;
   return rows;
 }
 function combinedKeyFromPrompt(kind, promptStr) {
@@ -1835,45 +1875,57 @@ function buildFascicolo(week, seed, exclusions) {
   // Crucipuzzle (5°): a differenza delle altre griglie, qui NON c'è materiale a simboli
   // né un elenco bersaglio — parole italiane reali, ricerca libera (vedi
   // generateItalianCrucipuzzle qui sopra in engine.js).
-  const crucipuzzle = generateItalianCrucipuzzle(16, 12, rnd, week);
+  // Materiale MAI ripetuto: parole (anagrammi + crucipuzzle) e categorie già proposte a questo gruppo
+  // (`exclusions`, dalla cronologia) vengono escluse; dentro lo stesso fascicolo le parole degli
+  // anagrammi non tornano nel crucipuzzle. Se il materiale nuovo non basta, la pagina ne contiene
+  // di meno e `notices` lo segnala (mai ripescaggi silenziosi).
+  const notices = [];
+  const usedWords = new Set([...(excl.anagramWords || []), ...(excl.crucipuzzleWords || [])]);
+  const anagrams = generateAnagrams(10, p.anagramLen, rnd, [...usedWords], p.week);
+  if (anagrams.shortfall > 0) notices.push(`Anagrammi: solo ${anagrams.length} parole mai proposte a questo gruppo (ne servivano 10).`);
+  anagrams.forEach(a => usedWords.add(a.solution));
+  const crucipuzzle = generateItalianCrucipuzzle(16, 12, rnd, week, [...usedWords]);
+  if (crucipuzzle.shortfall > 0) notices.push(`Crucipuzzle: solo ${crucipuzzle.plantedWords.length} parole nuove piazzate (ne servivano di più).`);
   const sequencing = generateSequencingV2(p.sequencing, rnd);
   const maze = generateMaze(p.mazeCols, p.mazeRows, rnd);
-  const anagrams = generateAnagrams(10, p.anagramLen, rnd, excl.anagramWords, p.week);
   const calc = generateCalcChain(10, p.calc.terms, p.calc.digitLens, rnd);
 
   const catPool = CATEGORY_POOL[p.categoryTier];
   const catExcl = exclusions && exclusions.categories ? new Set(exclusions.categories) : null;
-  let catEffective = catPool;
-  if (catExcl && catExcl.size) {
-    const fresh = catPool.filter(c => !catExcl.has(c));
-    if (fresh.length >= p.categoryCount) catEffective = fresh;
-  }
-  const categories = pickN(rnd, catEffective, p.categoryCount);
+  const catFresh = catExcl && catExcl.size ? catPool.filter(c => !catExcl.has(c)) : catPool;
+  const categories = pickN(rnd, catFresh, Math.min(p.categoryCount, catFresh.length));
+  if (categories.length < p.categoryCount) notices.push(`Categorie: solo ${categories.length} categorie mai proposte a questo gruppo a questo livello (ne servivano ${p.categoryCount}).`);
 
   let lexicalPrompts, lexicalHistoryKeys;
   if (p.lexicalKind === 'initial') {
-    const excludeLetters = excl.lexicalKeys ? excl.lexicalKeys.map(k => k.split(':')[1]).filter(Boolean) : [];
-    const freshLetters = LETTER_POOL.filter(l => !excludeLetters.includes(l));
-    const pool = freshLetters.length >= 8 ? freshLetters : LETTER_POOL;
-    lexicalPrompts = pickN(rnd, pool, 8);
+    const excludeLetters = new Set(excl.lexicalKeys ? excl.lexicalKeys.filter(k => k.startsWith('initial:')).map(k => k.split(':')[1]) : []);
+    // prima le lettere "comode" (LETTER_POOL), poi, solo se servono, le altre lettere italiane
+    const freshMain = LETTER_POOL.filter(l => !excludeLetters.has(l));
+    const freshRare = LETTER_POOL_RARE.filter(l => !excludeLetters.has(l));
+    const main = pickN(rnd, freshMain, Math.min(8, freshMain.length));
+    lexicalPrompts = main.concat(pickN(rnd, freshRare, Math.max(0, 8 - main.length)));
     lexicalHistoryKeys = lexicalPrompts.map(l => `initial:${l}`);
+    lexicalPrompts.shortfall = 8 - lexicalPrompts.length;
   } else if (p.lexicalKind === 'firstPenultimate' || p.lexicalKind === 'secondPenultimate' || p.lexicalKind === 'thirdPenultimate' || p.lexicalKind === 'joined' || p.lexicalKind === 'disjoint') {
     const excludeKeys = excl.lexicalKeys ? excl.lexicalKeys.filter(k=>k.startsWith(p.lexicalKind+':')).map(k=>k.split(':')[1]) : [];
     lexicalPrompts = buildPositionalPrompts(p.lexicalKind, rnd, 10, excludeKeys);
     lexicalHistoryKeys = lexicalPrompts.map(pr => `${p.lexicalKind}:${phonemicKeyFromPrompt(p.lexicalKind, pr)}`);
   } else {
     const excludeKeys = excl.lexicalKeys ? excl.lexicalKeys.filter(k=>k.startsWith(p.lexicalKind+':')).map(k=>k.split(':').slice(1).join(':')) : [];
-    lexicalPrompts = buildCombinedPrompts(p.lexicalKind, rnd, 10, excludeKeys);
+    lexicalPrompts = buildCombinedPrompts(p.lexicalKind, rnd, 10, excludeKeys, excl.categories);
     lexicalHistoryKeys = lexicalPrompts.map(pr => `${p.lexicalKind}:${combinedKeyFromPrompt(p.lexicalKind, pr)}`);
   }
+  if (lexicalPrompts.shortfall > 0) notices.push(`Accesso lessicale: solo ${lexicalPrompts.length} consegne mai proposte a questo gruppo per questo schema (ne servivano ${lexicalPrompts.length + lexicalPrompts.shortfall}).`);
   const lexicalBlock = {
     kind: p.lexicalKind,
     label: p.lexicalKind === 'initial' ? LEXICAL_LABELS.initial(p.lexicalInitialLength) : LEXICAL_LABELS[p.lexicalKind](),
     prompts: lexicalPrompts,
     historyKeys: lexicalHistoryKeys,
+    // categorie larghe usate dalle consegne "lettera + categoria": entrano nella cronologia delle categorie
+    usedCategories: [...new Set(lexicalHistoryKeys.filter(k => /Category:/.test(k)).map(k => k.split('|')[1]))],
   };
 
-  return { week, params: p, grids, multi, crucipuzzle, sequencing, maze, anagrams, calc, categories, lexicalBlock };
+  return { week, params: p, grids, multi, crucipuzzle, sequencing, maze, anagrams, calc, categories, lexicalBlock, notices };
 }
 
 // Estrae la coppia di lettere (l1,l2) da un prompt fonemico già formattato, per poter
@@ -11541,12 +11593,7 @@ async function resolveTrialImages(trial) {
    funziona esattamente come prima, solo senza memoria tra un dispositivo e l'altro.
    ========================================================= */
 const firebaseConfig = {
-  apiKey: "AIzaSyCEFMdVHdANv1PsVlb-Wo65JHe4IKMtk3o",
-    authDomain: "pdmgenerator.firebaseapp.com",
-    projectId: "pdmgenerator",
-    storageBucket: "pdmgenerator.firebasestorage.app",
-    messagingSenderId: "203067967755",
-    appId: "1:203067967755:web:6ec8266c59798c852e3a0e"
+  // apiKey: "...", authDomain: "...", projectId: "...", ...
 };
 
 let sharedHistoryReady = false;
@@ -12333,7 +12380,15 @@ function buildPosOptions(rows, cols){
     { w:2, text:`nella prima e nell'ultima riga (righe 1 e ${rows})`, f:c=>c.row===0 || c.row===rows-1 },
     { w:2, text:`nelle colonne 1, ${colMid} e ${cols}`, f:c=>c.col===0 || c.col===colMid-1 || c.col===cols-1 },
     { w:2, text:"nelle celle a scacchiera dello stesso tipo dell'angolo in alto a sinistra", f:c=>(c.row+c.col)%2===0 },
-    { w:2, text:"nelle celle a scacchiera opposte all'angolo in alto a sinistra", f:c=>(c.row+c.col)%2===1 }
+    { w:2, text:"nelle celle a scacchiera opposte all'angolo in alto a sinistra", f:c=>(c.row+c.col)%2===1 },
+    { w:1, text:"nella metà sinistra della griglia", f:c=>c.col < Math.floor(cols/2) },
+    { w:1, text:"nella metà destra della griglia", f:c=>c.col >= Math.ceil(cols/2) },
+    { w:1, text:"nella metà superiore della griglia", f:c=>c.row < Math.floor(rows/2) },
+    { w:1, text:"nella metà inferiore della griglia", f:c=>c.row >= Math.ceil(rows/2) },
+    { w:2, text:"nella prima e nell'ultima colonna", f:c=>c.col===0 || c.col===cols-1 },
+    { w:2, text:"nella seconda e nella penultima riga", f:c=>c.row===1 || c.row===rows-2 },
+    { w:2, text:"né sulla prima riga né sulla prima colonna", f:c=>c.row>0 && c.col>0 },
+    { w:2, text:"nelle prime 2 righe oppure nelle ultime 2 colonne", f:c=>c.row<2 || c.col>=cols-2 }
   ];
 }
 
@@ -12485,6 +12540,112 @@ function assignBinary(cells, allIdx, names, propName){
 }
 const BORDER_STYLE_POOL = [{name:"continuo"}, {name:"tratteggiato"}, {name:"puntinato"}];
 
+
+// ---------- VARIETÀ DI REGOLE (Griglie-Conteggio) ----------
+// Oltre alle specifiche "simbolo + vincoli" (specToRule), la griglia offre regole di FORMA diversa,
+// per allenare operazioni mentali diverse dal semplice conteggio filtrato (richiesta di Rodrigo):
+//  - esclusione   "gli elementi X, esclusi quelli Y"
+//  - alternativa  "gli elementi X oppure quelli Y" (chi soddisfa entrambe si conta una volta sola)
+//  - doppio conteggio parallelo "quanti X e quanti Y" (due numeri)
+//  - confronto    "sono più numerosi X o Y?"
+//  - soglia/sequenza "gli X saltando i primi k" (ordine di lettura)
+//  - per riga/colonna "in quante righe compare almeno un X?" e "quale riga contiene più X?"
+//  - relazionali direzionali "gli X che hanno subito a destra/sinistra/sopra/sotto un Y" e
+//    "identici alla cella a destra/sotto".
+// Ogni regola porta `answer` (testo mostrato con "Mostra risposta") e `count` = celle evidenziate
+// (sempre 4-14, come le altre). kind 'var' (o 'rel' per le relazionali): vedi selectRules.
+const GRID_VAR_MIN_LEVEL = { skip:3, rows:4, exclude:6, either:6, whichrow:7, double:8, sameNb:9, compare:10, dirRel:12 };
+function gridVarRules(cells, rows, cols, symbols, F, B, I, feat, effLevel){
+  const attr = () => {
+    const opts = [
+      () => { const x = pick(symbols); return { axis:"sym", key:"s"+x, np:`«${x}»`, f:c=>c.sym===x }; },
+      () => { const x = pick(F).name; return { axis:"fill", key:"f"+x, np:`con sfondo ${x}`, f:c=>c.fill===x }; },
+      () => { const x = pick(B).name; return { axis:"border", key:"b"+x, np:`con bordo ${x}`, f:c=>c.border===x }; },
+      () => { const x = pick(I).name; return { axis:"ink", key:"i"+x, np:`di colore ${x}`, f:c=>c.symColor===x }; }
+    ];
+    if(feat.sizes) opts.push(() => { const x = pick(feat.sizes); return { axis:"size", key:"z"+x, np:`con simbolo ${x}`, f:c=>c.size===x }; });
+    if(feat.fillVoid) opts.push(() => ({ axis:"fill", key:"fvoid", np:"con sfondo vuoto (nessun colore)", f:c=>!c.fill }));
+    return pick(opts)();
+  };
+  const noun = a => a.axis==="sym" ? `gli elementi ${a.np}` : `gli elementi ${a.np}`;
+  const those = a => a.axis==="sym" ? `i ${a.np}` : `quelli ${a.np}`;
+  const inRange = n => n>=4 && n<=14;
+  const inLevel = k => effLevel >= GRID_VAR_MIN_LEVEL[k];
+  const kinds = Object.keys(GRID_VAR_MIN_LEVEL).filter(inLevel);
+  if(!kinds.length) return null;
+  const vk = pick(kinds);
+  const A = attr(), Bt = attr();
+  if(vk!=="skip" && vk!=="rows" && vk!=="whichrow" && vk!=="sameNb" && (A.key===Bt.key || A.axis===Bt.axis)) return null;
+  const cnt = f => cells.filter(f).length;
+  const reading = cells; // già in ordine di lettura (riga per riga, da sinistra a destra)
+  const mk = (o) => Object.assign({ kind:"var", keepText:true }, o);
+  if(vk==="exclude"){
+    const f = c => A.f(c) && !Bt.f(c), n = cnt(f);
+    if(!inRange(n) || cnt(A.f)===n) return null;
+    return mk({ vk, tier:3, text:`Conta ${noun(A)}, esclusi ${those(Bt)}.`, matches:f, count:n });
+  }
+  if(vk==="either"){
+    const f = c => A.f(c) || Bt.f(c), n = cnt(f);
+    if(!inRange(n)) return null;
+    return mk({ vk, tier:3, text:`Conta ${noun(A)} oppure ${those(Bt)} (chi rispetta entrambe le condizioni si conta una volta sola).`, matches:f, count:n });
+  }
+  if(vk==="double"){
+    const a = cnt(A.f), b = cnt(Bt.f);
+    if(!inRange(a) || !inRange(b)) return null;
+    return mk({ vk, tier:3, text:`Conta separatamente, tenendo due totali: quanti sono ${noun(A)} e quanti ${those(Bt)}.`,
+      matches:c=>A.f(c)||Bt.f(c), count:Math.max(a,b), answer:`${a} e ${b}` });
+  }
+  if(vk==="compare"){
+    const a = cnt(A.f), b = cnt(Bt.f);
+    if(!inRange(a) || !inRange(b) || Math.abs(a-b)<2) return null;
+    return mk({ vk, tier:4, text:`Quali sono più numerosi: ${noun(A)} o ${those(Bt)}? Di quanti?`,
+      matches:c=>A.f(c)||Bt.f(c), count:Math.max(a,b),
+      answer:`${a>b ? A.np : Bt.np} (${Math.max(a,b)} contro ${Math.min(a,b)}, differenza ${Math.abs(a-b)})` });
+  }
+  if(vk==="skip"){
+    const k = 1 + rnd(3), base = cells.filter(A.f);
+    const n = base.length - k;
+    if(!inRange(n)) return null;
+    const keep = new Set(base.slice(k));
+    return mk({ vk, tier:2, text:`Conta ${noun(A)}, saltando i primi ${k} che incontri (si legge da sinistra a destra, riga per riga).`,
+      matches:c=>keep.has(c), count:n });
+  }
+  if(vk==="rows"){
+    const byRow = Math.random()<0.6, lines = byRow ? rows : cols;
+    const set = new Set(cells.filter(A.f).map(c=>byRow ? c.row : c.col));
+    const n = set.size, total = cnt(A.f);
+    if(!inRange(total) || n<3 || n>=lines) return null;
+    return mk({ vk, tier:2, text:`In quante ${byRow?"righe":"colonne"} compare almeno un elemento ${A.axis==="sym"?A.np:A.np}?`,
+      matches:A.f, count:total, answer:`${n} ${byRow?"righe":"colonne"} (${total} elementi in tutto)` });
+  }
+  if(vk==="whichrow"){
+    const byRow = Math.random()<0.6, lines = byRow ? rows : cols, per = Array(lines).fill(0);
+    cells.forEach(c=>{ if(A.f(c)) per[byRow ? c.row : c.col]++; });
+    const mx = Math.max(...per), total = per.reduce((x,y)=>x+y,0);
+    if(!inRange(total) || mx<2 || per.filter(v=>v===mx).length!==1) return null;
+    const li = per.indexOf(mx);
+    return mk({ vk, tier:3, text:`Quale ${byRow?"riga":"colonna"} contiene più elementi ${A.np}? (contali ${byRow?"riga per riga":"colonna per colonna"}).`,
+      matches:A.f, count:total, answer:`${byRow?"riga":"colonna"} ${li+1} (${mx} elementi)` });
+  }
+  if(vk==="sameNb"){
+    const dir = Math.random()<0.5 ? "right" : "below", w = dir==="right" ? "a destra" : "sotto";
+    const t = pick(["fill","border","sym"]);
+    const eq = t==="sym" ? (c,n)=>c.sym===n.sym : (t==="fill" ? (c,n)=>c.fill && c.fill===n.fill : (c,n)=>c.border===n.border);
+    const f = c => c[dir] && eq(c, c[dir]), n = cnt(f);
+    if(!inRange(n)) return null;
+    const what = t==="sym" ? "lo stesso simbolo" : (t==="fill" ? "lo stesso colore di sfondo" : "lo stesso colore di bordo");
+    return mk({ vk, kind:"rel", tier:3, text:`Conta gli elementi che hanno ${what} della cella subito ${w}.`, matches:f, count:n });
+  }
+  if(vk==="dirRel"){
+    const dirs = [["right","subito a destra"],["left","subito a sinistra"],["below","subito sotto"],["above","subito sopra"]];
+    const [dk, dw] = pick(dirs);
+    const f = c => A.f(c) && c[dk] && Bt.f(c[dk]), n = cnt(f);
+    if(!inRange(n)) return null;
+    return mk({ vk, kind:"rel", tier:4, text:`Conta ${noun(A)} che hanno ${dw} un elemento ${Bt.axis==="sym"?Bt.np:Bt.np}.`, matches:f, count:n });
+  }
+  return null;
+}
+
 // Costruisce UN tentativo di griglia e valuta un ampio ventaglio di regole candidate,
 // tenendo solo quelle il cui conteggio cade tra 4 e 14. Ogni regola di colore resta
 // SEMPRE agganciata a un simbolo (o a una proprietà della famiglia): mai "conta gli sfondi
@@ -12497,6 +12658,8 @@ function buildGridAttempt(symbols, level, effLevel, rows, cols){
   cells.forEach((c,i)=>{
     c.right = c.col < cols-1 ? cells[i+1] : null;
     c.below = c.row < rows-1 ? cells[i+cols] : null;
+    c.left = c.col>0 ? cells[i-1] : null;
+    c.above = c.row>0 ? cells[i-cols] : null;
     c.nb = [c.right, c.below, c.col>0 ? cells[i-1] : null, c.row>0 ? cells[i-cols] : null].filter(Boolean);
   });
 
@@ -12551,12 +12714,17 @@ function buildGridAttempt(symbols, level, effLevel, rows, cols){
     if(rule.tier>=5) return; // gradino 5 escluso (troppe condizioni insieme), su richiesta di Rodrigo
     if(seen.has(rule.text)) return;
     seen.add(rule.text);
-    rule.count = cells.filter(rule.matches).length;
+    if(rule.count==null) rule.count = cells.filter(rule.matches).length;
     evaluated.push(rule);
   };
   symbols.forEach(sym=> push(specToRule({ syms:[sym] })));
   famPreds.forEach(p=> push(specToRule({ pred:p })));
   for(let i=0; i<1600; i++) push(specToRule(sampleSpec(symbols, famPreds, fillChosen, borderChosen, symColorChosen, feat)));
+  // regole di forma diversa (esclusione, alternativa, doppio conteggio, confronto, soglia, per riga/colonna, relazionali)
+  for(let i=0; i<900; i++){
+    const vr = gridVarRules(cells, rows, cols, symbols, fillChosen, borderChosen, symColorChosen, feat, effLevel);
+    if(vr) push(vr);
+  }
   return { cells, evaluated };
 }
 
@@ -12599,15 +12767,33 @@ function tierQuotaForLevel(level, u){
 // tutte lo stesso risultato. Se un gradino non ha abbastanza candidati validi, il vuoto è
 // riempito dai gradini vicini (dai più complessi ai livelli alti, dai più semplici ai bassi).
 function selectRules(evaluated, level, quotaIn){
-  const quota = quotaIn || tierQuotaForLevel(level);
+  const quota = Object.assign({}, quotaIn || tierQuotaForLevel(level));
   const total = [1,2,3,4,5].reduce((a,t)=>a+quota[t],0);
-  const valid = evaluated.filter(r=>r.count>=4 && r.count<=14);
+  const validAll = evaluated.filter(r=>r.count>=4 && r.count<=14);
+  const valid = validAll.filter(r=>r.kind!=="var" && !r.vk);
+  const varRules = validAll.filter(r=>r.vk);
   const byTier = {};
   [1,2,3,4,5].forEach(t=>{ byTier[t] = {stim:[], pos:[], rel:[]}; });
   shuffle(valid).forEach(r=> byTier[r.tier][r.kind].push(r));
   const usedCount = {};
   const kindCount = {stim:0, pos:0, rel:0};
   const chosen = [];
+  // Regole di forma diversa: fino a VAR_MAX per griglia (cresce col livello), al massimo UNA per
+  // tipo (esclusione, alternativa, confronto…), così una stessa griglia offre operazioni mentali
+  // diverse. Ciascuna occupa un posto della quota del proprio gradino (o del più vicino con posti).
+  const VAR_MAX = level<2 ? 0 : level<6 ? 2 : level<14 ? 3 : 4;
+  const varKinds = new Set();
+  let relVar = 0;
+  shuffle(varRules).forEach(r=>{
+    if(varKinds.size>=VAR_MAX || varKinds.has(r.vk)) return;
+    if(r.kind==="rel" && (relVar>=1 || level<8)) return;
+    const t = quota[r.tier]>0 ? r.tier : [4,3,2,1].find(x=>quota[x]>0);
+    if(!t) return;
+    quota[t]--;
+    varKinds.add(r.vk); if(r.kind==="rel"){ relVar++; kindCount.rel++; }
+    usedCount[r.count] = (usedCount[r.count]||0) + 1;
+    chosen.push(r);
+  });
   // Le regole relazionali (adiacenza, identico al vicino) sono le più astratte: prima potevano
   // comparire (al massimo 1) fin dal livello 1, ora sono assenti fino al livello 8 (segnalato da
   // Rodrigo) e restano comunque una minoranza anche dopo.
@@ -12650,10 +12836,10 @@ function selectRules(evaluated, level, quotaIn){
   const tiers = [...new Set(chosen.map(r=>r.tier))].sort((a,b)=>a-b);
   let lastKind = null;
   tiers.forEach(t=>{
-    const g = {stim:[], pos:[], rel:[]};
+    const g = {stim:[], pos:[], rel:[], var:[]};
     chosen.filter(r=>r.tier===t).forEach(r=>g[r.kind].push(r));
-    while(g.stim.length || g.pos.length || g.rel.length){
-      const avail = ["stim","pos","rel"].filter(k=>g[k].length);
+    while(g.stim.length || g.pos.length || g.rel.length || g.var.length){
+      const avail = ["stim","pos","rel","var"].filter(k=>g[k].length);
       const k = avail.find(x=>x!==lastKind) || avail[0];
       out.push(g[k].shift());
       lastKind = k;
@@ -12877,7 +13063,7 @@ function buildIntrusoScreen(family, len, targetN, level, ctx){
   const oKey = t => "O:" + family.id + "|" + t;
   let types;
   if(len===1) types = ctx ? lruOrder(pool, tKey, ctx).slice(0, k) : pickN(pool, Math.min(k, pool.length));
-  else if(family.small || (len>=2 && intrusoEffLevel(level)>=3 && Math.random() < (intrusoEffLevel(level)-2)/30)) types = similarIntrusoTypes(pool, len, k);   // dal livello effettivo 3, quota crescente (+1/30) di tipi che differiscono per UN solo carattere (o per l'ordine): al 32 sempre
+  else if(len>=2 && intrusoEffLevel(level)>=3 && Math.random() < (intrusoEffLevel(level)-2)/30) types = similarIntrusoTypes(pool, len, k);   // dal livello effettivo 3, quota crescente (+1/30) di tipi che differiscono per UN solo carattere (o per l'ordine): al 32 sempre
   else types = distinctIntrusoTypes(pool, len, k, ctx ? (c=>ctx.last.has(tKey(c))) : null);
   if(types.length<k) k = types.length;
   if(k<2) return null;
@@ -12973,42 +13159,61 @@ function intrusoMaxItems(famId, len){
 // la familiarità della famiglia (unlockLevel, già ordinato da Rodrigo dal più facile al più
 // ostico) e la presenza di distrattori "quasi identici" pesano meno; il numero di elementi per
 // schermata meno ancora (conta, ma resta un fattore di fatica, non di strategia).
-function intrusoFamilyDifficulty(family, level){
+// Lunghezza dell'elemento UNICA per tutta la sessione (richiesta di Rodrigo: non possono coesistere
+// singoli semplici e coppie di simboli complessi). Dipende solo dal livello, non dalla famiglia:
+// tutte le schermate di una sessione hanno elementi di 1, 2 o 3 simboli, mai misti.
+function intrusoSessionLen(level){
+  const e = intrusoEffLevel(level);
+  return e < 8 ? 1 : (e < 22 ? 2 : 3);
+}
+// Lunghezza massima sostenibile da una famiglia (i pool enormi non arrivano alle terne; le tessere
+// di domino e mahjong restano singole: occupano già molto spazio e devono restare grandi).
+function intrusoMaxLen(family){
+  if(INTRUSO_TEXT_FAMILIES.includes(family)) return textFamilyWarmup(family.pool.length).triple<99 ? 3 : 2;
+  if(family.id==="domino" || family.id==="mahjong") return 1;
+  return family.small ? 3 : 2;
+}
+// Famiglie ammesse in una sessione di lunghezza L: sbloccate, capaci di reggere L e, se L>1,
+// "rodate" da qualche livello (non compaiono in coppia alla prima comparsa).
+function intrusoEligibleFamilies(level, L){
+  const base = INTRUSO_ALL_FAMILIES.filter(f=>f.unlockLevel<=level && intrusoMaxLen(f)>=L);
+  if(L===1) return base;
+  const settled = base.filter(f=>level >= f.unlockLevel+3);
+  return settled.length>=4 ? settled : base;
+}
+// Lunghezza effettiva della sessione: quella del livello, ridotta solo se troppo poche famiglie la reggono.
+function intrusoPlanLen(level){
+  let L = intrusoSessionLen(level);
+  while(L>1 && intrusoEligibleFamilies(level, L).length < 4) L--;
+  return L;
+}
+// Punteggio di difficoltà (0..1) di UNA famiglia a lunghezza L: ora la lunghezza è la stessa per
+// tutte, quindi differenziano solo la familiarità (unlockLevel), la somiglianza dei distrattori
+// (uguale per tutte, dipende dal livello) e il numero di elementi.
+function intrusoFamilyDifficulty(family, level, L){
   const isAtomic = INTRUSO_ATOMIC_FAMILIES.includes(family);
-  const len = isAtomic ? intrusoLenFor(family, level, 1) : lenForFamily(family, level);
-  const lenScore = (len-1)/2; // 0 singolo, 0.5 coppia, 1 terna
+  const len = L || intrusoPlanLen(level);
   const familiarityScore = Math.min(1, family.unlockLevel/MAX_LEVEL);
-  let similarityScore = 0;
-  if(family.small && len>=2) similarityScore = 1; // pool ristretto in coppia/terna: SEMPRE distrattori quasi identici
-  else if(!family.small && len>=2 && intrusoEffLevel(level)>=3) similarityScore = Math.min(1, (intrusoEffLevel(level)-2)/30);
+  const similarityScore = len>=2 && intrusoEffLevel(level)>=3 ? Math.min(1, (intrusoEffLevel(level)-2)/30) : 0;
   const targetN = targetNForLevelIntruso(level, isAtomic, len, family.pool.length);
   const countScore = Math.max(0, Math.min(1, (targetN-18)/12));
-  return 0.4*lenScore + 0.3*familiarityScore + 0.2*similarityScore + 0.1*countScore;
+  return 0.6*familiarityScore + 0.2*similarityScore + 0.2*countScore;
 }
 function levelFamiliesIntruso(level, count, ctx){
-  // Schermate per sessione (di default 9, nel range 8-11 osservato negli originali,
-  // ma regolabile dal controllo "Numero di schermate"). Si pesca SOLO tra le famiglie
-  // già "sbloccate" a questo livello (unlockLevel<=level) E il cui punteggio di difficoltà
-  // (vedi intrusoFamilyDifficulty) è vicino a quello atteso per questo livello — non più "tutte
-  // le sbloccate a rotazione": la banda si allarga finché non ci sono abbastanza famiglie idonee,
-  // così ai livelli con poche famiglie sbloccate la sessione resta comunque piena.
+  // Tutte le schermate della sessione hanno la STESSA lunghezza dell'elemento (intrusoPlanLen).
+  // Tra le famiglie ammesse, ordinate per difficoltà, si sceglie una finestra il cui punto di
+  // partenza sale con il livello: livelli bassi = famiglie più familiari, livelli alti = più ostiche,
+  // ma dentro una sessione la forbice resta stretta. Dentro la finestra, rotazione per cronologia.
   count = count || 9;
-  const eligible = INTRUSO_ALL_FAMILIES.filter(f=>f.unlockLevel<=level);
-  const target = intrusoLevelT(level); // stessa curva concava di intrusoEffLevel: la banda di difficoltà
-  // cercata è quella "spostata avanti", coerente con l'intensità che le famiglie hanno già a questo livello.
-  let band = 0.18, pool = [];
-  while(pool.length < Math.min(count, eligible.length) && band<=1){
-    pool = eligible.filter(f => Math.abs(intrusoFamilyDifficulty(f, level)-target) <= band);
-    band += 0.06;
-  }
-  if(pool.length < count) pool = eligible; // sicurezza: se la scala non basta, si riparte da tutte le sbloccate
+  const L = intrusoPlanLen(level);
+  const eligible = intrusoEligibleFamilies(level, L).slice().sort((a,b)=>intrusoFamilyDifficulty(a, level, L)-intrusoFamilyDifficulty(b, level, L));
+  const w = Math.min(eligible.length, Math.max(Math.min(count, eligible.length), Math.ceil(eligible.length*0.5)));
+  const start = Math.round(intrusoLevelT(level) * (eligible.length - w));
+  const pool = eligible.slice(start, start + w);
   const order = [];
   while(order.length<count) order.push(...(ctx ? lruOrder(pool, f=>"F:"+f.id, ctx) : shuffle(pool)));
   const chosen = order.slice(0, count);
-  // Dentro la sessione, le schermate vanno in ordine di difficoltà CRESCENTE (come già le regole
-  // delle griglie): anche a parità di livello, un salto brusco da una famiglia facile a una
-  // difficile spiazza di più di una rampa graduale.
-  return chosen.sort((a,b)=> intrusoFamilyDifficulty(a, level) - intrusoFamilyDifficulty(b, level));
+  return chosen.sort((a,b)=> intrusoFamilyDifficulty(a, level, L) - intrusoFamilyDifficulty(b, level, L));
 }
 
 function genIntruso(level, excludeKeys){
@@ -13028,7 +13233,7 @@ function genIntruso(level, excludeKeys){
   const slides = fams
     .map(fam=>{
       const isAtomic = INTRUSO_ATOMIC_FAMILIES.includes(fam);
-      const famLen = isAtomic ? intrusoLenFor(fam, level, 1) : lenForFamily(fam, level);
+      const famLen = Math.min(intrusoPlanLen(level), intrusoMaxLen(fam));   // stessa lunghezza per tutta la sessione
       const targetN = niceIntrusoCount(targetNForLevelIntruso(level, isAtomic, famLen, fam.pool.length), 1333, 500, intrusoMaxItems(fam.id, famLen));
       return buildIntrusoScreen(fam, famLen, targetN, level, ctx);
     })
@@ -13406,11 +13611,9 @@ function levelNote(exId, level){
     case "intruso": {
       const eligibleText = INTRUSO_TEXT_FAMILIES.filter(f=>f.unlockLevel<=level);
       const eligibleAtomic = INTRUSO_ATOMIC_FAMILIES.filter(f=>f.unlockLevel<=level);
-      const lens = eligibleText.map(f=>lenForFamily(f, level));
-      const lenMin = Math.min(...lens), lenMax = Math.max(...lens);
-      const lenTxt = lenMin===lenMax ? `${lenMin}` : `${lenMin}-${lenMax} a seconda della famiglia`;
+      const lenTxt = `${intrusoPlanLen(level)} in tutte le schermate`;
       const range = arr => { const lo = Math.min(...arr), hi = Math.max(...arr); return lo===hi ? `${lo}` : `${lo}-${hi}`; };
-      const nTTxt = range(eligibleText.map(f=>targetNForLevelIntruso(level, false, lenForFamily(f, level), f.pool.length)));
+      const nTTxt = range(eligibleText.map(f=>targetNForLevelIntruso(level, false, intrusoPlanLen(level), f.pool.length)));
       const nATxt = range(eligibleAtomic.map(f=>targetNForLevelIntruso(level, true, 1, f.pool.length)));
       const bits = [`${nTTxt} elementi (testo, ${lenTxt} car.) / ${nATxt} (glifi) — a seconda di quanto la famiglia è ampia/familiare`];
       const effLevelIntruso = intrusoEffLevel(level);
@@ -13421,10 +13624,8 @@ function levelNote(exId, level){
       // superata anche senza che level la tocchi esattamente.
       const prevEffLevelIntruso = level>1 ? intrusoEffLevel(level-1) : -Infinity;
       const extra = [];
-      INTRUSO_ATOMIC_FAMILIES.filter(f=>f.small).forEach(f=>{
-        if(effLevelIntruso>=f.triplesFrom && prevEffLevelIntruso<f.triplesFrom) extra.push(`terne per ${f.label}`);
-        else if(effLevelIntruso>=f.pairsFrom && prevEffLevelIntruso<f.pairsFrom && level>1) extra.push(`coppie per ${f.label}`);
-      });
+      const prevL = level>1 ? intrusoPlanLen(level-1) : 1, curL = intrusoPlanLen(level);
+      if(curL>prevL) extra.push(curL===2 ? "elementi di 2 simboli in tutte le schermate" : "elementi di 3 simboli in tutte le schermate");
       let s = bits.join("; ") + ".";
       if(level===1) s += " Famiglie di partenza: " + newFam.join(", ") + " (glifi singoli).";
       else {
@@ -13472,6 +13673,7 @@ function colorHex(name){
   return c? c.css : null;
 }
 
+function gridRuleLabel(r){ return r.keepText ? r.text : r.text.replace(/^Conta (tutti )?(gli )?/,""); }
 function renderOneGrid(s){
   const rule = s.rules[s.ruleIndex];
   const grid = document.createElement("div");
@@ -13530,7 +13732,7 @@ function renderGriglie(deck){
     s.rules.forEach((r,ri)=>{
       const li = document.createElement("li");
       li.className = ri===s.ruleIndex ? "rule-active" : "";
-      li.innerHTML = r.text.replace(/^Conta (tutti )?(gli )?/,"") + (state.reveal ? ` <span class="answer-inline">(${r.count} elementi)</span>` : "");
+      li.innerHTML = gridRuleLabel(r) + (state.reveal ? ` <span class="answer-inline">(${r.answer || (r.count+" elementi")})</span>` : "");
       li.style.cursor = "pointer";
       li.onclick = ()=>{ s.ruleIndex = ri; render(); };
       list.appendChild(li);
@@ -13898,6 +14100,12 @@ function renderFascicolo(deck){
   const E = window.Engine;
 
   root.appendChild(fEl("h2",{}, `Fascicolo ${deck.week} — ${deck.week}°settimana`));
+  if(deck.notices && deck.notices.length){
+    const warn = fEl("div",{class:"fasc-warn"});
+    warn.style.cssText = "border:2px solid #C77700;background:#FFF4E0;color:#5A3A00;border-radius:8px;padding:8px 12px;margin:8px 0;font-size:0.9em;";
+    warn.innerHTML = "<b>Materiale nuovo esaurito per questo gruppo</b> — nessuna parola è stata ripetuta, ma alcune pagine ne contengono meno del solito:<br>" + deck.notices.map(n=>"• "+n).join("<br>") + "<br><i>Per ricominciare da zero usa il pulsante «Azzera il materiale già proposto» del gruppo.</i>";
+    root.appendChild(warn);
+  }
 
   deck.grids.forEach((g,i)=>{
     root.appendChild(fSection(
@@ -13956,15 +14164,39 @@ function renderFascicolo(deck){
 // già esistente — stessa logica usata sia dal pulsante "↻ Rigenera" di una singola parte,
 // sia (qui sotto, in generate()) per riportare automaticamente ogni parte fatta avanzare
 // individualmente alla propria settimana dopo una rigenerazione completa del fascicolo.
-async function applyFascicoloPartAt(partKey, week){
-  const [excludeAnagrams, excludeCategories, excludeLexical] = await Promise.all([
+// Materiale già proposto a questo gruppo nei fascicoli (qualunque settimana): parole degli anagrammi e
+// del crucipuzzle, categorie (pagina "categorie" + categorie larghe delle consegne lettera+categoria),
+// consegne dell'accesso lessicale. Il motore le esclude tutte: un gruppo non rivede mai lo stesso
+// elemento, né in un'altra pagina né in un altro fascicolo.
+const FASC_CAPS = { words: 800, categories: 300, lexical: 800 };
+async function fascicoloExclusions(){
+  const [anagramWords, crucipuzzleWords, categories, lexicalKeys] = await Promise.all([
     fetchRecentUsed("fascicoloHistory", "usedAnagramWords"),
+    fetchRecentUsed("fascicoloHistory", "usedCrucipuzzleWords"),
     fetchRecentUsed("fascicoloHistory", "usedCategories"),
     fetchRecentUsed("fascicoloHistory", "usedLexicalKeys"),
   ]);
-  const fresh = window.Engine.buildFascicolo(week, Math.floor(Math.random()*1e9), {
-    anagramWords: excludeAnagrams, categories: excludeCategories, lexicalKeys: excludeLexical,
-  });
+  return { anagramWords, crucipuzzleWords, categories, lexicalKeys };
+}
+// Registra nella cronologia le parti EFFETTIVAMENTE mostrate (parts: elenco di chiavi parte, o null = tutte).
+function fascicoloRecordUsed(deck, parts){
+  const has = k => !parts || parts.includes(k);
+  if(has("anagrams")) appendUsed("fascicoloHistory", "usedAnagramWords", deck.anagrams.map(a=>a.solution), FASC_CAPS.words);
+  if(has("crucipuzzle")) appendUsed("fascicoloHistory", "usedCrucipuzzleWords", deck.crucipuzzle.plantedWords || [], FASC_CAPS.words);
+  if(has("categories")) appendUsed("fascicoloHistory", "usedCategories", deck.categories, FASC_CAPS.categories);
+  if(has("lexicalBlock")){
+    appendUsed("fascicoloHistory", "usedLexicalKeys", deck.lexicalBlock.historyKeys, FASC_CAPS.lexical);
+    if(deck.lexicalBlock.usedCategories && deck.lexicalBlock.usedCategories.length) appendUsed("fascicoloHistory", "usedCategories", deck.lexicalBlock.usedCategories, FASC_CAPS.categories);
+  }
+}
+const FASC_NOTICE_PREFIX = { anagrams:"Anagrammi", crucipuzzle:"Crucipuzzle", categories:"Categorie", lexicalBlock:"Accesso lessicale" };
+async function applyFascicoloPartAt(partKey, week){
+  const fresh = window.Engine.buildFascicolo(week, Math.floor(Math.random()*1e9), await fascicoloExclusions());
+  // avvisi di materiale esaurito: si aggiornano solo per la parte rigenerata
+  if(FASC_NOTICE_PREFIX[partKey]){
+    const pre = FASC_NOTICE_PREFIX[partKey];
+    state.deck.notices = (state.deck.notices||[]).filter(n=>!n.startsWith(pre)).concat((fresh.notices||[]).filter(n=>n.startsWith(pre)));
+  }
   const m = /^grid(\d)$/.exec(partKey);
   if (m) {
     state.deck.grids[Number(m[1])] = fresh.grids[Number(m[1])];
@@ -13972,23 +14204,24 @@ async function applyFascicoloPartAt(partKey, week){
     state.deck.multi = fresh.multi;
   } else if (partKey === "crucipuzzle") {
     state.deck.crucipuzzle = fresh.crucipuzzle;
+    fascicoloRecordUsed(fresh, ["crucipuzzle"]);
   } else if (partKey === "sequencing") {
     state.deck.sequencing = fresh.sequencing;
   } else if (partKey === "maze") {
     state.deck.maze = fresh.maze;
   } else if (partKey === "lexicalBlock") {
     state.deck.lexicalBlock = fresh.lexicalBlock;
-    appendUsed("fascicoloHistory", "usedLexicalKeys", fresh.lexicalBlock.historyKeys, 60);
+    fascicoloRecordUsed(fresh, ["lexicalBlock"]);
   } else if (partKey === "categories") {
     state.deck.categories = fresh.categories;
     // La consegna ("almeno N parole") dipende dal livello scelto per QUESTA rigenerazione,
     // non da quello globale del fascicolo: va tenuta assieme al contenuto rigenerato,
     // sia nell'anteprima sia nel fascicolo esportato (vedi buildFascicoloDocument).
     state.deck.categoriesMinWords = fresh.params.categoryMinWords;
-    appendUsed("fascicoloHistory", "usedCategories", fresh.categories, 60);
+    fascicoloRecordUsed(fresh, ["categories"]);
   } else if (partKey === "anagrams") {
     state.deck.anagrams = fresh.anagrams;
-    appendUsed("fascicoloHistory", "usedAnagramWords", fresh.anagrams.map(a=>a.solution), 60);
+    fascicoloRecordUsed(fresh, ["anagrams"]);
   } else if (partKey === "calc") {
     state.deck.calc = fresh.calc;
   }
@@ -14359,19 +14592,11 @@ async function generate(){
     // semantiche, blocco lessicale (unificato, qualunque sia lo schema di quella
     // settimana). Le altre parti (griglie, labirinto, calcolo, sequenziamento) restano
     // procedurali e non ne hanno bisogno.
-    const [excludeAnagrams, excludeCategories, excludeLexical] = await Promise.all([
-      fetchRecentUsed("fascicoloHistory", "usedAnagramWords"),
-      fetchRecentUsed("fascicoloHistory", "usedCategories"),
-      fetchRecentUsed("fascicoloHistory", "usedLexicalKeys"),
-    ]);
+    const exclusions = await fascicoloExclusions();
     if(gen !== state._generationToken) return;
-    state.deck = window.Engine.buildFascicolo(state.fascicoloWeek, Math.floor(Math.random()*1e9), {
-      anagramWords: excludeAnagrams, categories: excludeCategories, lexicalKeys: excludeLexical,
-    });
+    state.deck = window.Engine.buildFascicolo(state.fascicoloWeek, Math.floor(Math.random()*1e9), exclusions);
     state.deck.categoriesMinWords = state.deck.params.categoryMinWords;
-    appendUsed("fascicoloHistory", "usedAnagramWords", state.deck.anagrams.map(a=>a.solution), 60);
-    appendUsed("fascicoloHistory", "usedCategories", state.deck.categories, 60);
-    appendUsed("fascicoloHistory", "usedLexicalKeys", state.deck.lexicalBlock.historyKeys, 60);
+    fascicoloRecordUsed(state.deck, null);
     // Le parti portate avanti (o indietro) singolarmente restano alla propria settimana anche
     // dopo questa rigenerazione completa: si riapplicano qui, una per una, sopra il fascicolo
     // appena ricostruito alla settimana globale — vedi applyFascicoloPartAt più sotto.
@@ -14481,7 +14706,7 @@ function exportGriglie(deck, level){
     // Regole raggruppate 3 per riga invece di una per riga: da fino a 10 righe
     // a non più di 4, per essere leggibili a colpo d'occhio durante la seduta
     // invece che come un lungo elenco verticale (richiesta di Rodrigo).
-    const items = s.rules.map((x,i)=>`${i+1}) ${x.text.replace(/^Conta (tutti )?(gli )?/,"").replace(/\.$/,"")}`);
+    const items = s.rules.map((x,i)=>`${i+1}) ${gridRuleLabel(x).replace(/\.$/,"")}`);
     const perLine = 2;
     const groupedLines = [];
     for(let i=0;i<items.length;i+=perLine) groupedLines.push(items.slice(i,i+perLine).join("   |   "));
