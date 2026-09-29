@@ -1280,8 +1280,9 @@ function findAllDictionaryWords(grid) {
 function generateItalianCrucipuzzle(rows, cols, rnd, week, excludeWords) {
   week = week || 1;
   const w = Math.max(1, Math.min(12, week));
-  // Quante parole garantire in griglia: 6 alla settimana 1, 12 alla settimana 12.
-  const nWords = Math.round(6 + (w - 1) / 11 * 6);
+  // Quante parole garantire in griglia: 10 alla settimana 1, 18 alla settimana 12 (prima 6-12: pochi
+  // bersagli per una ricerca libera, richiesta di Rodrigo di averne di più).
+  const nWords = Math.round(10 + (w - 1) / 11 * 8);
   // Lunghezza delle parole: cresce ogni 3 settimane (4-5 all'inizio, fino a 7-9 in fondo).
   const minLen = Math.min(8, 4 + Math.floor((w - 1) / 3));
   const maxLen = Math.min(9, minLen + 2);
@@ -2003,7 +2004,10 @@ return {
     // Righe con altezza esplicita SOLO per le griglie grandi (25 righe, piena
     // pagina): la griglia mista (4ª) resta volutamente più piccola e continua
     // ad auto-dimensionarsi sul contenuto, per lasciare spazio alla legenda sotto.
-    const rowHeight = opts.fillPage ? GRID_ROW_H : null;
+    // opts.compact (solo fascicolo delle soluzioni): margini di cella e altezza riga ridotti, così la
+    // griglia a piena pagina lascia sotto lo spazio per il paragrafo di soluzione senza uscire dalla pagina.
+    const rowHeight = opts.fillPage ? (opts.compact ? 420 : GRID_ROW_H) : null;
+    const cellMarg = opts.compact ? 40 : 100;
     // opts.highlight: Set di "riga,colonna" da evidenziare — SOLO nel fascicolo delle
     // soluzioni (vedi buildFascicoloDocument), per mostrare esattamente dove sono le
     // occorrenze/parole, non solo quante sono.
@@ -2015,7 +2019,7 @@ return {
         return new TableCell({
           width: { size: GRID_CELL_W, type: WidthType.DXA },
           verticalAlign: VerticalAlign.CENTER,
-          margins: { top: 100, bottom: 100, left: 100, right: 100 },
+          margins: { top: cellMarg, bottom: cellMarg, left: 100, right: 100 },
           shading: isHi ? { fill: 'FFE9A8' } : undefined,
           children: [new Paragraph({ alignment: AlignmentType.CENTER, children: [new TextRun({ text: sym, size: 24, bold: true, font: 'Arial', color: isHi ? '8A5A00' : undefined })] })],
         });
@@ -2068,17 +2072,23 @@ return {
     return new Table({ rows, width: { size: LEGEND_CELL_W * perRow, type: WidthType.DXA }, columnWidths: Array(perRow).fill(LEGEND_CELL_W), borders: thinBorders(docx) });
   }
 
-  function promptAnswerTable(docx, prompts, answers) {
+  function promptAnswerTable(docx, prompts, answers, opts = {}) {
     const { Table, TableRow, TableCell, Paragraph, TextRun, WidthType, AlignmentType, VerticalAlign } = docx;
+    // opts (blocco lessicale): consegne lunghe ("seconda lettera «R», penultima «V»") con carattere più
+    // piccolo, colonna del testo più larga e righe meno alte, così le 10 righe stanno in UNA pagina
+    // (prima andavano a capo su 3 righe e le ultime finivano nella pagina successiva).
+    const labelW = opts.labelW || PROMPT_LABEL_W, answerW = opts.answerW || PROMPT_ANSWER_W;
+    const rowH = opts.rowH || PROMPT_ROW_H, promptSize = opts.fontSize || 50;
     const rows = prompts.map((pr, i) => new TableRow({
-      height: { value: PROMPT_ROW_H, rule: 'atLeast' },
+      height: { value: rowH, rule: 'atLeast' },
+      cantSplit: true,
       children: [
         new TableCell({
-          width: { size: PROMPT_LABEL_W, type: WidthType.DXA }, verticalAlign: VerticalAlign.CENTER,
-          children: [new Paragraph({ alignment: AlignmentType.CENTER, children: [new TextRun({ text: String(pr), bold: true, size: 50, font: 'Arial' })] })],
+          width: { size: labelW, type: WidthType.DXA }, verticalAlign: VerticalAlign.CENTER,
+          children: [new Paragraph({ alignment: AlignmentType.CENTER, children: [new TextRun({ text: String(pr), bold: true, size: promptSize, font: 'Arial' })] })],
         }),
         new TableCell({
-          width: { size: PROMPT_ANSWER_W, type: WidthType.DXA }, verticalAlign: VerticalAlign.CENTER,
+          width: { size: answerW, type: WidthType.DXA }, verticalAlign: VerticalAlign.CENTER,
           // Nel fascicolo bianco la cella resta vuota (spazio per la risposta del
           // paziente); nel fascicolo delle soluzioni riporta la risposta corretta,
           // quando ne esiste una univoca (anagrammi, calcolo — non i prompt aperti
@@ -2092,7 +2102,7 @@ return {
         }),
       ],
     }));
-    return new Table({ rows, width: { size: PROMPT_LABEL_W + PROMPT_ANSWER_W, type: WidthType.DXA }, columnWidths: [PROMPT_LABEL_W, PROMPT_ANSWER_W], borders: thinBorders(docx) });
+    return new Table({ rows, width: { size: labelW + answerW, type: WidthType.DXA }, columnWidths: [labelW, answerW], borders: thinBorders(docx) });
   }
 
   // Intestazione di sezione: un solo paragrafo centrato, titolo in Calibri 25pt
@@ -2149,8 +2159,8 @@ return {
     // con "Mostra risposta" (occorrenze, ordine corretto...), qui in corsivo/verde sotto
     // l'esercizio corrispondente — presente SOLO nel fascicolo gemello delle soluzioni,
     // mai in quello bianco per il paziente.
-    function solutionParagraph(text) {
-      return new Paragraph({ spacing: { before: 120 }, children: [new TextRun({ text, italics: true, bold: true, size: 24, font: 'Calibri', color: '2F6F63' })] });
+    function solutionParagraph(text, size) {
+      return new Paragraph({ spacing: { before: 80 }, keepLines: true, children: [new TextRun({ text, italics: true, bold: true, size: size || 22, font: 'Calibri', color: '2F6F63' })] });
     }
 
     // Titolo: Times New Roman 90pt centrato, come nell'originale — occupa la
@@ -2163,7 +2173,7 @@ return {
     // direttamente nella griglia, non solo contate.
     data.grids.forEach((g) => {
       children.push(heading(docx, `Cerchiare e contare tutte le sequenze ${g.target.join('')}`, '(orizzontale e verticale)'));
-      children.push(symbolGridTable(docx, g.grid, { fillPage: true, highlight: withSolutions ? highlightSetFrom(g.occurrences) : null }));
+      children.push(symbolGridTable(docx, g.grid, { fillPage: true, compact: !!withSolutions, highlight: withSolutions ? highlightSetFrom(g.occurrences) : null }));
       if (withSolutions) children.push(solutionParagraph(`Soluzione: ${g.count} occorrenze (${g.countH} orizzontali, ${g.countV} verticali) — evidenziate in griglia.`));
     });
 
@@ -2203,8 +2213,10 @@ return {
     // questa pagina può occupare 3 righe e, alla dimensione unica dei titoli, con l'immagine a
     // piena pagina l'ultima riga di cerchi finiva su una pagina a parte (verificato con
     // LibreOffice su tutte le 12 settimane).
-    children.push(await imageParagraph(docx, rasterize, seqSvg, 540, 779));
-    if (withSolutions) children.push(solutionParagraph(`Ordine corretto: ${data.sequencing.order.join(' → ')}`));
+    // Nel fascicolo delle soluzioni l'immagine è più piccola (78%): sotto c'è l'ordine corretto e deve
+    // restare nella stessa pagina.
+    children.push(await imageParagraph(docx, rasterize, seqSvg, withSolutions ? 421 : 540, withSolutions ? 608 : 779));
+    if (withSolutions) children.push(solutionParagraph(`Ordine corretto: ${data.sequencing.order.join(' → ')}`, 20));
 
     // 7: labirinto + immagine (dimensione di stampa come l'originale; la
     // difficoltà reale è nel numero di celle, deciso da weekParams). Nel fascicolo
@@ -2222,7 +2234,7 @@ return {
     // aperto, senza un'unica risposta corretta: nessuna soluzione da riportare, in
     // nessuno dei due fascicoli — come nell'anteprima a schermo.
     children.push(heading(docx, data.lexicalBlock.label));
-    children.push(promptAnswerTable(docx, data.lexicalBlock.prompts));
+    children.push(promptAnswerTable(docx, data.lexicalBlock.prompts, null, data.lexicalBlock.prompts.length > 8 ? { fontSize: 32, rowH: 900, labelW: 5600, answerW: 2875 } : {}));
 
     // 9: accesso lessicale per categoria — prompt aperto, stesso discorso di sopra. Se
     // questa parte è stata rigenerata singolarmente a un livello diverso da quello globale
@@ -11593,12 +11605,7 @@ async function resolveTrialImages(trial) {
    funziona esattamente come prima, solo senza memoria tra un dispositivo e l'altro.
    ========================================================= */
 const firebaseConfig = {
- apiKey: "AIzaSyCEFMdVHdANv1PsVlb-Wo65JHe4IKMtk3o",
-    authDomain: "pdmgenerator.firebaseapp.com",
-    projectId: "pdmgenerator",
-    storageBucket: "pdmgenerator.firebasestorage.app",
-    messagingSenderId: "203067967755",
-    appId: "1:203067967755:web:6ec8266c59798c852e3a0e"
+  // apiKey: "...", authDomain: "...", projectId: "...", ...
 };
 
 let sharedHistoryReady = false;
@@ -12348,7 +12355,7 @@ const ANY_PRED = { plain:"Conta tutti gli elementi.", np:"gli elementi", f:()=>t
 // Ogni opzione ha un peso di difficoltà `w`: 1 = un solo criterio di riga/colonna/bordo; 2 = criterio
 // composto (intersezione riga∩colonna, blocchi, scacchiera, righe/colonne non contigue). Le opzioni
 // con w=2 compaiono solo dal livello 9 (vedi GRID_POS_W2_FROM).
-const GRID_POS_W2_FROM = 9;
+const GRID_POS_W2_FROM = 10;
 // Testi e filtri di posizione si ricalcolano sulle dimensioni EFFETTIVE della griglia di questa
 // sessione (righe/colonne crescono col livello, vedi gridRowsForLevel/gridColsForLevel): prima
 // erano scritti per una 5×7 fissa (es. "colonne 1, 4 e 7"), ora restano corretti a ogni dimensione.
@@ -12559,7 +12566,7 @@ const BORDER_STYLE_POOL = [{name:"continuo"}, {name:"tratteggiato"}, {name:"punt
 //    "identici alla cella a destra/sotto".
 // Ogni regola porta `answer` (testo mostrato con "Mostra risposta") e `count` = celle evidenziate
 // (sempre 4-14, come le altre). kind 'var' (o 'rel' per le relazionali): vedi selectRules.
-const GRID_VAR_MIN_LEVEL = { skip:3, rows:4, exclude:6, either:6, whichrow:7, double:8, sameNb:9, compare:10, dirRel:12 };
+const GRID_VAR_MIN_LEVEL = { skip:8, rows:10, either:12, exclude:14, whichrow:16, double:18, sameNb:20, compare:22, dirRel:24 };
 function gridVarRules(cells, rows, cols, symbols, F, B, I, feat, effLevel){
   const attr = () => {
     const opts = [
@@ -12683,13 +12690,15 @@ function buildGridAttempt(symbols, level, effLevel, rows, cols){
   // dello stile del bordo, perché è un altro vincolo semplice su un solo attributo visivo, ora
   // disponibile per QUALUNQUE famiglia di simboli e non solo per le forme piene/vuote (richiesta di
   // Rodrigo). Vedi assignFillWithVoid.
-  const fillVoidOn = effLevel>=5;
+  const fillVoidOn = effLevel>=9;
   const palette = pickGridPalette();
+  // Crescita graduale: ai primi livelli solo 2 colori per canale (sfondo, bordo, colore del simbolo), poi 3.
+  const nCol = effLevel<5 ? 2 : 3;
   const fillChosen = fillVoidOn
-    ? assignFillWithVoid(cells, allIdx, palette.fills, 3)
-    : assignAttribute(cells, allIdx, palette.fills, "fill", 3);
-  const borderChosen = assignAttribute(cells, allIdx, palette.inks, "border", 3);
-  const symColorChosen = assignAttribute(cells, allIdx, palette.inks, "symColor", 3);
+    ? assignFillWithVoid(cells, allIdx, palette.fills, nCol)
+    : assignAttribute(cells, allIdx, palette.fills, "fill", nCol);
+  const borderChosen = assignAttribute(cells, allIdx, palette.inks, "border", nCol);
+  const symColorChosen = assignAttribute(cells, allIdx, palette.inks, "symColor", nCol);
 
   // 2b) ATTRIBUTI EXTRA, in funzione del livello (32 livelli): dimensione del simbolo (grande/piccolo)
   //     dal livello 3; stile del bordo dal livello 5 (continuo/tratteggiato; dal 17 anche puntinato);
@@ -12698,14 +12707,14 @@ function buildGridAttempt(symbols, level, effLevel, rows, cols){
   // Attributi extra e opzioni di posizione: gradiscono in base al livello EFFETTIVO (vedi
   // tierEffectiveLevel), non al livello a video — stesso motivo delle quote di gradino più sotto.
   const feat = { bStyles:null, sizes:null, fillVoid:fillVoidOn, posOptions: buildPosOptions(rows, cols).filter(o => o.w===1 || effLevel>=GRID_POS_W2_FROM) };
-  if(effLevel>=3){
+  if(effLevel>=6){
     assignBinary(cells, allIdx, ["grande","piccolo"], "size");
     feat.sizes = ["grande","piccolo"];
   }
   if(effLevel>=17){
     assignAttribute(cells, allIdx, BORDER_STYLE_POOL, "bStyle", 3);
     feat.bStyles = BORDER_STYLE_POOL.map(x=>x.name);
-  } else if(effLevel>=5){
+  } else if(effLevel>=12){
     assignBinary(cells, allIdx, ["continuo","tratteggiato"], "bStyle");
     feat.bStyles = ["continuo","tratteggiato"];
   }
@@ -12744,10 +12753,10 @@ function buildGridAttempt(symbols, level, effLevel, rows, cols){
 // bassi uscivano già criteri "molto astratti" tipo elemento-vicino-a-elemento. Gradino 1 = singolo
 // simbolo/proprietà; 2 = un vincolo; 3 = due vincoli; 4 = combinazioni complesse. (Gradino 5 abolito
 // su richiesta di Rodrigo.)
-const GRID_QUOTA_START = [3, 6, 1, 0];   // livello 1 — nessuna combinazione complessa
+const GRID_QUOTA_START = [4, 6, 0, 0];   // livello 1 — nessuna combinazione complessa
 const GRID_QUOTA_END   = [0, 3, 3, 4];   // livello 32 — invariato
 const GRID_QUOTA_EASE = 1.5;             // >1 = ritarda la salita nei primi livelli, converge comunque a GRID_QUOTA_END al livello 32
-const GRID_READABILITY_DELTA = { shapes:3, arrows:2, digits:4, letters:4, mixed:2, cyrillic:-3, cjk:-5, geez:-5 };
+const GRID_READABILITY_DELTA = { shapes:1, arrows:1, digits:2, letters:2, mixed:1, cyrillic:-3, cjk:-5, geez:-5 };
 function tierEffectiveLevel(level, category){
   const delta = GRID_READABILITY_DELTA[category] || 0;
   return Math.max(1, Math.min(MAX_LEVEL, level + delta));
@@ -12786,7 +12795,7 @@ function selectRules(evaluated, level, quotaIn){
   // Regole di forma diversa: fino a VAR_MAX per griglia (cresce col livello), al massimo UNA per
   // tipo (esclusione, alternativa, confronto…), così una stessa griglia offre operazioni mentali
   // diverse. Ciascuna occupa un posto della quota del proprio gradino (o del più vicino con posti).
-  const VAR_MAX = level<2 ? 0 : level<6 ? 2 : level<14 ? 3 : 4;
+  const VAR_MAX = level<8 ? 0 : level<14 ? 1 : level<20 ? 2 : level<26 ? 3 : 4;   // crescita graduale: 0 → 4 regole di forma diversa per griglia
   const varKinds = new Set();
   let relVar = 0;
   shuffle(varRules).forEach(r=>{
@@ -12802,7 +12811,7 @@ function selectRules(evaluated, level, quotaIn){
   // Le regole relazionali (adiacenza, identico al vicino) sono le più astratte: prima potevano
   // comparire (al massimo 1) fin dal livello 1, ora sono assenti fino al livello 8 (segnalato da
   // Rodrigo) e restano comunque una minoranza anche dopo.
-  const REL_MAX = level<8 ? 0 : (level>=16 ? 2 : 1);
+  const REL_MAX = level<14 ? 0 : (level>=22 ? 2 : 1);
   // Estrae dalla lista la regola il cui conteggio è meno usato tra quelle già scelte: le regole di una
   // stessa griglia non danno tutte lo stesso risultato.
   const popLeastUsed = list => {
@@ -13607,9 +13616,9 @@ function levelNote(exId, level){
       const effLevel = tierEffectiveLevel(level, cat);
       const q = tierQuotaForLevel(effLevel);
       const extra = [];
-      if(effLevel>=3) extra.push("simbolo grande/piccolo");
-      if(effLevel>=17) extra.push("bordo continuo/tratteggiato/puntinato"); else if(effLevel>=5) extra.push("bordo continuo/tratteggiato");
-      if(effLevel>=5) extra.push("sfondo pieno/vuoto");
+      if(effLevel>=6) extra.push("simbolo grande/piccolo");
+      if(effLevel>=17) extra.push("bordo continuo/tratteggiato/puntinato"); else if(effLevel>=12) extra.push("bordo continuo/tratteggiato");
+      if(effLevel>=9) extra.push("sfondo pieno/vuoto");
       const readNote = effLevel!==level ? ` — combinazioni calibrate come al livello ${effLevel} (${GRID_CATEGORY_LABELS[cat].toLowerCase()} ${effLevel>level ? "è facile da leggere per un lettore italiano" : "è poco familiare per un lettore italiano"})` : "";
       return `${GRID_CATEGORY_LABELS[cat]} (passo ${sub}/4) — griglia ${rows}×${cols}${readNote}. Mix di regole (indicativo): ${q[1]} sul solo simbolo · ${q[2]} con 1 vincolo · ${q[3]} con 2 vincoli · ${q[4]} composte; in ogni griglia circa metà sugli stimoli e metà sulla posizione${effLevel>=GRID_POS_W2_FROM ? " (posizioni composte incluse: blocchi, scacchiera, riga∩colonna)" : ""}.` + (extra.length ? ` Attributi extra: ${extra.join(", ")}.` : "");
     }
@@ -13825,7 +13834,11 @@ function renderIntruso(deck){
         if(!first) return;
         const rect = first.getBoundingClientRect();
         const fam = getComputedStyle(first).fontFamily;
-        const px = fitInkFontSize(s.items, rect.width - 8, rect.height - 8, fam, INTRUSO_FILL);
+        const gl = Math.max(1, ...s.items.map(it=>[...String(it)].length));
+        const cw = INTRUSO_GROUP_CHAR_WIDTH[s.familyId] || INTRUSO_FAMILY_CHAR_WIDTH[s.familyId] || INTRUSO_DEFAULT_ATOMIC_CHAR_WIDTH;
+        // coppie/terne: occupano solo il 62% / 74% della cella, per lasciare uno spazio chiaro tra un elemento e l'altro
+        const px = gl===1 ? fitInkFontSize(s.items, rect.width - 8, rect.height - 8, fam, INTRUSO_FILL)
+                          : Math.min(rect.width*(gl>=3 ? 0.74 : 0.62)/gl/cw, (rect.height-8)*0.7);
         if(px) [...strip.children].forEach(cell=>{ cell.style.fontSize = Math.floor(px) + "px"; cell.style.padding = "0"; });
       }, 0);
     }
@@ -14191,7 +14204,6 @@ function fascicoloRecordUsed(deck, parts){
   if(has("categories")) appendUsed("fascicoloHistory", "usedCategories", deck.categories, FASC_CAPS.categories);
   if(has("lexicalBlock")){
     appendUsed("fascicoloHistory", "usedLexicalKeys", deck.lexicalBlock.historyKeys, FASC_CAPS.lexical);
-    if(deck.lexicalBlock.usedCategories && deck.lexicalBlock.usedCategories.length) appendUsed("fascicoloHistory", "usedCategories", deck.lexicalBlock.usedCategories, FASC_CAPS.categories);
   }
 }
 const FASC_NOTICE_PREFIX = { anagrams:"Anagrammi", crucipuzzle:"Crucipuzzle", categories:"Categorie", lexicalBlock:"Accesso lessicale" };
@@ -14801,6 +14813,8 @@ const INTRUSO_FAMILY_CHAR_WIDTH = {
   lower: 0.95, mixedcase: 1.05, greek: 1.1, katakana: 1.25, hiragana: 1.25, hebrew: 1.0, devanagari: 1.2,
   circles: 1.3, quadrants: 1.3, box: 1.1, sets: 1.2, braille: 1.2,
 };
+// larghezza per simbolo quando l'elemento è una coppia/terna di glifi pittografici (più stretta della stima prudente per il singolo)
+const INTRUSO_GROUP_CHAR_WIDTH = { suits:1.15, zodiac:1.1 };
 const INTRUSO_DEFAULT_TEXT_CHAR_WIDTH = 0.95; // famiglie testuali non calibrate esplicitamente
 const INTRUSO_DEFAULT_ATOMIC_CHAR_WIDTH = 1.0; // famiglie a glifo singolo non calibrate esplicitamente
 
@@ -14827,7 +14841,7 @@ function exportIntruso(deck, level){
     // larghezza/font varia per famiglia (vedi INTRUSO_FAMILY_CHAR_WIDTH sopra) — mai un
     // singolo valore fisso uguale per tutte, che è esattamente ciò che causava lo
     // sformarsi dei numeri romani.
-    const itemLen = Math.max(1, ...s.items.map(it=>String(it).length));
+    const itemLen = Math.max(1, ...s.items.map(it=>[...String(it)].length));
     const isAtomic = itemLen === 1 && INTRUSO_ATOMIC_FAMILIES.some(f=>f.id===s.familyId);
     // (le famiglie a pool ristretto ai livelli alti hanno elementi di 2-3 simboli: itemLen li
     // conta già, e la larghezza per simbolo resta quella calibrata della famiglia)
@@ -14836,11 +14850,18 @@ function exportIntruso(deck, level){
     // Margine di altezza più prudente (32 invece di 40): un po' di scorta in più nel caso
     // in cui, nonostante la calibrazione, il testo vada comunque a capo su due righe.
     const fontSizeByHeight = cellH*32;
-    const fontSizeByWidth = (cellW*72*0.85) / itemLen / charWidth;
+    // Elementi di 2-3 simboli: la coppia/terna occupa solo una parte della cella (62% / 74%), così lo
+    // spazio TRA le coppie è nettamente più grande di quello DENTRO la coppia e si leggono come unità
+    // distinte (segnalato da Rodrigo su zodiaco e semi delle carte, dove si toccavano o si sovrapponevano).
+    const groupFrac = itemLen>=3 ? 0.74 : (itemLen===2 ? 0.62 : 0.85);
+    const effCharWidth = (itemLen>=2 && INTRUSO_GROUP_CHAR_WIDTH[s.familyId]) || charWidth;
+    const fontSizeByWidth = (cellW*72*groupFrac) / itemLen / effCharWidth;
     let fontSize = Math.floor(Math.min(fontSizeByHeight, fontSizeByWidth));
     // Tessere (mahjong, domino, semi): corpo calcolato sull'ingombro reale del glifo, il più grande
     // possibile restando dentro la cella (cellW/cellH sono in pollici → punti).
-    const inkFit = INTRUSO_INK_FIT.has(s.familyId)
+    // (l'ingombro misurato nel browser vale per il glifo singolo: con coppie/terne il font di PowerPoint
+    // può essere più largo e i glifi si sovrapporrebbero, quindi si usa il calcolo per larghezza)
+    const inkFit = (INTRUSO_INK_FIT.has(s.familyId) && itemLen===1)
       ? fitInkFontSize(s.items, cellW*72, cellH*72, PPTX_FONT_STACK, INTRUSO_FILL) : null;
     if(inkFit) fontSize = Math.max(10, Math.min(400, Math.floor(inkFit)));
     s.items.forEach((it,i)=>{
