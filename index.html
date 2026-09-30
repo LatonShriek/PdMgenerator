@@ -1524,20 +1524,24 @@ const CATEGORY_POOL = {
   // 12 fasce (una per settimana), stesse 89 categorie di prima ma redistribuite
   // in gradini più fini invece di 3 blocchi larghi — dalla più comune/concreta
   // alla più stretta/insolita.
-  1: ['Alimenti', 'Animali', 'Colori', 'Mobili', 'Indumenti', 'Mezzi di trasporto', 'Giochi', 'Frutta', 'Animali domestici', 'Animali della fattoria', 'Oggetti del bagno', 'Oggetti della camera da letto', 'Cose che si mettono in tavola', 'Cose da mangiare a colazione', 'Oggetti del salotto', 'Cose che si trovano in giardino', 'Cose da mangiare a cena'],
-  2: ['Verdura', 'Bevande', 'Utensili', 'Edifici', 'Parti del corpo', 'Strumenti musicali', 'Sport', 'Dolci', 'Mestieri', 'Cose che si trovano in cucina', 'Cose che si trovano al mare', 'Membri della famiglia', 'Cose che si comprano in farmacia', 'Cose che si comprano dal fornaio'],
-  3: ['Fiori', 'Alberi', 'Uccelli', 'Insetti', 'Elettrodomestici', 'Metalli', 'Pianeti', 'Scarpe', 'Cereali e legumi', 'Erbe aromatiche', 'Spezie', 'Animali marini', 'Animali del bosco', 'Corsi d’acqua'],
-  4: ['Frutti di mare', 'Frutti tropicali', 'Ortaggi a radice', 'Formaggi', 'Salumi', 'Gioielli', 'Giochi da tavolo', 'Festività', 'Tipi di pasta', 'Tipi di pane', 'Salse e condimenti', 'Dolci natalizi', 'Mezzi di trasporto pubblico', 'Fiori di campo'],
-  5: ['Pesci', 'Frutta secca', 'Combustibili', 'Contenitori per liquidi', 'Edifici pubblici', 'Organi', 'Animali esotici', 'Strumenti da scrivania', 'Cappelli e copricapo', 'Tipi di abitazione', 'Tessuti', 'Vini e liquori', 'Uccelli rapaci', 'Ossa del corpo'],
-  6: ['Province italiane', 'Strumenti da cucina', 'Materiali tessili', 'Capitali europee', 'Fiumi italiani', 'Razze di cani', 'Pietre preziose', 'Dispositivi elettronici', 'Isole italiane', 'Laghi italiani', 'Montagne famose', 'Città d’arte italiane', 'Regioni italiane', 'Mari e oceani'],
-  7: ['Professioni sanitarie', 'Strumenti da giardinaggio', 'Mezzi di soccorso', 'Strumenti da disegno', 'Parti dell\u2019auto', 'Negozi', 'Attrezzi in officina', 'Parti della bicicletta', 'Strumenti del medico', 'Strumenti del muratore', 'Strumenti del sarto', 'Negozi di alimentari', 'Mestieri del cantiere'],
-  8: ['Stanze della casa', 'Materiali tessili industriali', 'Strumenti da falegname', 'Monumenti famosi', 'Insegne stradali', 'Attrezzi in campagna', 'Materiale da costruzione', 'Parti del computer', 'Parti di una nave', 'Parti di un aereo', 'Parti di una chiesa', 'Attrezzi del calzolaio', 'Oggetti del barbiere'],
-  9: ['Oggetti che richiedono precisione nell\u2019uso', 'Cose che si trovano in cucina ma non si mangiano', 'Strumenti che tagliano', 'Mestieri artigianali', 'Oggetti che producono luce', 'Strumenti di misura', 'Oggetti che servono a scrivere', 'Cose che si trovano in ospedale', 'Cose che si trovano a scuola', 'Strumenti che servono a fissare', 'Oggetti che servono a chiudere', 'Cose che si usano per viaggiare'],
-  10: ['Cose che si trovano in un ufficio ma non su una scrivania', 'Oggetti che emettono un suono', 'Strumenti usati in giardinaggio', 'Oggetti che si trovano in una valigia da viaggio', 'Cose che si indossano solo in inverno', 'Mestieri che richiedono una divisa', 'Cose che si portano in spiaggia', 'Oggetti che si trovano in una farmacia', 'Cose che si usano per dipingere', 'Cose che si indossano solo in estate', 'Oggetti che si usano per cucire', 'Oggetti che servono a pesare o misurare'],
-  11: ['Oggetti che contengono un liquido', 'Strumenti musicali a corda', 'Attrezzi da disegno tecnico', 'Oggetti che si usano per pulire', 'Cose che si trovano in una cassetta degli attrezzi', 'Animali che vivono in tana', 'Oggetti che contengono altri oggetti', 'Oggetti di vetro', 'Oggetti di legno', 'Oggetti di metallo', 'Oggetti che si accendono', 'Oggetti che si aprono e si chiudono'],
-  12: ['Oggetti che fanno rumore quando cadono', 'Cose fredde', 'Strumenti a fiato', 'Animali a sangue freddo', 'Oggetti rotondi', 'Mestieri che si svolgono all\u2019aperto', 'Cose a righe', 'Mestieri notturni', 'Cose che volano', 'Cose che galleggiano', 'Cose che pungono', 'Cose calde', 'Cose che si piegano', 'Animali che vivono in gruppo'],
+  1: ['Alimenti', 'Animali', 'Colori', 'Mobili', 'Indumenti', 'Mezzi di trasporto', 'Giochi', 'Frutta', 'Animali domestici', 'Animali della fattoria', 'Oggetti del bagno', 'Oggetti della camera da letto', 'Cose che si mettono in tavola', 'Cose da mangiare a colazione', 'Oggetti del salotto', 'Cose che si trovano in giardino', 'Cose da mangiare a cena', 'Cose da bere', 'Cibi dolci', 'Cibi salati', 'Animali selvatici', 'Cose che si trovano in città', 'Cose che si trovano in campagna', 'Cose che si trovano in montagna', 'Cose che si trovano al parco', 'Cose che si comprano al supermercato', 'Cose che si portano addosso', 'Cose per dormire', 'Cose che si trovano in un bar', 'Cose per lavarsi', 'Cose da mangiare a merenda', 'Cose che si trovano in un negozio di abbigliamento', 'Cose che si trovano in frigorifero', 'Cose che si trovano in dispensa', 'Cose che si trovano in un armadio', 'Cose che si trovano in una borsa', 'Cose che si trovano sul tavolo', 'Cose da leggere', 'Cose da guardare', 'Cose da ascoltare', 'Cose che si comprano in pasticceria'],
+  2: ['Verdura', 'Bevande', 'Utensili', 'Edifici', 'Parti del corpo', 'Strumenti musicali', 'Sport', 'Dolci', 'Mestieri', 'Cose che si trovano in cucina', 'Cose che si trovano al mare', 'Membri della famiglia', 'Cose che si comprano in farmacia', 'Cose che si comprano dal fornaio', 'Cose che si trovano in ufficio', 'Cose che si comprano in cartoleria', 'Cose che si comprano dal macellaio', 'Cose che si comprano dal fruttivendolo', 'Cose che si comprano in ferramenta', 'Cose che si trovano in una stazione', 'Cose che si trovano in un aeroporto', 'Cose che si trovano in un ristorante', 'Cose che si trovano in una biblioteca', 'Cose che si trovano in chiesa', 'Giocattoli', 'Frutta estiva', 'Verdure a foglia', 'Tipi di carne', 'Bevande calde', 'Cose che si comprano in edicola', 'Cose che si comprano in profumeria', 'Cose che si comprano dal pescivendolo', 'Cose che si comprano in gastronomia', 'Cose che si trovano in un parco giochi', 'Cose che si trovano in uno zoo', 'Cose che si trovano in un circo', 'Cose che si trovano in una fattoria', 'Cose che si trovano in un museo', 'Cose che si trovano in un teatro', 'Cose che si trovano in un mercato', 'Cose che si trovano in un hotel'],
+  3: ['Fiori', 'Alberi', 'Uccelli', 'Insetti', 'Elettrodomestici', 'Metalli', 'Pianeti', 'Scarpe', 'Cereali e legumi', 'Erbe aromatiche', 'Spezie', 'Animali marini', 'Animali del bosco', 'Corsi d’acqua', 'Legumi', 'Mammiferi', 'Rettili', 'Animali da cortile', 'Piante da appartamento', 'Strumenti a percussione', 'Sport con la palla', 'Sport invernali', 'Sport acquatici', 'Giochi di carte', 'Bevande alcoliche', 'Tagli di carne', 'Condimenti', 'Parti della casa', 'Mezzi a due ruote', 'Animali notturni', 'Animali a quattro zampe', 'Animali che depongono le uova', 'Alberi da frutto', 'Fiori da giardino', 'Fiori primaverili', 'Posate e stoviglie', 'Pentole e contenitori da cucina', 'Dolci al cucchiaio', 'Ingredienti della pizza', 'Ingredienti di un’insalata', 'Tipi di zuppe'],
+  4: ['Frutti di mare', 'Frutti tropicali', 'Ortaggi a radice', 'Formaggi', 'Salumi', 'Gioielli', 'Giochi da tavolo', 'Festività', 'Tipi di pasta', 'Tipi di pane', 'Salse e condimenti', 'Dolci natalizi', 'Mezzi di trasporto pubblico', 'Fiori di campo', 'Pesci d’acqua dolce', 'Tipi di biscotti', 'Tipi di torte', 'Tipi di caffè', 'Verdure invernali', 'Frutta invernale', 'Forme geometriche', 'Unità di misura', 'Documenti personali', 'Parti del viso', 'Capi di abbigliamento invernali', 'Capi di abbigliamento estivi', 'Piante officinali', 'Sport di squadra', 'Sport individuali', 'Mobili da giardino', 'Prodotti per l’igiene personale', 'Prodotti per la pulizia della casa', 'Cibi da forno', 'Cibi in scatola', 'Cibi surgelati', 'Cibi fritti', 'Cibi piccanti', 'Cibi a base di latte', 'Cibi a base di farina', 'Cibi che si mangiano con le mani', 'Tipi di frittura'],
+  5: ['Pesci', 'Frutta secca', 'Combustibili', 'Contenitori per liquidi', 'Edifici pubblici', 'Organi', 'Animali esotici', 'Strumenti da scrivania', 'Cappelli e copricapo', 'Tipi di abitazione', 'Tessuti', 'Vini e liquori', 'Uccelli rapaci', 'Ossa del corpo', 'Attrezzi da palestra', 'Articoli da campeggio', 'Generi musicali', 'Generi di film', 'Danze', 'Piatti tipici italiani', 'Tipi di pizza', 'Gusti di gelato', 'Tipi di legname', 'Rocce e minerali', 'Fenomeni meteorologici', 'Parti di una pianta', 'Parti di un libro', 'Tipi di barca', 'Mestieri artistici', 'Tipi di energia', 'Fonti di luce', 'Fonti di calore', 'Mezzi per spostarsi in città', 'Mezzi che volano', 'Dolci tipici italiani', 'Strumenti per la cura dei capelli', 'Articoli per il neonato', 'Vini italiani', 'Materiali da imballaggio', 'Articoli per animali domestici'],
+  6: ['Province italiane', 'Strumenti da cucina', 'Materiali tessili', 'Capitali europee', 'Fiumi italiani', 'Razze di cani', 'Pietre preziose', 'Dispositivi elettronici', 'Isole italiane', 'Laghi italiani', 'Montagne famose', 'Città d’arte italiane', 'Regioni italiane', 'Mari e oceani', 'Stati europei', 'Capitali del mondo', 'Fiumi del mondo', 'Città europee', 'Lingue del mondo', 'Monete del mondo', 'Strumenti dell’orchestra', 'Segni zodiacali', 'Monti e vulcani italiani', 'Sport olimpici', 'Piatti della cucina internazionale', 'Isole del mondo', 'Nazionalità', 'Scrittori italiani', 'Città dell’Emilia-Romagna', 'Piatti tipici emiliano-romagnoli', 'Pittori famosi', 'Cantanti italiani', 'Personaggi storici', 'Elementi chimici', 'Stati africani', 'Stati asiatici', 'Stati americani', 'Compositori', 'Poeti italiani', 'Attori italiani'],
+  7: ['Professioni sanitarie', 'Strumenti da giardinaggio', 'Mezzi di soccorso', 'Strumenti da disegno', 'Parti dell\u2019auto', 'Negozi', 'Attrezzi in officina', 'Parti della bicicletta', 'Strumenti del medico', 'Strumenti del muratore', 'Strumenti del sarto', 'Negozi di alimentari', 'Mestieri del cantiere', 'Specialità mediche', 'Strumenti del pittore', 'Parti esterne della casa', 'Parti di una città', 'Articoli di cartoleria', 'Articoli di ferramenta', 'Articoli di merceria', 'Macchine agricole', 'Attrezzi sportivi', 'Uffici pubblici', 'Luoghi di cura', 'Luoghi di culto', 'Luoghi di svago', 'Negozi di abbigliamento', 'Attrezzi da pesca', 'Strumenti dell’elettricista', 'Strumenti del fotografo', 'Strumenti dell’idraulico', 'Contenitori per alimenti', 'Reparti di un ospedale', 'Reparti di un supermercato', 'Ruoli scolastici', 'Gradi militari', 'Cariche dello Stato', 'Negozi per la casa', 'Articoli da bagno'],
+  8: ['Stanze della casa', 'Materiali tessili industriali', 'Strumenti da falegname', 'Monumenti famosi', 'Insegne stradali', 'Attrezzi in campagna', 'Materiale da costruzione', 'Parti del computer', 'Parti di una nave', 'Parti di un aereo', 'Parti di una chiesa', 'Attrezzi del calzolaio', 'Oggetti del barbiere', 'Parti di un mobile', 'Parti di una finestra', 'Parti di una scarpa', 'Parti di un orologio', 'Parti di un uccello', 'Parti di un fiore', 'Mezzi di comunicazione', 'Mezzi di pagamento', 'Tipi di strade', 'Periodi storici', 'Correnti artistiche', 'Luoghi di lavoro', 'Parti di una giacca', 'Parti di una moto', 'Parti di un treno', 'Parti di un tetto', 'Parti di un giardino', 'Parti di un castello', 'Parti di una cucina', 'Parti di uno stadio', 'Parti di un teatro', 'Parti di un albergo', 'Parti di una lettera', 'Tipi di documenti'],
+  9: ['Oggetti che richiedono precisione nell\u2019uso', 'Cose che si trovano in cucina ma non si mangiano', 'Strumenti che tagliano', 'Mestieri artigianali', 'Oggetti che producono luce', 'Strumenti di misura', 'Oggetti che servono a scrivere', 'Cose che si trovano in ospedale', 'Cose che si trovano a scuola', 'Strumenti che servono a fissare', 'Oggetti che servono a chiudere', 'Cose che si usano per viaggiare', 'Oggetti che servono a scaldare', 'Oggetti che servono a raffreddare', 'Oggetti che servono a proteggere', 'Oggetti che servono a trasportare', 'Oggetti che servono a legare', 'Oggetti che servono a comunicare', 'Oggetti che servono a ricordare', 'Oggetti che servono a coprire', 'Oggetti che servono a sostenere', 'Oggetti che servono a bere', 'Oggetti che servono per mangiare', 'Cose che si usano per fare il bucato', 'Oggetti che servono a tenere in ordine', 'Oggetti che servono a registrare', 'Oggetti che servono a indicare', 'Oggetti che servono a incollare', 'Oggetti che servono ad asciugare', 'Oggetti che servono a sedersi', 'Oggetti che servono a misurare il tempo', 'Oggetti che servono a vedere meglio', 'Oggetti che servono ad aprire', 'Oggetti che servono a lavare', 'Oggetti che servono a mescolare'],
+  10: ['Cose che si trovano in un ufficio ma non su una scrivania', 'Oggetti che emettono un suono', 'Strumenti usati in giardinaggio', 'Oggetti che si trovano in una valigia da viaggio', 'Cose che si indossano solo in inverno', 'Mestieri che richiedono una divisa', 'Cose che si portano in spiaggia', 'Oggetti che si trovano in una farmacia', 'Cose che si usano per dipingere', 'Cose che si indossano solo in estate', 'Oggetti che si usano per cucire', 'Oggetti che servono a pesare o misurare', 'Cose che si trovano in una cassetta del pronto soccorso', 'Cose che si trovano in un kit da cucito', 'Cose che si portano in montagna', 'Cose che servono per fare una torta', 'Cose che servono per dipingere una parete', 'Cose che servono per andare a pescare', 'Cose che servono per una festa di compleanno', 'Cose di Natale', 'Cose che si vedono nel cielo', 'Cose che si trovano in una cantina', 'Cose che si trovano in un garage', 'Cose che si trovano in un orto', 'Cose che servono per fare il caffè', 'Cose che servono per scrivere una lettera', 'Cose che servono per andare in bicicletta', 'Cose che servono per fare una gita', 'Cose che servono per fare una grigliata', 'Cose che servono per apparecchiare la tavola', 'Cose che si trovano sul balcone', 'Cose che si trovano in un bosco', 'Cose che si trovano in un prato', 'Cose che si trovano nello spazio', 'Cose che si trovano in una camera d’albergo', 'Cose che si trovano sott’acqua'],
+  11: ['Oggetti che contengono un liquido', 'Strumenti musicali a corda', 'Attrezzi da disegno tecnico', 'Oggetti che si usano per pulire', 'Cose che si trovano in una cassetta degli attrezzi', 'Animali che vivono in tana', 'Oggetti che contengono altri oggetti', 'Oggetti di vetro', 'Oggetti di legno', 'Oggetti di metallo', 'Oggetti che si accendono', 'Oggetti che si aprono e si chiudono', 'Oggetti di plastica', 'Oggetti di carta', 'Oggetti di stoffa', 'Oggetti di ceramica', 'Oggetti di gomma', 'Oggetti che funzionano a batteria', 'Oggetti che si tengono in tasca', 'Oggetti che si indossano ai piedi', 'Oggetti che si appendono', 'Oggetti con le ruote', 'Oggetti con il manico', 'Oggetti con i denti', 'Oggetti con i bottoni', 'Oggetti di lana', 'Oggetti di cotone', 'Oggetti di pelle', 'Oggetti d’argento', 'Oggetti d’oro', 'Oggetti di porcellana', 'Oggetti di terracotta', 'Oggetti di pietra', 'Oggetti di cartone', 'Oggetti di alluminio', 'Oggetti di ferro', 'Oggetti che si aprono con una chiave', 'Oggetti che si ricaricano'],
+  12: ['Oggetti che fanno rumore quando cadono', 'Cose fredde', 'Strumenti a fiato', 'Animali a sangue freddo', 'Oggetti rotondi', 'Mestieri che si svolgono all\u2019aperto', 'Cose a righe', 'Mestieri notturni', 'Cose che volano', 'Cose che galleggiano', 'Cose che pungono', 'Cose calde', 'Cose che si piegano', 'Animali che vivono in gruppo', 'Cose che brillano', 'Cose che si sciolgono', 'Cose che si rompono facilmente', 'Cose che profumano', 'Cose morbide', 'Cose dure', 'Cose appiccicose', 'Cose trasparenti', 'Cose lunghe', 'Cose rosse', 'Cose gialle', 'Cose verdi', 'Cose che girano', 'Cose che si gonfiano', 'Cose che si raccolgono', 'Cose blu', 'Cose bianche', 'Cose nere', 'Cose arancioni', 'Cose che scottano', 'Cose che si tagliano', 'Cose che si lavano', 'Cose che si riempiono', 'Cose croccanti', 'Cose dolci', 'Cose fragili', 'Cose pesanti', 'Cose leggere'],
 };
-const LETTER_POOL_RARE = ['H', 'Z']; // lettere iniziali meno comuni: usate solo quando quelle di LETTER_POOL sono già state tutte proposte al gruppo
+const LETTER_POOL_RARE = ['Z']; // lettera iniziale meno comune: usata solo quando quelle di LETTER_POOL sono già state tutte proposte al gruppo. La «H» è stata tolta: con 5-9 lettere ha meno di 12 parole italiane d'uso (verificato).
+// Lettere iniziali VERIFICATE per lunghezza della parola (n = 5..9): per ciascuna almeno 12 parole italiane
+// reali (dizionario Hunspell it_IT + frequenze d'uso), di cui almeno 6 frequenti (Zipf >= 3.0).
+// Esito: tutte le lettere di LETTER_POOL passano a ogni lunghezza; la «Z» solo con 5, 7 e 8 lettere.
+const INITIAL_LETTERS_BY_LENGTH = { 5: 'ABCDEFGILMNOPRSTUVZ', 6: 'ABCDEFGILMNOPRSTUV', 7: 'ABCDEFGILMNOPRSTUVZ', 8: 'ABCDEFGILMNOPRSTUVZ', 9: 'ABCDEFGILMNOPRSTUV' };
 const LETTER_POOL = 'A B C D E F G I L M N O P R S T U V'.split(' '); // usata per l'iniziale libera: già esclude lettere rare come inizio (H,Q,X,Y,W,J,K,Z)
 
 // ---------------------------------------------------------------------------
@@ -1560,15 +1564,17 @@ const PHONEMIC_DB = {
 const LETTER_LENGTH_BANK = [{l:'A',n:4}, {l:'A',n:5}, {l:'A',n:6}, {l:'A',n:7}, {l:'B',n:4}, {l:'B',n:5}, {l:'B',n:6}, {l:'B',n:7}, {l:'C',n:4}, {l:'C',n:5}, {l:'C',n:6}, {l:'C',n:7}, {l:'D',n:4}, {l:'D',n:5}, {l:'D',n:6}, {l:'D',n:7}, {l:'E',n:4}, {l:'E',n:5}, {l:'E',n:6}, {l:'E',n:7}, {l:'F',n:4}, {l:'F',n:5}, {l:'F',n:6}, {l:'F',n:7}, {l:'G',n:4}, {l:'G',n:5}, {l:'G',n:6}, {l:'G',n:7}, {l:'I',n:5}, {l:'I',n:6}, {l:'I',n:7}, {l:'L',n:4}, {l:'L',n:5}, {l:'L',n:6}, {l:'L',n:7}, {l:'M',n:4}, {l:'M',n:5}, {l:'M',n:6}, {l:'M',n:7}, {l:'N',n:4}, {l:'N',n:5}, {l:'N',n:6}, {l:'N',n:7}, {l:'O',n:4}, {l:'O',n:5}, {l:'O',n:6}, {l:'O',n:7}, {l:'P',n:4}, {l:'P',n:5}, {l:'P',n:6}, {l:'P',n:7}, {l:'R',n:4}, {l:'R',n:5}, {l:'R',n:6}, {l:'R',n:7}, {l:'S',n:4}, {l:'S',n:5}, {l:'S',n:6}, {l:'S',n:7}, {l:'T',n:4}, {l:'T',n:5}, {l:'T',n:6}, {l:'T',n:7}, {l:'U',n:4}, {l:'U',n:5}, {l:'U',n:6}, {l:'U',n:7}, {l:'V',n:4}, {l:'V',n:5}, {l:'V',n:6}, {l:'V',n:7}];
 const SECOND_LENGTH_BANK = [{l:'A',n:7}, {l:'I',n:7}, {l:'O',n:7}, {l:'E',n:7}, {l:'R',n:7}, {l:'A',n:6}, {l:'E',n:6}, {l:'U',n:7}, {l:'I',n:6}, {l:'O',n:6}, {l:'A',n:5}, {l:'R',n:6}, {l:'E',n:5}, {l:'O',n:5}, {l:'N',n:7}, {l:'U',n:6}, {l:'I',n:5}, {l:'C',n:7}, {l:'P',n:7}, {l:'T',n:7}, {l:'U',n:5}, {l:'S',n:7}, {l:'R',n:5}, {l:'L',n:7}, {l:'T',n:6}, {l:'M',n:7}, {l:'A',n:4}, {l:'C',n:6}, {l:'P',n:6}, {l:'N',n:6}, {l:'B',n:7}, {l:'E',n:4}, {l:'L',n:6}, {l:'O',n:4}, {l:'F',n:7}, {l:'V',n:7}, {l:'D',n:7}, {l:'M',n:6}, {l:'S',n:6}, {l:'I',n:4}, {l:'U',n:4}, {l:'G',n:7}, {l:'V',n:6}, {l:'D',n:6}, {l:'P',n:5}, {l:'C',n:5}, {l:'T',n:5}, {l:'B',n:6}, {l:'F',n:6}, {l:'S',n:5}, {l:'M',n:5}, {l:'R',n:4}, {l:'G',n:6}, {l:'L',n:5}, {l:'N',n:5}, {l:'V',n:5}, {l:'B',n:5}, {l:'D',n:5}, {l:'F',n:5}, {l:'N',n:4}];
 const THIRD_LENGTH_BANK = [{l:'R',n:7}, {l:'S',n:7}, {l:'N',n:7}, {l:'L',n:7}, {l:'A',n:7}, {l:'T',n:7}, {l:'O',n:7}, {l:'I',n:7}, {l:'E',n:7}, {l:'R',n:6}, {l:'C',n:7}, {l:'A',n:6}, {l:'G',n:7}, {l:'L',n:6}, {l:'E',n:6}, {l:'R',n:5}, {l:'P',n:7}, {l:'M',n:7}, {l:'U',n:7}, {l:'N',n:6}, {l:'I',n:6}, {l:'T',n:6}, {l:'O',n:6}, {l:'C',n:6}, {l:'N',n:5}, {l:'G',n:6}, {l:'D',n:7}, {l:'L',n:5}, {l:'S',n:6}, {l:'D',n:6}, {l:'A',n:5}, {l:'S',n:5}, {l:'V',n:7}, {l:'M',n:6}, {l:'I',n:5}, {l:'V',n:6}, {l:'O',n:5}, {l:'E',n:5}, {l:'P',n:6}, {l:'U',n:6}, {l:'T',n:5}, {l:'F',n:7}, {l:'B',n:7}, {l:'Z',n:7}, {l:'R',n:4}, {l:'G',n:5}, {l:'U',n:5}, {l:'S',n:4}, {l:'B',n:6}, {l:'L',n:4}, {l:'T',n:4}, {l:'N',n:4}, {l:'C',n:5}, {l:'P',n:5}, {l:'F',n:6}, {l:'M',n:5}, {l:'Z',n:5}, {l:'D',n:4}, {l:'D',n:5}, {l:'M',n:4}];
-const BROAD_CATEGORIES = ['Alimenti', 'Animali', 'Mobili', 'Indumenti', 'Mezzi di trasporto', 'Strumenti', 'Edifici', 'Giochi', 'Elettrodomestici', 'Frutta'];
-// Lettere usate per gli schemi "seconda/terza lettera + categoria" (7-9): non
-// verificabili con un dizionario generico incrociate a una categoria (nessuna
-// lista pubblica di parole italiane taggate per categoria disponibile qui),
-// quindi si usano le lettere già confermate frequenti in quella posizione
-// dagli schemi puramente fonemici sopra — un'approssimazione ragionevole, non
-// una validazione piena come le altre banche.
-const SECOND_LETTERS_COMMON = ['A','B','C','D','E','F','I','L','M','N','O','P','R','S','U','V'];
-const THIRD_LETTERS_COMMON = ['A','B','C','D','E','F','G','I','L','M','N','O','P','R','S','T','U','V'];
+// Categorie larghe per gli schemi 7-9 (lettera + categoria). Ogni coppia (lettera, categoria) qui sotto è stata
+// VERIFICATA con un lessico di parole italiane reali (Hunspell it_IT + frequenze d'uso) raggruppate per categoria:
+// tenuta solo se ha almeno 12 parole utilizzabili, di cui almeno 6 frequenti (Zipf >= 3.0; le altre sono d'uso meno comune
+// ma reali). Il conteggio è un MINIMO (il lessico per categoria è curato a mano e non esaustivo). Le lettere che non
+// raggiungono la soglia con una categoria semplicemente non compaiono (es. «seconda lettera Z + Frutta»: nessuna parola).
+const CATEGORY_LETTER_BANK = {
+  initialCategory: [['A','Alimenti'], ['B','Alimenti'], ['C','Alimenti'], ['F','Alimenti'], ['G','Alimenti'], ['L','Alimenti'], ['M','Alimenti'], ['P','Alimenti'], ['R','Alimenti'], ['S','Alimenti'], ['T','Alimenti'], ['B','Animali'], ['C','Animali'], ['G','Animali'], ['L','Animali'], ['M','Animali'], ['P','Animali'], ['R','Animali'], ['S','Animali'], ['T','Animali'], ['A','Oggetti di casa'], ['B','Oggetti di casa'], ['C','Oggetti di casa'], ['F','Oggetti di casa'], ['L','Oggetti di casa'], ['M','Oggetti di casa'], ['P','Oggetti di casa'], ['S','Oggetti di casa'], ['T','Oggetti di casa'], ['B','Indumenti'], ['C','Indumenti'], ['P','Indumenti'], ['S','Indumenti'], ['C','Mezzi di trasporto'], ['M','Mezzi di trasporto'], ['A','Edifici'], ['C','Edifici'], ['M','Edifici'], ['P','Edifici'], ['A','Mestieri'], ['C','Mestieri'], ['M','Mestieri'], ['P','Mestieri'], ['C','Parti del corpo'], ['P','Parti del corpo'], ['C','Frutta e verdura'], ['P','Frutta e verdura'], ['C','Piante e fiori'], ['P','Piante e fiori'], ['P','Sport e giochi']],
+  secondCategory: [['A','Alimenti'], ['E','Alimenti'], ['I','Alimenti'], ['O','Alimenti'], ['R','Alimenti'], ['U','Alimenti'], ['A','Animali'], ['E','Animali'], ['I','Animali'], ['O','Animali'], ['R','Animali'], ['U','Animali'], ['A','Oggetti di casa'], ['E','Oggetti di casa'], ['I','Oggetti di casa'], ['O','Oggetti di casa'], ['R','Oggetti di casa'], ['U','Oggetti di casa'], ['A','Indumenti'], ['I','Indumenti'], ['O','Indumenti'], ['A','Mezzi di trasporto'], ['E','Mezzi di trasporto'], ['I','Mezzi di trasporto'], ['O','Mezzi di trasporto'], ['U','Mezzi di trasporto'], ['A','Strumenti e attrezzi'], ['E','Strumenti e attrezzi'], ['I','Strumenti e attrezzi'], ['O','Strumenti e attrezzi'], ['A','Edifici'], ['I','Edifici'], ['O','Edifici'], ['A','Mestieri'], ['E','Mestieri'], ['I','Mestieri'], ['O','Mestieri'], ['A','Parti del corpo'], ['E','Parti del corpo'], ['I','Parti del corpo'], ['O','Parti del corpo'], ['A','Frutta e verdura'], ['E','Frutta e verdura'], ['I','Frutta e verdura'], ['A','Piante e fiori'], ['E','Piante e fiori'], ['I','Piante e fiori'], ['R','Piante e fiori'], ['A','Sport e giochi'], ['O','Sport e giochi']],
+  thirdCategory: [['A','Alimenti'], ['C','Alimenti'], ['E','Alimenti'], ['G','Alimenti'], ['I','Alimenti'], ['L','Alimenti'], ['M','Alimenti'], ['N','Alimenti'], ['O','Alimenti'], ['P','Alimenti'], ['R','Alimenti'], ['S','Alimenti'], ['T','Alimenti'], ['A','Animali'], ['C','Animali'], ['I','Animali'], ['L','Animali'], ['N','Animali'], ['P','Animali'], ['R','Animali'], ['S','Animali'], ['A','Oggetti di casa'], ['C','Oggetti di casa'], ['L','Oggetti di casa'], ['M','Oggetti di casa'], ['N','Oggetti di casa'], ['P','Oggetti di casa'], ['R','Oggetti di casa'], ['S','Oggetti di casa'], ['T','Oggetti di casa'], ['V','Oggetti di casa'], ['L','Indumenti'], ['N','Indumenti'], ['R','Mezzi di trasporto'], ['T','Mezzi di trasporto'], ['N','Strumenti e attrezzi'], ['N','Edifici'], ['R','Edifici'], ['S','Edifici'], ['R','Mestieri'], ['S','Mestieri'], ['T','Mestieri'], ['A','Parti del corpo'], ['C','Parti del corpo'], ['L','Parti del corpo'], ['N','Parti del corpo'], ['R','Parti del corpo'], ['L','Piante e fiori'], ['R','Piante e fiori'], ['S','Piante e fiori'], ['L','Sport e giochi']],
+};
+const BROAD_CATEGORIES = ['Alimenti', 'Animali', 'Edifici', 'Frutta e verdura', 'Indumenti', 'Mestieri', 'Mezzi di trasporto', 'Oggetti di casa', 'Parti del corpo', 'Piante e fiori', 'Sport e giochi', 'Strumenti e attrezzi'];
 
 // I 12 schemi, uno per settimana (non più un ciclo di 7 ogni 2 settimane).
 const LEXICAL_SCHEME_BY_WEEK = [null,
@@ -1617,31 +1623,48 @@ function buildCombinedPrompts(kind, rnd, count = 10, excludeKeys, excludeCategor
   const excl = excludeKeys ? new Set(excludeKeys) : null;
   const catExclSet = excludeCategories && excludeCategories.length ? new Set(excludeCategories) : null;
   const rows = [];
-  const used = new Set();
-  let guard = 0;
-  const catLetterPool = { initialCategory: LETTER_POOL, secondCategory: SECOND_LETTERS_COMMON, thirdCategory: THIRD_LETTERS_COMMON };
   const catLabel = { initialCategory: 'Lettera iniziale', secondCategory: 'Seconda lettera', thirdCategory: 'Terza lettera' };
   const lenBank = { initialLength: LETTER_LENGTH_BANK, secondLength: SECOND_LENGTH_BANK, thirdLength: THIRD_LENGTH_BANK };
   const lenLabel = { initialLength: 'Lettera iniziale', secondLength: 'Seconda lettera', thirdLength: 'Terza lettera' };
+  if (kind === 'initialCategory' || kind === 'secondCategory' || kind === 'thirdCategory') {
+    // Si pesca SOLO tra le coppie (lettera, categoria) verificate in CATEGORY_LETTER_BANK (>= 12 parole reali,
+    // non tutte rare), mai tra combinazioni casuali. Solo coppie MAI proposte a questo gruppo; tra queste si
+    // preferiscono quelle la cui categoria non è già comparsa nella pagina "categorie" dello stesso fascicolo/gruppo.
+    const fresh = CATEGORY_LETTER_BANK[kind].filter(([l, c]) => !(excl && excl.has(l + '|' + c)));
+    const preferred = shuffleArr(rnd, catExclSet ? fresh.filter(([, c]) => !catExclSet.has(c)) : fresh);
+    const others = shuffleArr(rnd, catExclSet ? fresh.filter(([, c]) => catExclSet.has(c)) : []);
+    const usedLetters = new Map(); // evita di riempire la pagina con la stessa lettera/categoria più di 2 volte
+    const usedCats = new Map();
+    const order = preferred.concat(others);
+    const pickRows = (limit) => {
+      for (const [l, c] of order) {
+        if (rows.length >= count) break;
+        const key = l + '|' + c;
+        if (rows.some(r => r.key === key)) continue;
+        if ((usedLetters.get(l) || 0) >= limit || (usedCats.get(c) || 0) >= limit) continue;
+        usedLetters.set(l, (usedLetters.get(l) || 0) + 1);
+        usedCats.set(c, (usedCats.get(c) || 0) + 1);
+        rows.push({ key, text: `${catLabel[kind]} «${l}», categoria: ${c}` });
+      }
+    };
+    pickRows(2);            // prima varietà (max 2 per lettera e per categoria)
+    if (rows.length < count) pickRows(3);
+    if (rows.length < count) pickRows(count); // se la banca fresca è quasi esaurita, si allenta il tetto
+    const out = rows.map(r => r.text);
+    out.shortfall = count - out.length;
+    return out;
+  }
+  // initialLength / secondLength / thirdLength: banche già verificate (>= 12 parole per combinazione)
+  const used = new Set();
+  let guard = 0;
   while (rows.length < count && guard < 500) {
     guard++;
-    let key, text;
-    if (kind === 'initialCategory' || kind === 'secondCategory' || kind === 'thirdCategory') {
-      const letter = pick(rnd, catLetterPool[kind]);
-      // categorie larghe: si preferiscono quelle non ancora usate come pagina "categorie" di questo gruppo
-      const freshCats = catExclSet ? BROAD_CATEGORIES.filter(c => !catExclSet.has(c)) : BROAD_CATEGORIES;
-      const cat = pick(rnd, freshCats.length && guard < 300 ? freshCats : BROAD_CATEGORIES);
-      key = letter + '|' + cat;
-      text = `${catLabel[kind]} «${letter}», categoria: ${cat}`;
-    } else { // initialLength / secondLength / thirdLength
-      const { l: letter, n: len } = pick(rnd, lenBank[kind]);
-      key = letter + '|' + len;
-      text = `${lenLabel[kind]} «${letter}», ${len} lettere`;
-    }
+    const { l: letter, n: len } = pick(rnd, lenBank[kind]);
+    const key = letter + '|' + len;
     if (used.has(key)) continue;
     if (excl && excl.has(key)) continue;
     used.add(key);
-    rows.push(text);
+    rows.push(`${lenLabel[kind]} «${letter}», ${len} lettere`);
   }
   // Niente più riempimento con righe duplicate: se le combinazioni nuove finiscono, se ne restituiscono meno.
   rows.shortfall = count - rows.length;
@@ -1900,9 +1923,11 @@ function buildFascicolo(week, seed, exclusions) {
   let lexicalPrompts, lexicalHistoryKeys;
   if (p.lexicalKind === 'initial') {
     const excludeLetters = new Set(excl.lexicalKeys ? excl.lexicalKeys.filter(k => k.startsWith('initial:')).map(k => k.split(':')[1]) : []);
-    // prima le lettere "comode" (LETTER_POOL), poi, solo se servono, le altre lettere italiane
-    const freshMain = LETTER_POOL.filter(l => !excludeLetters.has(l));
-    const freshRare = LETTER_POOL_RARE.filter(l => !excludeLetters.has(l));
+    // prima le lettere "comode" (LETTER_POOL), poi, solo se servono, le altre lettere italiane; sempre e solo
+    // lettere VERIFICATE per la lunghezza richiesta (INITIAL_LETTERS_BY_LENGTH: >= 12 parole reali)
+    const validInitials = INITIAL_LETTERS_BY_LENGTH[p.lexicalInitialLength] || INITIAL_LETTERS_BY_LENGTH[5];
+    const freshMain = LETTER_POOL.filter(l => validInitials.includes(l) && !excludeLetters.has(l));
+    const freshRare = LETTER_POOL_RARE.filter(l => validInitials.includes(l) && !excludeLetters.has(l));
     const main = pickN(rnd, freshMain, Math.min(8, freshMain.length));
     lexicalPrompts = main.concat(pickN(rnd, freshRare, Math.max(0, 8 - main.length)));
     lexicalHistoryKeys = lexicalPrompts.map(l => `initial:${l}`);
@@ -1948,7 +1973,7 @@ return {
   generateAnagrams, generateCalcChain, generateSymbolCrucipuzzle, generateItalianCrucipuzzle,
   generateSequencingV2, sequencingInstructionText, generateMaze,
   CATEGORY_POOL, LETTER_POOL, WORD_BANK, WORD_BANK_SCORED, buildPositionalPrompts, phonemicKeyFromPrompt,
-  buildCombinedPrompts, combinedKeyFromPrompt, BROAD_CATEGORIES,
+  buildCombinedPrompts, combinedKeyFromPrompt, BROAD_CATEGORIES, CATEGORY_LETTER_BANK, INITIAL_LETTERS_BY_LENGTH,
   renderMazeSVG, renderSequencingSVG,
 };
 });
