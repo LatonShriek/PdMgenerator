@@ -12404,6 +12404,27 @@ function buildPosOptions(rows, cols){
   ];
 }
 
+// ---------- PUNTEGGIO DI DIFFICOLTÀ DELLE CONSEGNE (Griglie-Conteggio) ----------
+// Ogni consegna ha un punteggio unico = S (difficoltà dello stimolo) + M (molteplicità delle condizioni) +
+// A (astrazione). In ogni griglia le 10 consegne seguono una RAMPA di punteggio centrata su una media che sale
+// in modo lineare col livello; l'astrazione massima ammessa, la quota di consegne con colori e le ripetizioni
+// dello stesso criterio sono regolate qui sotto.
+const GRID_SCORE_W = { symAlt:1, pred:0.5, fill:1, border:1, ink:1.5, size:1.5, bstyle:2, fillState:1, alt:0.5, cond:1, adj:2.5, neg:2 };
+const GRID_VAR_ABSTRACTION = { skip:1.5, either:1.5, rows:2, exclude:2, whichrow:3, double:3, sameNb:3.5, compare:3.5, dirRel:4 };
+const GRID_SCORE_MU = [1.0, 6.0];       // punteggio medio per consegna: livello 1 → 32 (lineare)
+const GRID_SCORE_SPREAD = [1.0, 2.4];   // semi-ampiezza della rampa dentro la griglia (prima consegna = media − spread, ultima = media + spread)
+const GRID_COLOR_SHARE = [0.5, 0.7];    // quota minima di consegne che usano sfondo/bordo/colore del simbolo
+const GRID_ABSTRACTION_MAX = [1, 4.2];  // astrazione massima ammessa a livello 1 → 32
+function gridTierFromScore(sc){ return sc<1.5 ? 1 : sc<3.5 ? 2 : sc<5.5 ? 3 : 4; }
+function gridScoreTargets(effLevel){
+  const t = levelT(effLevel);
+  const mu = GRID_SCORE_MU[0] + (GRID_SCORE_MU[1]-GRID_SCORE_MU[0])*t;
+  const w = GRID_SCORE_SPREAD[0] + (GRID_SCORE_SPREAD[1]-GRID_SCORE_SPREAD[0])*t;
+  return Array.from({length:10}, (_,i)=> Math.max(0, mu + w*(i-4.5)/4.5));
+}
+function gridAbstractionMax(effLevel){ const t = levelT(effLevel); return GRID_ABSTRACTION_MAX[0] + (GRID_ABSTRACTION_MAX[1]-GRID_ABSTRACTION_MAX[0])*Math.pow(t,0.9); }
+function gridColorMin(effLevel){ const t = levelT(effLevel); return Math.round(10*(GRID_COLOR_SHARE[0] + (GRID_COLOR_SHARE[1]-GRID_COLOR_SHARE[0])*t)); }
+
 // Un criterio è descritto da una "specifica": gruppo di simboli (uno, due in alternativa
 // "«A» o «B»", oppure una proprietà della famiglia) + vincoli su sfondo / bordo (colore e stile:
 // continuo, tratteggiato, puntinato) / colore del simbolo / dimensione del simbolo, posizione,
@@ -12451,19 +12472,37 @@ function specToRule(sp){
     if(negs.length) text += `, ma ${negs.join(" e ")}`;
     text += ".";
   }
-  // Gradino di complessità: ogni elemento in più da tenere a mente (secondo simbolo in
-  // alternativa, vincolo cromatico/di stile/posizionale, alternativa tra due valori) vale 1;
-  // negazione, adiacenza e identità con il vicino valgono 2 (i più difficili da applicare).
-  // 0 → gradino 1 … 4+ → gradino 5.
-  const lists = [sp.fill, sp.border, sp.ink, sp.bstyle, sp.size].filter(Boolean);
-  const score = (sp.syms && sp.syms.length>1 ? 1 : 0) + lists.length + lists.filter(l=>l.length>1).length
-              + (sp.fillState?1:0)
-              + (sp.pos ? (sp.pos.w||1) : 0) + (sp.adj?2:0) + ((sp.notFill||sp.notBorder||sp.notInk) ? 2 : 0);
-  // Tipo di regola, per mescolare in modo uniforme: 'pos' = usa un criterio di POSIZIONE (righe, colonne,
-  // cornice, blocchi…); 'rel' = relazione con le celle vicine (adiacenza a uno sfondo/bordo); 'stim' =
-  // solo caratteristiche degli STIMOLI (simbolo, sfondo, bordo, colore e dimensione del simbolo).
+  // PUNTEGGIO UNICO di difficoltà = STIMOLO + MOLTEPLICITÀ + ASTRAZIONE (Rodrigo):
+  //  S = quanto costa percettivamente riconoscere ciò che va contato (secondo simbolo in alternativa, proprietà
+  //      della famiglia, sfondo/bordo = 1, colore del simbolo/dimensione = 1,5, stile del bordo = 2, +0,5 se un
+  //      vincolo ammette due valori);
+  //  M = molteplicità: quante condizioni vanno tenute insieme (1 per ogni condizione oltre la prima);
+  //  A = astrazione della consegna: posizione semplice 1 / composta 2, negazione 2, adiacenza 2,5.
+  const W = GRID_SCORE_W;
+  const lists = { fill:sp.fill, border:sp.border, ink:sp.ink, bstyle:sp.bstyle, size:sp.size };
+  const axes = [], ck = [];
+  let S = (sp.syms && sp.syms.length>1 ? W.symAlt : 0) + (sp.pred && !sp.pred.any ? W.pred : 0);
+  for(const k in lists){
+    const l = lists[k]; if(!l) continue;
+    S += W[k] + (l.length>1 ? W.alt : 0); axes.push(k);
+    if(k==="fill" || k==="border" || k==="ink") l.forEach(n=>ck.push(k+":"+n));
+  }
+  if(sp.fillState){ S += W.fillState; axes.push("fillState"); }
+  const hasNeg = !!(sp.notFill || sp.notBorder || sp.notInk);
+  if(hasNeg){
+    axes.push("neg");
+    (sp.notFill||[]).forEach(n=>ck.push("fill:"+n)); (sp.notBorder||[]).forEach(n=>ck.push("border:"+n)); (sp.notInk||[]).forEach(n=>ck.push("ink:"+n));
+  }
+  if(sp.pos) axes.push("pos");
+  if(sp.adj){ axes.push("adj"); ck.push((sp.adj.kind==="fill"?"fill:":"border:")+sp.adj.name); }
+  const nCond = (sp.pred && sp.pred.any ? 0 : 1) + axes.length;
+  const M = Math.max(0, nCond-1) * W.cond;
+  const A = (sp.pos ? (sp.pos.w||1) : 0) + (sp.adj ? W.adj : 0) + (hasNeg ? W.neg : 0);
+  const score = S + M + A;
+  // Tipo di regola: 'pos' = usa un criterio di POSIZIONE; 'rel' = relazione con le celle vicine; 'stim' = solo stimoli.
   const kind = sp.pos ? "pos" : (sp.adj ? "rel" : "stim");
-  return { text, matches, tier: Math.min(5, score+1), kind };
+  const base = sp.pred ? (sp.pred.any ? "any" : "p:"+sp.pred.np) : "s:"+[...sp.syms].sort().join("|");
+  return { text, matches, tier: gridTierFromScore(score), kind, score, parts:{S, M, A}, base, axes, ck };
 }
 
 // Estrae a caso una specifica. Il filtro sui conteggi (4-14) è a valle. `feat` elenca gli
@@ -12590,27 +12629,39 @@ function gridVarRules(cells, rows, cols, symbols, F, B, I, feat, effLevel){
   if(vk!=="skip" && vk!=="rows" && vk!=="whichrow" && vk!=="sameNb" && (A.key===Bt.key || A.axis===Bt.axis)) return null;
   const cnt = f => cells.filter(f).length;
   const reading = cells; // già in ordine di lettura (riga per riga, da sinistra a destra)
-  const mk = (o) => Object.assign({ kind:"var", keepText:true }, o);
+  const attrS = a => ({ sym:0.5, fill:1, border:1, ink:1.5, size:1.5 }[a.axis] || 1);
+  const ckOf = a => (a.axis==="fill"||a.axis==="border"||a.axis==="ink") && a.key!=="fvoid" ? [a.axis+":"+a.key.slice(1)] : [];
+  const baseOf = a => a.axis==="sym" ? "s:"+a.key.slice(1) : "v:"+vk+":"+a.key;
+  const mk = (o) => {
+    const two = ["exclude","either","double","compare","dirRel"].includes(vk);
+    const S = vk==="sameNb" ? ({ fill:1, border:1, sym:0.5 }[o.nbKey.split("-")[0]]) : attrS(A) + (two ? attrS(Bt) : 0);
+    const M = two ? GRID_SCORE_W.cond : 0;
+    const Ab = GRID_VAR_ABSTRACTION[vk];
+    const score = S + M + Ab;
+    let ck = ckOf(A).concat(two ? ckOf(Bt) : []), base = baseOf(A);
+    if(vk==="sameNb"){ base = "nb:"+o.nbKey; ck = o.nbKey.startsWith("sym") ? [] : [o.nbKey.split("-")[0]+":*"]; }
+    return Object.assign({ kind:"var", keepText:true, score, parts:{S, M, A:Ab}, base, axes:["var"], ck }, o, { tier: gridTierFromScore(score) });
+  };
   if(vk==="exclude"){
     const f = c => A.f(c) && !Bt.f(c), n = cnt(f);
     if(!inRange(n) || cnt(A.f)===n) return null;
-    return mk({ vk, tier:3, text:`Conta ${noun(A)}, esclusi ${those(Bt)}.`, matches:f, count:n });
+    return mk({ vk, text:`Conta ${noun(A)}, esclusi ${those(Bt)}.`, matches:f, count:n });
   }
   if(vk==="either"){
     const f = c => A.f(c) || Bt.f(c), n = cnt(f);
     if(!inRange(n)) return null;
-    return mk({ vk, tier:3, text:`Conta ${noun(A)} oppure ${those(Bt)} (chi rispetta entrambe le condizioni si conta una volta sola).`, matches:f, count:n });
+    return mk({ vk, text:`Conta ${noun(A)} oppure ${those(Bt)} (chi rispetta entrambe le condizioni si conta una volta sola).`, matches:f, count:n });
   }
   if(vk==="double"){
     const a = cnt(A.f), b = cnt(Bt.f);
     if(!inRange(a) || !inRange(b)) return null;
-    return mk({ vk, tier:3, text:`Conta separatamente, tenendo due totali: quanti sono ${noun(A)} e quanti ${those(Bt)}.`,
+    return mk({ vk, text:`Conta separatamente, tenendo due totali: quanti sono ${noun(A)} e quanti ${those(Bt)}.`,
       matches:c=>A.f(c)||Bt.f(c), count:Math.max(a,b), answer:`${a} e ${b}` });
   }
   if(vk==="compare"){
     const a = cnt(A.f), b = cnt(Bt.f);
     if(!inRange(a) || !inRange(b) || Math.abs(a-b)<2) return null;
-    return mk({ vk, tier:4, text:`Quali sono più numerosi: ${noun(A)} o ${those(Bt)}? Di quanti?`,
+    return mk({ vk, text:`Quali sono più numerosi: ${noun(A)} o ${those(Bt)}? Di quanti?`,
       matches:c=>A.f(c)||Bt.f(c), count:Math.max(a,b),
       answer:`${a>b ? A.np : Bt.np} (${Math.max(a,b)} contro ${Math.min(a,b)}, differenza ${Math.abs(a-b)})` });
   }
@@ -12619,7 +12670,7 @@ function gridVarRules(cells, rows, cols, symbols, F, B, I, feat, effLevel){
     const n = base.length - k;
     if(!inRange(n)) return null;
     const keep = new Set(base.slice(k));
-    return mk({ vk, tier:2, text:`Conta ${noun(A)}, saltando i primi ${k} che incontri (si legge da sinistra a destra, riga per riga).`,
+    return mk({ vk, text:`Conta ${noun(A)}, saltando ${k===1 ? "il primo che incontri" : "i primi "+k+" che incontri"} (si legge da sinistra a destra, riga per riga).`,
       matches:c=>keep.has(c), count:n });
   }
   if(vk==="rows"){
@@ -12627,7 +12678,7 @@ function gridVarRules(cells, rows, cols, symbols, F, B, I, feat, effLevel){
     const set = new Set(cells.filter(A.f).map(c=>byRow ? c.row : c.col));
     const n = set.size, total = cnt(A.f);
     if(!inRange(total) || n<3 || n>=lines) return null;
-    return mk({ vk, tier:2, text:`In quante ${byRow?"righe":"colonne"} compare almeno un elemento ${A.axis==="sym"?A.np:A.np}?`,
+    return mk({ vk, text:`In quante ${byRow?"righe":"colonne"} compare almeno un elemento ${A.axis==="sym"?A.np:A.np}?`,
       matches:A.f, count:total, answer:`${n} ${byRow?"righe":"colonne"} (${total} elementi in tutto)` });
   }
   if(vk==="whichrow"){
@@ -12636,7 +12687,7 @@ function gridVarRules(cells, rows, cols, symbols, F, B, I, feat, effLevel){
     const mx = Math.max(...per), total = per.reduce((x,y)=>x+y,0);
     if(!inRange(total) || mx<2 || per.filter(v=>v===mx).length!==1) return null;
     const li = per.indexOf(mx);
-    return mk({ vk, tier:3, text:`Quale ${byRow?"riga":"colonna"} contiene più elementi ${A.np}? (contali ${byRow?"riga per riga":"colonna per colonna"}).`,
+    return mk({ vk, text:`Quale ${byRow?"riga":"colonna"} contiene più elementi ${A.np}? (contali ${byRow?"riga per riga":"colonna per colonna"}).`,
       matches:A.f, count:total, answer:`${byRow?"riga":"colonna"} ${li+1} (${mx} elementi)` });
   }
   if(vk==="sameNb"){
@@ -12646,14 +12697,14 @@ function gridVarRules(cells, rows, cols, symbols, F, B, I, feat, effLevel){
     const f = c => c[dir] && eq(c, c[dir]), n = cnt(f);
     if(!inRange(n)) return null;
     const what = t==="sym" ? "lo stesso simbolo" : (t==="fill" ? "lo stesso colore di sfondo" : "lo stesso colore di bordo");
-    return mk({ vk, kind:"rel", tier:3, text:`Conta gli elementi che hanno ${what} della cella subito ${w}.`, matches:f, count:n });
+    return mk({ vk, kind:"rel", nbKey:t+"-"+dir, text:`Conta gli elementi che hanno ${what} della cella subito ${w}.`, matches:f, count:n });
   }
   if(vk==="dirRel"){
     const dirs = [["right","subito a destra"],["left","subito a sinistra"],["below","subito sotto"],["above","subito sopra"]];
     const [dk, dw] = pick(dirs);
     const f = c => A.f(c) && c[dk] && Bt.f(c[dk]), n = cnt(f);
     if(!inRange(n)) return null;
-    return mk({ vk, kind:"rel", tier:4, text:`Conta ${noun(A)} che hanno ${dw} un elemento ${Bt.axis==="sym"?Bt.np:Bt.np}.`, matches:f, count:n });
+    return mk({ vk, kind:"rel", text:`Conta ${noun(A)} che hanno ${dw} un elemento ${Bt.axis==="sym"?Bt.np:Bt.np}.`, matches:f, count:n });
   }
   return null;
 }
@@ -12693,7 +12744,7 @@ function buildGridAttempt(symbols, level, effLevel, rows, cols){
   const fillVoidOn = effLevel>=9;
   const palette = pickGridPalette();
   // Crescita graduale: ai primi livelli solo 2 colori per canale (sfondo, bordo, colore del simbolo), poi 3.
-  const nCol = effLevel<5 ? 2 : 3;
+  const nCol = 3;   // 3 colori per canale fin dal livello 1: con 2 ogni colore copre ~17 celle su 35 e le consegne di solo colore (4-14 celle) non sarebbero valide
   const fillChosen = fillVoidOn
     ? assignFillWithVoid(cells, allIdx, palette.fills, nCol)
     : assignAttribute(cells, allIdx, palette.fills, "fill", nCol);
@@ -12725,7 +12776,6 @@ function buildGridAttempt(symbols, level, effLevel, rows, cols){
   const seen = new Set();
   const evaluated = [];
   const push = rule => {
-    if(rule.tier>=5) return; // gradino 5 escluso (troppe condizioni insieme), su richiesta di Rodrigo
     if(seen.has(rule.text)) return;
     seen.add(rule.text);
     if(rule.count==null) rule.count = cells.filter(rule.matches).length;
@@ -12733,6 +12783,11 @@ function buildGridAttempt(symbols, level, effLevel, rows, cols){
   };
   symbols.forEach(sym=> push(specToRule({ syms:[sym] })));
   famPreds.forEach(p=> push(specToRule({ pred:p })));
+  // consegne di SOLO colore (sfondo / bordo / colore del simbolo), valide per qualunque materiale: sono il modo più
+  // semplice di usare i colori fin dai primi livelli
+  fillChosen.forEach(f=> push(specToRule({ pred:ANY_PRED, fill:[f.name] })));
+  borderChosen.forEach(f=> push(specToRule({ pred:ANY_PRED, border:[f.name] })));
+  symColorChosen.forEach(f=> push(specToRule({ pred:ANY_PRED, ink:[f.name] })));
   for(let i=0; i<1600; i++) push(specToRule(sampleSpec(symbols, famPreds, fillChosen, borderChosen, symColorChosen, feat)));
   // regole di forma diversa (esclusione, alternativa, doppio conteggio, confronto, soglia, per riga/colonna, relazionali)
   for(let i=0; i<900; i++){
@@ -12742,148 +12797,82 @@ function buildGridAttempt(symbols, level, effLevel, rows, cols){
   return { cells, evaluated };
 }
 
-// Quante regole per gradino di complessità, IN FUNZIONE DEL LIVELLO. Prima le quote erano
-// fisse (4/3/3/2) a ogni livello, quindi al livello 16 comparivano gli stessi criteri del
-// livello 1 e quelli complessi erano pochi (segnalato da Rodrigo). Ora ai livelli bassi
-// dominano i criteri semplici, ai livelli alti quelli con più vincoli, alternative e negazioni.
-// Le quote passano dal livello 1 al 32 con una curva "ease-in" (non più lineare): a parità di
-// estremi (livello 1 e 32 uguali a prima), il gradino 4 (combinazioni di più vincoli/alternative/
-// negazione/relazioni) resta a ZERO per i primi livelli e sale via via più ripido verso l'alto,
-// invece di essere già presente 1 volta su 10 fin dal livello 1 — segnalato da Rodrigo: ai livelli
-// bassi uscivano già criteri "molto astratti" tipo elemento-vicino-a-elemento. Gradino 1 = singolo
-// simbolo/proprietà; 2 = un vincolo; 3 = due vincoli; 4 = combinazioni complesse. (Gradino 5 abolito
-// su richiesta di Rodrigo.)
-const GRID_QUOTA_START = [4, 6, 0, 0];   // livello 1 — nessuna combinazione complessa
-const GRID_QUOTA_END   = [0, 3, 3, 4];   // livello 32 — invariato
-const GRID_QUOTA_EASE = 1.5;             // >1 = ritarda la salita nei primi livelli, converge comunque a GRID_QUOTA_END al livello 32
+// Categorie di lettura: il livello EFFETTIVO corregge quello a video in base a quanto è leggibile la categoria
+// di simboli per un lettore italiano (frecce e forme più facili; cirillico, cjk, ge'ez più difficili).
 const GRID_READABILITY_DELTA = { shapes:1, arrows:1, digits:2, letters:2, mixed:1, cyrillic:-3, cjk:-5, geez:-5 };
 function tierEffectiveLevel(level, category){
   const delta = GRID_READABILITY_DELTA[category] || 0;
   return Math.max(1, Math.min(MAX_LEVEL, level + delta));
 }
-function tierQuotaForLevel(level, u){
-  // `u` (0..1): soglia di arrotondamento. Senza `u` arrotonda al più vicino (versione deterministica, usata
-  // per le note di livello). Nella generazione di una griglia `u` è casuale: così il valore ATTESO della
-  // difficoltà sale in modo uniforme a OGNI livello (con 10 sole regole per griglia, quote intere darebbero
-  // solo una manciata di scalini), pur restando ogni griglia entro ±1 regola dalla quota lineare.
-  if(u==null) u = 0.5;
-  const t = Math.pow(levelT(level), GRID_QUOTA_EASE);
-  const raw = GRID_QUOTA_START.map((s,i)=> s + (GRID_QUOTA_END[i]-s)*t);
-  // Arrotondamento sulle somme CUMULATE (non su ogni gradino), con la stessa `u` per tutte: la quota del
-  // gradino 1 scende e quella del 4 sale sempre in modo monotono e la somma resta 10.
-  const q = []; let cum = 0, prev = 0;
-  for(let i=0;i<3;i++){ cum += raw[i]; const r = Math.floor(cum + u); q.push(r - prev); prev = r; }
-  q.push(10 - prev);
-  return {1:q[0], 2:q[1], 3:q[2], 4:q[3], 5:0};
+// Due consegne sono "quasi uguali" se riguardano lo stesso bersaglio (stesso simbolo / stessa proprietà) e i
+// vincoli dell'una sono contenuti in quelli dell'altra ("frecce a sinistra" / "frecce a sinistra nelle prime 3 colonne").
+function gridRulesConflict(a, b){
+  if(a.base !== b.base) return false;
+  const sub = (x,y) => x.every(k=>y.includes(k));
+  return sub(a.axes, b.axes) || sub(b.axes, a.axes);
 }
-// Sceglie le regole finali di UNA griglia: quota per gradino, e dentro ogni gradino
-// preferisce i conteggi non ancora usciti, così le regole di una stessa griglia non danno
-// tutte lo stesso risultato. Se un gradino non ha abbastanza candidati validi, il vuoto è
-// riempito dai gradini vicini (dai più complessi ai livelli alti, dai più semplici ai bassi).
-function selectRules(evaluated, level, quotaIn){
-  const quota = Object.assign({}, quotaIn || tierQuotaForLevel(level));
-  const total = [1,2,3,4,5].reduce((a,t)=>a+quota[t],0);
-  const validAll = evaluated.filter(r=>r.count>=4 && r.count<=14);
-  const valid = validAll.filter(r=>r.kind!=="var" && !r.vk);
-  const varRules = validAll.filter(r=>r.vk);
-  const byTier = {};
-  [1,2,3,4,5].forEach(t=>{ byTier[t] = {stim:[], pos:[], rel:[]}; });
-  shuffle(valid).forEach(r=> byTier[r.tier][r.kind].push(r));
-  const usedCount = {};
-  const kindCount = {stim:0, pos:0, rel:0};
-  const chosen = [];
-  // Regole di forma diversa: fino a VAR_MAX per griglia (cresce col livello), al massimo UNA per
-  // tipo (esclusione, alternativa, confronto…), così una stessa griglia offre operazioni mentali
-  // diverse. Ciascuna occupa un posto della quota del proprio gradino (o del più vicino con posti).
-  const VAR_MAX = level<8 ? 0 : level<14 ? 1 : level<20 ? 2 : level<26 ? 3 : 4;   // crescita graduale: 0 → 4 regole di forma diversa per griglia
-  const varKinds = new Set();
-  let relVar = 0;
-  shuffle(varRules).forEach(r=>{
-    if(varKinds.size>=VAR_MAX || varKinds.has(r.vk)) return;
-    if(r.kind==="rel" && (relVar>=1 || level<8)) return;
-    const t = quota[r.tier]>0 ? r.tier : [4,3,2,1].find(x=>quota[x]>0);
-    if(!t) return;
-    quota[t]--;
-    varKinds.add(r.vk); if(r.kind==="rel"){ relVar++; kindCount.rel++; }
-    usedCount[r.count] = (usedCount[r.count]||0) + 1;
-    chosen.push(r);
-  });
-  // Le regole relazionali (adiacenza, identico al vicino) sono le più astratte: prima potevano
-  // comparire (al massimo 1) fin dal livello 1, ora sono assenti fino al livello 8 (segnalato da
-  // Rodrigo) e restano comunque una minoranza anche dopo.
-  const REL_MAX = level<14 ? 0 : (level>=22 ? 2 : 1);
-  // Estrae dalla lista la regola il cui conteggio è meno usato tra quelle già scelte: le regole di una
-  // stessa griglia non danno tutte lo stesso risultato.
-  const popLeastUsed = list => {
-    let bi = 0;
-    for(let i=1;i<list.length;i++) if((usedCount[list[i].count]||0) < (usedCount[list[bi].count]||0)) bi = i;
-    const r = list.splice(bi,1)[0];
-    usedCount[r.count] = (usedCount[r.count]||0) + 1;
-    kindCount[r.kind]++;
-    chosen.push(r);
-  };
-  // Una regola del gradino `t`: alterna STIMOLO / POSIZIONE (prende il tipo meno rappresentato finora),
-  // con una relazionale ogni tanto. Se il tipo voluto non ha candidati validi, ripiega sull'altro.
-  const tierKind = {1:{stim:0,pos:0}, 2:{stim:0,pos:0}, 3:{stim:0,pos:0}, 4:{stim:0,pos:0}, 5:{stim:0,pos:0}};
-  const takeOne = t => {
-    const b = byTier[t];
-    if(b.rel.length && kindCount.rel < REL_MAX && t>=3 && Math.random()<0.3){ popLeastUsed(b.rel); return true; }
-    // il tipo meno rappresentato NEL GRADINO; a parità, quello meno rappresentato in tutta la griglia; a parità, alterna
-    const tk = tierKind[t];
-    const order = tk.pos !== tk.stim ? (tk.pos < tk.stim ? ["pos","stim"] : ["stim","pos"])
-                : kindCount.pos !== kindCount.stim ? (kindCount.pos < kindCount.stim ? ["pos","stim"] : ["stim","pos"])
-                : (Math.random()<0.5 ? ["pos","stim"] : ["stim","pos"]);
-    for(const k of order) if(b[k].length){ popLeastUsed(b[k]); tk[k]++; return true; }
-    if(b.rel.length && kindCount.rel < REL_MAX){ popLeastUsed(b.rel); return true; }
-    return false;
-  };
-  [1,2,3,4,5].forEach(t=>{ for(let j=0; j<quota[t]; j++) if(!takeOne(t)) break; });
-  // Se un gradino non ha abbastanza candidati validi, il vuoto è riempito dai gradini vicini (dai più
-  // complessi ai livelli alti, dai più semplici ai bassi).
-  const fillOrder = level>=12 ? [5,4,3,2,1] : [1,2,3,4,5];
-  fillOrder.forEach(t=>{ while(chosen.length<total && takeOne(t)){} });
-  // Ordine finale: difficoltà CRESCENTE (per gradino); dentro ogni gradino (e anche al cambio di
-  // gradino) si evita di ripetere lo stesso tipo di consegna (stimolo/posizione/relazione) appena
-  // uscito, scegliendo ad ogni passo un tipo diverso dall'ultimo se ce n'è uno disponibile — non solo
-  // "alternati dentro il gradino" come prima, ma senza mai due consegne uguali di fila se evitabile.
-  const out = [];
-  const tiers = [...new Set(chosen.map(r=>r.tier))].sort((a,b)=>a-b);
-  let lastKind = null;
-  tiers.forEach(t=>{
-    const g = {stim:[], pos:[], rel:[], var:[]};
-    chosen.filter(r=>r.tier===t).forEach(r=>g[r.kind].push(r));
-    while(g.stim.length || g.pos.length || g.rel.length || g.var.length){
-      const avail = ["stim","pos","rel","var"].filter(k=>g[k].length);
-      const k = avail.find(x=>x!==lastKind) || avail[0];
-      out.push(g[k].shift());
-      lastKind = k;
+// Sceglie le 10 consegne di UNA griglia seguendo la rampa di punteggio del livello (gridScoreTargets): per ogni
+// posto della rampa prende la consegna il cui punteggio è più vicino, con penalità per conteggi già usciti,
+// stesso bersaglio o stesso colore già usato, sbilanciamento stimolo/posizione; quota minima di consegne con
+// colori; astrazione massima e numero di consegne astratte limitati dal livello. Ritorna { chosen, cost }.
+function selectRulesByScore(evaluated, effLevel){
+  const N = 10, t = levelT(effLevel);
+  const amax = gridAbstractionMax(effLevel), cmin = gridColorMin(effLevel), targets = gridScoreTargets(effLevel);
+  const capA2 = Math.floor(1 + 5*t), capA3 = Math.floor(1 + 3*t), capRel = t<0.7 ? 1 : 2;
+  const pool = evaluated.filter(r => r.count>=4 && r.count<=14 && r.parts.A <= amax+1e-9);
+  let best = null;
+  for(let rep=0; rep<4; rep++){
+    const chosen = [], usedCount = {}, baseUse = {}, ckUse = {}, vks = new Set();
+    let nPos = 0, nStim = 0, nColor = 0, nA2 = 0, nA3 = 0, nRel = 0, cost = 0;
+    for(let i=0; i<N; i++){
+      const need = cmin - nColor, mustColor = need >= N - i;
+      let bi = null, bc = Infinity;
+      for(const r of pool){
+        if(chosen.includes(r)) continue;
+        const colored = r.ck.length>0;
+        if(mustColor && !colored) continue;
+        if(r.vk && vks.has(r.vk)) continue;
+        if(r.parts.A>=2 && nA2>=capA2) continue;
+        if(r.parts.A>=3 && nA3>=capA3) continue;
+        if(r.kind==="rel" && nRel>=capRel) continue;
+        if(chosen.some(x=>gridRulesConflict(r,x))) continue;
+        let c = Math.abs(r.score - targets[i]) + Math.random()*0.35
+              + 0.7*(usedCount[r.count]||0) + (r.base==='any' ? 0 : 3*(baseUse[r.base]||0))
+              + 0.8*r.ck.reduce((a,k)=>a+(ckUse[k]||0),0);
+        if(r.kind==="pos") c += 0.8*Math.max(0, nPos-nStim);
+        else if(r.kind==="stim") c += 0.8*Math.max(0, nStim-nPos);
+        if(colored && need>0) c -= 0.6;
+        if(c < bc){ bc = c; bi = r; }
+      }
+      if(!bi) break;
+      chosen.push(bi); cost += bc;
+      usedCount[bi.count] = (usedCount[bi.count]||0)+1;
+      baseUse[bi.base] = (baseUse[bi.base]||0)+1;
+      bi.ck.forEach(k=>{ ckUse[k] = (ckUse[k]||0)+1; });
+      if(bi.vk) vks.add(bi.vk);
+      if(bi.kind==="pos") nPos++; else if(bi.kind==="stim") nStim++; else if(bi.kind==="rel") nRel++;
+      if(bi.ck.length) nColor++;
+      if(bi.parts.A>=2) nA2++; if(bi.parts.A>=3) nA3++;
     }
-  });
-  return out;
+    cost += (N - chosen.length)*50 + Math.max(0, cmin - nColor)*5;
+    if(!best || cost < best.cost) best = { chosen, cost };
+  }
+  if(!best) return { chosen:[], cost:1e9 };
+  best.chosen.sort((a,b)=>a.score-b.score);
+  return best;
 }
 
 function genOneGrid(symbols, level, category, rows, cols){
-  // Più tentativi, tenendo il migliore: prima chi riempie meglio le quote di gradino del
-  // livello, poi chi ha più conteggi diversi tra loro. La COMBINATORIA (quote, attributi extra,
-  // regole relazionali) segue il livello EFFETTIVO, calibrato sulla leggibilità della categoria
-  // per un lettore italiano (vedi tierEffectiveLevel) — la dimensione della griglia (rows/cols)
-  // segue invece sempre il livello vero, uguale per tutte le categorie.
+  // Più tentativi di griglia, tenendo il migliore (costo minore = consegne più vicine alla rampa di punteggio,
+  // conteggi diversi tra loro, nessun bersaglio ripetuto, colori usati). La combinatoria segue il livello
+  // EFFETTIVO (leggibilità della categoria, vedi tierEffectiveLevel); la dimensione della griglia segue il livello vero.
   const effLevel = tierEffectiveLevel(level, category);
-  const quota = tierQuotaForLevel(effLevel, Math.random());
-  const total = [1,2,3,4,5].reduce((a,t)=>a+quota[t],0);
-  let best = null, bestScore = -1;
-  for(let attempt=0; attempt<60; attempt++){
+  let best = null;
+  for(let attempt=0; attempt<25; attempt++){
     const { cells, evaluated } = buildGridAttempt(symbols, level, effLevel, rows, cols);
-    const chosen = selectRules(evaluated, effLevel, quota);
-    const perTier = {1:0,2:0,3:0,4:0,5:0};
-    chosen.forEach(r=>perTier[r.tier]++);
-    const filled = [1,2,3,4,5].reduce((a,t)=>a+Math.min(perTier[t], quota[t]),0);
-    const distinct = new Set(chosen.map(r=>r.count)).size;
-    const nPos = chosen.filter(r=>r.kind==="pos").length, nStim = chosen.filter(r=>r.kind==="stim").length;
-    const imbalance = Math.abs(nPos - nStim);           // mix stimoli/posizione: più è vicino a 0, meglio è
-    const score = filled*100 + distinct*5 - imbalance*12;
-    if(score > bestScore){ bestScore = score; best = { cells, rules: chosen }; }
-    if(filled===total && distinct>=Math.min(8, total-2) && imbalance<=1) break;
+    const sel = selectRulesByScore(evaluated, effLevel);
+    if(!best || sel.cost < best.cost) best = { cells, rules: sel.chosen, cost: sel.cost };
+    if(sel.chosen.length===10 && sel.cost < 7) break;
   }
   return best;
 }
@@ -12979,8 +12968,8 @@ const INTRUSO_ATOMIC_FAMILIES = [
   // Semi e note: soglie anticipate (pool allargato e coppie già dal livello 2, triple dal 5)
   // perché i semi risultavano troppo facili già dal livello 2 (segnalato da Rodrigo); il
   // livello 1 resta con 4 simboli singoli come ingresso. Dadi, cerchi e quadranti: invariati.
-  {id:"suits", label:"semi delle carte", pool:["♠","♥","♦","♣"], extra:["♤","♡","♢","♧"], small:true, extraFrom:2, pairsFrom:2, triplesFrom:9, unlockLevel:1},
-  {id:"music", label:"note musicali", pool:["♩","♪","♫","♬"], extra:["♭","♮","♯"], small:true, extraFrom:2, pairsFrom:2, triplesFrom:9, unlockLevel:1},
+  {id:"suits", label:"semi delle carte", pool:["♠","♥","♦","♣"], extra:["♤","♡","♢","♧"], small:true, extraFrom:6, pairsFrom:2, triplesFrom:9, unlockLevel:1},
+  {id:"music", label:"note musicali", pool:["♩","♪","♫","♬"], extra:["♭","♮","♯"], small:true, extraFrom:7, pairsFrom:2, triplesFrom:9, unlockLevel:1},
   {id:"punct", label:"punteggiatura", pool:["!","?","#","%","&","@","§","*"], unlockLevel:1},
   {id:"zodiac", label:"simboli zodiacali", pool:["♈","♉","♊","♋","♌","♍","♎","♏","♐","♑","♒","♓"], unlockLevel:1},
   {id:"dice", label:"dadi", pool: codeRange(0x2680,6), extra:[], small:true, extraFrom:99, pairsFrom:3, triplesFrom:11, unlockLevel:1},
@@ -12989,8 +12978,8 @@ const INTRUSO_ATOMIC_FAMILIES = [
   {id:"cjk", label:"ideogrammi", pool: codeRange(0x53E3,40), unlockLevel:28},
   // Nuove famiglie a glifo singolo. Cerchi parziali e quadranti hanno pool ristretto (4): come semi e
   // note, si allargano con simboli molto simili e ai livelli alti diventano sequenze di 2-3 simboli.
-  {id:"circles", label:"cerchi parzialmente pieni", pool:["◐","◑","◒","◓"], extra:["◔","◕","○","●"], small:true, extraFrom:2, pairsFrom:3, triplesFrom:13, unlockLevel:1},
-  {id:"quadrants", label:"quadranti", pool:["◰","◱","◲","◳"], extra:["◧","◨","◩","◪"], small:true, extraFrom:3, pairsFrom:5, triplesFrom:15, unlockLevel:3},
+  {id:"circles", label:"cerchi parzialmente pieni", pool:["◐","◑","◒","◓"], extra:["◔","◕","○","●"], small:true, extraFrom:8, pairsFrom:3, triplesFrom:13, unlockLevel:1},
+  {id:"quadrants", label:"quadranti", pool:["◰","◱","◲","◳"], extra:["◧","◨","◩","◪"], small:true, extraFrom:10, pairsFrom:5, triplesFrom:15, unlockLevel:3},
   {id:"box", label:"tratti da tabella", pool:["┌","┐","└","┘","├","┤","┬","┴","┼"], unlockLevel:7},
   {id:"sets", label:"simboli insiemistici", pool:["∈","∉","∩","∪","⊂","⊃","⊆","⊇","∋","∌"], unlockLevel:9},
   {id:"braille", label:"Braille", pool: codeRange(0x2801,63), unlockLevel:14}
@@ -13006,7 +12995,7 @@ const INTRUSO_ALL_FAMILIES = [...INTRUSO_TEXT_FAMILIES, ...INTRUSO_ATOMIC_FAMILI
 // tetto massimo di prima (nessuna esagerazione in cima alla scala) — sposta il gradiente verso
 // l'inizio senza cambiarne l'ampiezza complessiva. Usata SOLO per Intruso: non toglie nulla a
 // levelT(), che resta la curva lineare condivisa dagli altri esercizi.
-const INTRUSO_LEVEL_EASE = 0.6; // era 0.75: ulteriore richiesta di Rodrigo di spostare ancora avanti il gradiente
+const INTRUSO_LEVEL_EASE = 1;   // curva LINEARE: prima era concava (0,6) e anticipava tutti i salti di lunghezza (livelli 4 e 18); ora la difficoltà segue il punteggio unico (vedi INTRUSO_SCORE_W)
 function intrusoLevelT(level){ return Math.pow(levelT(level), INTRUSO_LEVEL_EASE); }
 function intrusoEffLevel(level){ return 1 + intrusoLevelT(level) * (MAX_LEVEL - 1); }
 
@@ -13127,29 +13116,30 @@ function lenForFamily(family, level){
   const tripleFrom = family.unlockLevel + w.triple;
   return lvl < pairFrom ? 1 : (lvl < tripleFrom ? 2 : 3);
 }
-// Quanto velocemente cresce il numero di elementi per livello, in base all'ampiezza del pool: un
-// pool piccolo e familiare (es. le 10 cifre) regge una crescita rapida; uno grande e poco
-// familiare (es. braille, ge'ez, ideogrammi) ne regge una più lenta, perché ogni confronto in più
-// costa già di suo molto più fatica visiva — stessa suddivisione di textFamilyWarmup.
-function targetNGrowthRate(poolSize){
-  if(poolSize<=12) return 1.0;
-  if(poolSize<=20) return 0.8;
-  if(poolSize<=28) return 0.65;
-  if(poolSize<=40) return 0.5;
-  return 0.35;
-}
-function targetNForLevelIntruso(level, isAtomic, len, poolSize){
-  // Più elementi = più confronti per isolare l'unico singolo. Partenza più alta di prima (18 testo / 21
-  // glifi, prima 15 / 18); poi cresce fino a 30 (27 per le terne di caratteri, che sono lunghe da
-  // leggere), al ritmo di targetNGrowthRate — un livello in più è un po' più impegnativo, ma di
-  // meno per le famiglie già difficili da leggere per conto loro. Cresce sul livello effettivo
-  // (intrusoEffLevel), non su quello nominale: stesso tetto finale, raggiunto un po' prima.
-  const lvl = intrusoEffLevel(level);
-  const base = isAtomic ? 21 : 18;
-  const rate = targetNGrowthRate(poolSize==null ? (isAtomic?12:10) : poolSize);
-  const grown = Math.floor((isAtomic ? (lvl-1)*3/8 : (lvl-1)/2) * rate);
-  const cap = (!isAtomic && len>=3) ? 27 : 30;
-  return Math.min(base + grown, cap);
+// ---------- PUNTEGGIO UNICO DI DIFFICOLTÀ (Intruso percettivo) ----------
+// Ogni schermata ha un punteggio D (0-1) = somma pesata di:
+//   lunghezza dell'elemento (1, 2 o 3 simboli: uguale per tutta la sessione),
+//   famiglia di stimoli (quanto è ostica: sblocco tardivo, glifo poco riconoscibile — vedi INTRUSO_RECOGNIZABILITY),
+//   somiglianza dei tipi (quota di tipi "quasi uguali", cresce col livello; solo per elementi di 2-3 simboli),
+//   numerosità (quanti elementi tra cui cercare).
+// D segue un obiettivo LINEARE del livello (INTRUSO_TARGET_D). Lunghezza e somiglianza sono decisi dal livello, la famiglia
+// dalla famiglia: la NUMEROSITÀ è la variabile che si risolve per far tornare il punteggio. Conseguenze: a ogni
+// cambio di lunghezza (livelli 9 e 21) il numero di elementi ricade un po' e poi risale (dente di sega), e nella
+// stessa schermata una famiglia più ostica ha meno elementi di una facile — a parità di livello tutte le schermate
+// pesano uguale.
+const INTRUSO_SCORE_W = { len:0.25, fam:0.25, sim:0.20, n:0.30 };
+const INTRUSO_TARGET_D = [0.05, 0.80];      // punteggio obiettivo al livello 1 → 32 (lineare)
+const INTRUSO_N_RANGE = [15, 30];           // numerosità minima / massima (27 per le terne)
+const INTRUSO_LEN_STEPS = [9, 21];          // livelli da cui gli elementi sono di 2 / di 3 simboli
+function intrusoTargetD(level){ return INTRUSO_TARGET_D[0] + (INTRUSO_TARGET_D[1]-INTRUSO_TARGET_D[0])*levelT(level); }
+function intrusoFamTerm(family){ return Math.min(1, 0.7*Math.min(1, family.unlockLevel/28) + (1 - intrusoRecognizability(family.id))); }
+function intrusoSimTerm(level, len){ return len>=2 ? Math.max(0, Math.min(1, (intrusoEffLevel(level)-2)/30)) : 0; }
+function targetNForLevelIntruso(level, family, len){
+  const W = INTRUSO_SCORE_W;
+  const rest = W.len*(len-1)/2 + W.fam*intrusoFamTerm(family) + W.sim*intrusoSimTerm(level, len);
+  const nScore = Math.max(0, Math.min(1, (intrusoTargetD(level) - rest)/W.n));
+  const cap = len>=3 ? 27 : INTRUSO_N_RANGE[1];
+  return Math.min(cap, Math.round(INTRUSO_N_RANGE[0] + nScore*(INTRUSO_N_RANGE[1]-INTRUSO_N_RANGE[0])));
 }
 // Famiglie a "tessera" (mahjong, domino, semi delle carte): il glifo occupa solo una parte del
 // riquadro del carattere, quindi a 18-30 elementi per schermata risultava molto piccolo. Prima
@@ -13200,7 +13190,7 @@ function intrusoRecognizability(famId){
 // tutte le schermate di una sessione hanno elementi di 1, 2 o 3 simboli, mai misti.
 function intrusoSessionLen(level){
   const e = intrusoEffLevel(level);
-  return e < 8 ? 1 : (e < 22 ? 2 : 3);
+  return e < INTRUSO_LEN_STEPS[0] ? 1 : (e < INTRUSO_LEN_STEPS[1] ? 2 : 3);
 }
 // Lunghezza massima sostenibile da una famiglia (i pool enormi non arrivano alle terne; le tessere
 // di domino e mahjong restano singole: occupano già molto spazio e devono restare grandi).
@@ -13226,15 +13216,7 @@ function intrusoPlanLen(level){
 // Punteggio di difficoltà (0..1) di UNA famiglia a lunghezza L: ora la lunghezza è la stessa per
 // tutte, quindi differenziano solo la familiarità (unlockLevel), la somiglianza dei distrattori
 // (uguale per tutte, dipende dal livello) e il numero di elementi.
-function intrusoFamilyDifficulty(family, level, L){
-  const isAtomic = INTRUSO_ATOMIC_FAMILIES.includes(family);
-  const len = L || intrusoPlanLen(level);
-  const familiarityScore = Math.min(1, family.unlockLevel/MAX_LEVEL);
-  const similarityScore = len>=2 && intrusoEffLevel(level)>=3 ? Math.min(1, (intrusoEffLevel(level)-2)/30) : 0;
-  const targetN = targetNForLevelIntruso(level, isAtomic, len, family.pool.length);
-  const countScore = Math.max(0, Math.min(1, (targetN-18)/12));
-  return 0.6*familiarityScore + 0.2*similarityScore + 0.2*countScore;
-}
+function intrusoFamilyDifficulty(family){ return intrusoFamTerm(family); }
 function levelFamiliesIntruso(level, count, ctx){
   // Tutte le schermate della sessione hanno la STESSA lunghezza dell'elemento (intrusoPlanLen).
   // Tra le famiglie ammesse, ordinate per difficoltà, si sceglie una finestra il cui punto di
@@ -13268,15 +13250,13 @@ function genIntruso(level, excludeKeys){
   }
   const slides = fams
     .map(fam=>{
-      const isAtomic = INTRUSO_ATOMIC_FAMILIES.includes(fam);
       const famLen = Math.min(intrusoPlanLen(level), intrusoMaxLen(fam));   // stessa lunghezza per tutta la sessione
-      const levelN = targetNForLevelIntruso(level, isAtomic, famLen, fam.pool.length);
-      const recog = intrusoRecognizability(fam.id);
-      // fattore < 1 (famiglie a tessera): numerosità ridotta in proporzione, poi si sceglie, entro
-      // qualche unità, il numero che dà i simboli più grandi sull'area REALE della slide
-      // (mai sopra la numerosità piena del livello)
-      const targetN = recog < 1
-        ? bestTileCount(Math.max(6, Math.round(levelN*recog)), famLen, fam.id, levelN)
+      // numerosità risolta dal punteggio unico (vedi INTRUSO_SCORE_W), che include già la riconoscibilità della
+      // famiglia; per le famiglie a tessera si sceglie poi, entro qualche unità, il numero che dà i simboli più
+      // grandi sull'area REALE della slide (mai sopra il tetto)
+      const levelN = targetNForLevelIntruso(level, fam, famLen);
+      const targetN = intrusoRecognizability(fam.id) < 1
+        ? bestTileCount(levelN, famLen, fam.id, Math.min(famLen>=3 ? 27 : INTRUSO_N_RANGE[1], levelN+2))
         : niceIntrusoCount(levelN, 1333, 500);
       return buildIntrusoScreen(fam, famLen, targetN, level, ctx);
     })
@@ -13643,22 +13623,20 @@ function levelNote(exId, level){
       const cat = GRID_CATEGORY_BY_LEVEL[level], sub = (level-1)%4 + 1;
       const rows = gridRowsForLevel(level), cols = gridColsForLevel(level);
       const effLevel = tierEffectiveLevel(level, cat);
-      const q = tierQuotaForLevel(effLevel);
+      const tg = gridScoreTargets(effLevel);
       const extra = [];
       if(effLevel>=6) extra.push("simbolo grande/piccolo");
       if(effLevel>=17) extra.push("bordo continuo/tratteggiato/puntinato"); else if(effLevel>=12) extra.push("bordo continuo/tratteggiato");
       if(effLevel>=9) extra.push("sfondo pieno/vuoto");
       const readNote = effLevel!==level ? ` — combinazioni calibrate come al livello ${effLevel} (${GRID_CATEGORY_LABELS[cat].toLowerCase()} ${effLevel>level ? "è facile da leggere per un lettore italiano" : "è poco familiare per un lettore italiano"})` : "";
-      return `${GRID_CATEGORY_LABELS[cat]} (passo ${sub}/4) — griglia ${rows}×${cols}${readNote}. Mix di regole (indicativo): ${q[1]} sul solo simbolo · ${q[2]} con 1 vincolo · ${q[3]} con 2 vincoli · ${q[4]} composte; in ogni griglia circa metà sugli stimoli e metà sulla posizione${effLevel>=GRID_POS_W2_FROM ? " (posizioni composte incluse: blocchi, scacchiera, riga∩colonna)" : ""}.` + (extra.length ? ` Attributi extra: ${extra.join(", ")}.` : "");
+      return `${GRID_CATEGORY_LABELS[cat]} (passo ${sub}/4) — griglia ${rows}×${cols}${readNote}. Punteggio delle consegne (stimolo + molteplicità + astrazione): da ${tg[0].toFixed(1)} a ${tg[9].toFixed(1)}, media ${(tg.reduce((a,b)=>a+b,0)/10).toFixed(1)}; almeno ${gridColorMin(effLevel)} consegne su 10 usano i colori (sfondo, bordo, colore del simbolo); astrazione massima ${gridAbstractionMax(effLevel).toFixed(1)} (posizioni composte, negazioni, relazioni tra celle vicine solo dove il punteggio lo consente).` + (extra.length ? ` Attributi extra: ${extra.join(", ")}.` : "");
     }
     case "intruso": {
-      const eligibleText = INTRUSO_TEXT_FAMILIES.filter(f=>f.unlockLevel<=level);
-      const eligibleAtomic = INTRUSO_ATOMIC_FAMILIES.filter(f=>f.unlockLevel<=level);
-      const lenTxt = `${intrusoPlanLen(level)} in tutte le schermate`;
-      const range = arr => { const lo = Math.min(...arr), hi = Math.max(...arr); return lo===hi ? `${lo}` : `${lo}-${hi}`; };
-      const nTTxt = range(eligibleText.map(f=>targetNForLevelIntruso(level, false, intrusoPlanLen(level), f.pool.length)));
-      const nATxt = range(eligibleAtomic.map(f=>targetNForLevelIntruso(level, true, 1, f.pool.length)));
-      const bits = [`${nTTxt} elementi (testo, ${lenTxt} car.) / ${nATxt} (glifi) — a seconda di quanto la famiglia è ampia/familiare`];
+      const eligible = intrusoEligibleFamilies(level, intrusoPlanLen(level));
+      const lenTxt = intrusoPlanLen(level)===1 ? "1 simbolo" : `${intrusoPlanLen(level)} simboli`;
+      const nAll = eligible.map(f=>targetNForLevelIntruso(level, f, Math.min(intrusoPlanLen(level), intrusoMaxLen(f))));
+      const nLo = Math.min(...nAll), nHi = Math.max(...nAll);
+      const bits = [`punteggio di difficoltà ${intrusoTargetD(level).toFixed(2)} (lunghezza + famiglia + somiglianza + numerosità); elementi di ${lenTxt} in tutte le schermate; ${nLo===nHi ? nLo : nLo+"-"+nHi} elementi per schermata (meno per le famiglie più ostiche, così tutte le schermate pesano uguale)`];
       const effLevelIntruso = intrusoEffLevel(level);
       if(effLevelIntruso>=3) bits.push(`tipi «quasi uguali» nel ${Math.round(Math.min(1,(effLevelIntruso-2)/30)*100)}% dei testi`);
       const newFam = INTRUSO_ALL_FAMILIES.filter(f=>f.unlockLevel===level).map(f=>f.label);
@@ -13814,18 +13792,39 @@ function bestGridScore(n, areaW, areaH){
 // sola riga lunghissima. Si cerca invece, entro poche unità di distanza, il numero più vicino
 // che permette una griglia piena ragionevolmente quadrata — la difficoltà del livello non
 // cambia per una differenza di 1-2 elementi, ma l'impaginazione sì.
+// Numeri "comodi": disponibili in griglia PIENA con 3-6 righe e 3-10 colonne (15, 16, 18, 20, 21, 24, 25, 27, 28, 30).
+function intrusoGridFriendly(c){
+  for(let r=3; r<=6; r++) if(c % r === 0 && c/r >= 3 && c/r <= 10) return true;
+  return false;
+}
 function niceIntrusoCount(n, areaW, areaH, maxN){
   maxN = maxN==null ? Infinity : maxN;
-  let best = Math.min(n, maxN), bestScore = -1;
+  // il più vicino (entro 2) tra i numeri comodi: cambia di poco la difficoltà ma lascia sempre una griglia piena e regolare
+  let best = null, bestD = Infinity;
+  for(let d=0; d<=2; d++){
+    for(const cand of (d===0 ? [n] : [n-d, n+d])){
+      if(cand < 4 || cand > maxN || !intrusoGridFriendly(cand)) continue;
+      if(d < bestD){ best = cand; bestD = d; }
+    }
+    if(best!=null) break;
+  }
+  if(best!=null) return best;
+  let fb = Math.min(n, maxN), bestScore = -1;
   for(let d=0; d<=4; d++){
-    const cands = d===0 ? [n] : [n-d, n+d];
-    for(const cand of cands){
+    for(const cand of (d===0 ? [n] : [n-d, n+d])){
       if(cand < 4 || cand > maxN) continue;
       const score = bestGridScore(cand, areaW, areaH);
-      if(score > bestScore){ bestScore = score; best = cand; }
+      if(score > bestScore){ bestScore = score; fb = cand; }
     }
   }
-  return best;
+  return fb;
+}
+// Elementi di 2-3 glifi di una famiglia a simboli (zodiaco, semi, dadi, forme…): ogni elemento è racchiuso in una
+// cornice sottile, così si legge come UNITÀ anche quando i glifi sono larghi e lo spazio dentro l'elemento e quello tra
+// un elemento e l'altro sembrano uguali (segnalato da Rodrigo sullo zodiaco: «non si capisce che sono coppie»).
+// Le famiglie testuali (cifre, lettere…) restano senza cornice: lì la sequenza è già una parola.
+function intrusoFramed(familyId, itemLen){
+  return itemLen>=2 && INTRUSO_ATOMIC_FAMILIES.some(f=>f.id===familyId);
 }
 function renderIntruso(deck){
   const wrap = document.createElement("div");
@@ -13851,7 +13850,12 @@ function renderIntruso(deck){
       div.className = "cell" + (state.reveal && ci===s.oddIndex ? " answer":"");
       div.style.borderColor = "#D9DFD9";
       div.style.background = "#fff";
-      div.textContent = it;
+      if(intrusoFramed(s.familyId, [...String(it)].length)){
+        const fr = document.createElement("span");
+        fr.textContent = it;
+        fr.style.cssText = "display:inline-block;border:1.5px solid #8A948E;border-radius:.3em;padding:.04em .28em;line-height:1.25";
+        div.appendChild(fr);
+      } else div.textContent = it;
       strip.appendChild(div);
     });
     block.appendChild(strip);
@@ -14893,8 +14897,17 @@ function exportIntruso(deck, level){
     const inkFit = (INTRUSO_INK_FIT.has(s.familyId) && itemLen===1)
       ? fitInkFontSize(s.items, cellW*72, cellH*72, PPTX_FONT_STACK, INTRUSO_FILL) : null;
     if(inkFit) fontSize = Math.max(10, Math.min(400, Math.floor(inkFit)));
+    const framed = intrusoFramed(s.familyId, itemLen);
     s.items.forEach((it,i)=>{
       const r = Math.floor(i/cols), c = i%cols;
+      if(framed){
+        // cornice sottile attorno all'elemento (vedi intrusoFramed): larga quanto il testo + un po' d'aria, mai oltre la cella
+        const fw = Math.min(cellW*0.94, fontSize/72*itemLen*effCharWidth*1.12 + 0.16), fh = Math.min(cellH*0.92, fontSize/72*1.35);
+        slide.addShape((p.ShapeType && p.ShapeType.roundRect) || "roundRect", {
+          x:MARGIN+c*cellW+(cellW-fw)/2, y:MARGIN+r*cellH+(cellH-fh)/2, w:fw, h:fh,
+          fill:{color:"FFFFFF"}, line:{color:"8A948E", width:1.5}, rectRadius:0.1
+        });
+      }
       slide.addText(it, {
         x:MARGIN+c*cellW, y:MARGIN+r*cellH, w:cellW, h:cellH,
         align:"center", valign:"middle", fontSize, bold:true, color:"1E2A26",
