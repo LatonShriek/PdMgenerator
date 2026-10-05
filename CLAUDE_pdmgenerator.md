@@ -60,7 +60,10 @@ docs/                 # README spezzato per argomento
       all'inizio del passo 4. Il controllo Zipf≥3.0 / parole valide richiede il lessico esterno.
 - [x] 2. Scaricare le librerie in `vendor/` (versioni fissate) e riferirle in locale.
       Fatto da npm (vedi `vendor/README.md`). Esportazione pptx/docx provata in locale.
-- [ ] 3. Spostare i dati (criteri, categorie, lessico) in `data/*.json`.
+- [ ] 3. Spostare i dati (criteri, categorie, lessico) in `data/`.
+      Fatto (3a): `CATEGORIZZAZIONE_LIBRARY` (190 criteri) in `data/categorizzazione.js`, caricato con
+      `<script src>` (scelta: file .js e non .json, così il doppio clic su index.html continua a funzionare).
+      Restano (3b): `WORD_BANK_EXTRA`, banche dell'engine (`CATEGORY_LETTER_BANK` ecc.), `OPENMOJI_ICON_MAP`, `INV_REAL_BLOCK`.
 - [ ] 4. Estrarre `js/generators/` e `js/renderers/` lungo le mappe esistenti.
 - [ ] 5. Estrarre esportazioni, cronologia, progressione.
 - [ ] 6. CSS in file separato; spezzare il README in `docs/`.
