@@ -15,12 +15,17 @@ e regole di qualità: **va letto prima di toccare i generatori e non va perso.**
 Per Rodrigo esiste anche `SPIEGAZIONE_SEMPLICE.md` (perché la struttura è fatta
 così e cosa si può ancora migliorare, in parole semplici).
 
-## Stato attuale (refactoring in corso: passi 1, 2, 3, 4 e 7 fatti)
-- `index.html` ~270 KB (era ~543 KB). Passo 4: generatori in `js/generators/` (griglie, intruso,
+## Stato attuale (refactoring in corso: passi 1, 2, 3, 4, 5 e 7 fatti)
+- `index.html` ~213 KB (era ~543 KB). Passo 4: generatori in `js/generators/` (griglie, intruso,
   inversione, serie, accesso, fascicolo) e renderer in `js/renderers/` (gli stessi + categorizzazione),
   script classici caricati con `<script src>` PRIMA dello script principale (stesso ordine di prima;
   sono solo dichiarazioni di funzione, nessuna chiamata al caricamento). Una banda rossa avvisa se manca un file.
-  Restano in `index.html`: `genCategorizzazioneV2`, `genFresh`, mappe `GENERATORS`/`RENDERERS`, stato, esportazioni.
+  Passo 5: anche esportazioni (`js/export/*`), cronologia (`js/history/*`), progressione (`js/progression.js`),
+  copia di sicurezza (`js/backup/backup.js` UMD + `backup-ui.js`) e configurazione Firebase
+  (`js/firebase-config.js`) stanno in file propri; tag `<script src>` dopo quelli dei renderer, prima dello
+  script principale. Restano in `index.html`: motore del Fascicolo, costruttore Word, motore di categorizzazione
+  (`genCategorizzazioneV2`, `genFresh`), dati di base, stato, mappe `GENERATORS`/`RENDERERS`, controlli, e le
+  istruzioni che collegano i pulsanti. Banda rossa se manca un file.
 - Librerie in `vendor/`, versioni fissate, niente CDN a runtime: pptxgenjs 3.12.0,
   docx 8.5.0, FileSaver 2.0.5, Firebase 10.14.1 (compat). Unica eccezione: un
   piccolo script di sicurezza in `index.html` scarica `docx` da unpkg.com solo se
@@ -33,6 +38,9 @@ così e cosa si può ancora migliorare, in parole semplici).
 - `tests/golden-browser.js` (Playwright, Chromium senza rete, seme fisso): 183 casi, impronte in
   `golden-browser.json`. **Regola: prima e dopo ogni spostamento di codice deve dare "OK: 183 casi identici"**
   (si lancia in background: ~2 min; NODE_PATH e CHROMIUM_PATH impostati).
+- `tests/export-browser.js`: 20 esportazioni (PowerPoint dei 6 esercizi a 3 livelli + Word del fascicolo, settimane 1 e 7)
+  confrontate per contenuto interno; **va lanciato prima e dopo ogni modifica alle esportazioni**.
+- `GUIDA_BUONE_PRATICHE.md`: guida di buone pratiche, **da aggiornare a ogni passo** con ciò che si è imparato.
 - Copia di sicurezza (passo 7): blocco `backup.js` (logica pura, UMD) dentro
   `index.html` + due pulsanti in fondo alla barra laterale. Salva/ripristina solo
   le chiavi note (`pdm_hist::`, `pdm_progress::`, storico, nome/numero gruppo);
@@ -70,8 +78,8 @@ così e cosa si può ancora migliorare, in parole semplici).
 - L'area di lavoro parte vuota e da lì GitHub non è raggiungibile. La versione vera
   è su GitHub: chiedere a Rodrigo lo ZIP (Code → Download ZIP) e scompattarlo in
   una cartella nuova.
-- La copia di `index.html` nel Progetto Claude ha la config Firebase **rimossa**:
-  mai consegnarla a Rodrigo. Si parte sempre dallo ZIP del repository.
+- La copia di `index.html` nel Progetto Claude non è completa (mancano `js/`, `data/`, `vendor/`) e non va mai
+  consegnata a Rodrigo. Si parte sempre dallo ZIP del repository.
 - Nel Progetto Claude stanno solo `index.html`, README e questo file; `data/`,
   `tests/` e `vendor/` stanno solo su GitHub.
 
@@ -83,8 +91,12 @@ Rodrigo carica su GitHub dal sito (Add file → Upload files), non da terminale.
   finirebbero nella radice e `index.html` non troverebbe più i suoi script.
 - Prima del Commit, nell'elenco di GitHub i nomi devono avere il prefisso della
   cartella (es. `data/categorizzazione.js`). Se non c'è, non fare Commit.
-- Cartelle nuove al passo 4: `js` (con `generators/` e `renderers/`): il prefisso nell'elenco deve essere
-  `js/generators/griglie.js` ecc. Se manca, l'app mostra la banda rossa.
+- Cartella `js` (con `generators/`, `renderers/`, `export/`, `history/`, `backup/`): il prefisso nell'elenco deve essere
+  `js/generators/griglie.js` ecc., UNA sola volta `js/`. Le zip si fanno con il contenuto della cartella al
+  livello più alto (non una cartella `js` dentro `js.zip`), così "Estrai tutto" dà `js/generators/...`.
+  Se manca un file, l'app mostra la banda rossa. `index.html` si carica PER ULTIMO.
+  Con la config Firebase ora in `js/firebase-config.js`, la copia nel Progetto Claude di `index.html` non la contiene
+  più: non scrivere nel Progetto i file `js/`.
 - Se compaiono nella radice i doppioni `categorizzazione.js` e
   `fascicolo.test.js` (restano da un invio precedente), vanno eliminati.
 - Dopo ogni aggiornamento: attendere 1-2 minuti, Ctrl+Shift+R, generare
@@ -94,7 +106,7 @@ Rodrigo carica su GitHub dal sito (Add file → Upload files), non da terminale.
 
 ## Struttura attuale
 ```
-index.html            app: interfaccia, stato, esportazioni, cronologia, copia di sicurezza
+index.html            app: interfaccia, stato, motori (Fascicolo, categorizzazione), collegamenti
 CLAUDE_pdmgenerator.md  questo file
 README.md             documentazione completa
 SPIEGAZIONE_SEMPLICE.md spiegazione in parole semplici
@@ -102,6 +114,10 @@ data/                 criteri, icone, lessico di controllo (file .js)
 vendor/               librerie esterne con versione fissata (+ README.md, licenses/)
 js/generators/        un file per esercizio (passo 4 fatto)
 js/renderers/         un file per esercizio (passo 4 fatto)
+js/export/            esportazioni pptx/docx (passo 5 fatto)
+js/history/           cronologia condivisa e storico (passo 5 fatto)
+js/progression.js, js/backup/, js/firebase-config.js   (passo 5 fatto)
+GUIDA_BUONE_PRATICHE.md  guida di buone pratiche (documento vivo)
 tests/                load-engine.js, fascicolo.test.js, backup.test.js, snapshots.json, golden-browser.js/.json
 ```
 
@@ -131,7 +147,8 @@ docs/                 # README spezzato per argomento
 - [x] 4. Estratti `js/generators/` e `js/renderers/` lungo le mappe esistenti, provato
       con il controllo "prima e dopo" in browser (183 casi identici). Il generatore casuale
       resta `Math.random()`: il seme si fissa solo nel test, non si è toccato il codice.
-- [ ] 5. Estrarre esportazioni, cronologia, progressione.
+- [x] 5. Estratti esportazioni, cronologia, progressione, copia di sicurezza e config Firebase in `js/`;
+      provato con 62 test, 183 casi "prima e dopo" e 20 esportazioni identiche.
 - [ ] 6. CSS in file separato; spezzare il README in `docs/`.
 - [x] 7. Pulsanti "Salva copia di sicurezza" / "Ripristina" (file JSON) per il
       backup dello stato locale. Il blocco `backup.js` passa in un file proprio

@@ -4,18 +4,32 @@ const fs = require('fs');
 const path = require('path');
 const Module = require('module');
 
-function loadEngine(htmlPath = path.join(__dirname, '..', 'index.html')) {
+// Carica da index.html il primo <script> che contiene il testo `marker`, come modulo Node.
+function loadBlock(marker, name, htmlPath = path.join(__dirname, '..', 'index.html')) {
   const html = fs.readFileSync(htmlPath, 'utf8');
   const re = /<script>([\s\S]*?)<\/script>/g;
   let m;
   while ((m = re.exec(html))) {
-    if (m[1].includes('motore di generazione (engine.js)')) {
-      const mod = new Module('engine.js');
+    if (m[1].includes(marker)) {
+      const mod = new Module(name);
       mod.paths = [];
-      mod._compile(m[1], 'engine.js');
+      mod._compile(m[1], name);
       return mod.exports;
     }
   }
-  throw new Error('Blocco engine.js non trovato in index.html');
+  throw new Error('Blocco ' + name + ' non trovato in index.html');
 }
-module.exports = { loadEngine };
+
+function loadEngine(htmlPath) {
+  return loadBlock('motore di generazione (engine.js)', 'engine.js', htmlPath);
+}
+
+// Copia di sicurezza (passo 7): logica pura Esporta / Importa. Dal passo 5 sta in js/backup/backup.js.
+function loadBackup() {
+  const file = path.join(__dirname, '..', 'js', 'backup', 'backup.js');
+  const mod = new Module('backup.js');
+  mod.paths = [];
+  mod._compile(fs.readFileSync(file, 'utf8'), file);
+  return mod.exports;
+}
+module.exports = { loadEngine, loadBackup, loadBlock };

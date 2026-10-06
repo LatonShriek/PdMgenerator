@@ -28,6 +28,7 @@ Non c'è backend: l'app gira interamente nel browser (JavaScript vanilla, nessun
 18. [Stato del refactoring](#stato-del-refactoring)
 19. [Sicurezza, privacy e licenze](#sicurezza-privacy-e-licenze)
 20. [Come lavora Rodrigo su questo progetto](#come-lavora-rodrigo-su-questo-progetto)
+21. Guida di buone pratiche per costruire web app: file `GUIDA_BUONE_PRATICHE.md`
 
 ## Scopo
 
@@ -45,26 +46,34 @@ L'app genera al volo materiale **nuovo ma di difficoltà controllata**, tiene tr
 ## Struttura del repository e perché è fatta così
 
 ```
-index.html                  l'app (interfaccia, stato, esportazioni, cronologia, copia di sicurezza)
+index.html                  l'app: interfaccia, stato, motore del Fascicolo, motore di categorizzazione, collegamenti fra i pezzi
 CLAUDE_pdmgenerator.md      regole di lavoro e stato dei passi di refactoring
 README.md                   questo file
+GUIDA_BUONE_PRATICHE.md     guida di buone pratiche per costruire web app (documento vivo)
 data/                       dati puri, separati dalla logica
   categorizzazione.js         libreria dei criteri di categorizzazione
   openmoji-map.js             mappa termine inglese -> icona OpenMoji
   inv-real-block.js           lessico di controllo per le non-parole dell'Intruso
-js/                         il codice degli esercizi, un file per esercizio (passo 4)
+js/                         il codice, un file per argomento (passi 4 e 5)
   generators/                 genera il materiale: griglie, intruso, inversione, serie, accesso, fascicolo
   renderers/                  lo disegna a schermo: i sei sopra + categorizzazione
+  export/                     esportazioni PowerPoint (un file per esercizio) e Word (fascicolo); exporters.js sceglie quella giusta
+  history/                    cronologia condivisa (localStorage + Firestore) e storico delle generazioni
+  progression.js              progressione del gruppo (mantieni / sali di livello)
+  backup/                     copia di sicurezza: backup.js (logica pura) e backup-ui.js (collegamento alla pagina)
+  firebase-config.js          configurazione Firebase (l'unico file da toccare per collegare/scollegare la cronologia online)
 vendor/                     librerie esterne, versione fissata, servite in locale
   README.md                   tabella versioni/licenze e come aggiornarle
   licenses/                   testi delle licenze
 tests/                      test automatici (Node, nessuna dipendenza da installare)
-  load-engine.js              carica da index.html il motore del Fascicolo e il modulo di backup
+  load-engine.js              carica da index.html il motore del Fascicolo e da js/backup/ il modulo di backup
   fascicolo.test.js           test con seme fisso, regole di qualità, anti-ripetizione, dati
   backup.test.js              test della copia di sicurezza (salva / ripristina)
   snapshots.json              impronte di riferimento del fascicolo (settimane 1-12, 3 semi)
   golden-browser.js           controllo "prima e dopo" in un browser vero: tutti gli esercizi (183 casi)
   golden-browser.json         le impronte di riferimento di quel controllo
+  export-browser.js           controllo "prima e dopo" delle esportazioni: scarica i file PowerPoint e Word e ne confronta l'interno
+  export-browser.json         le impronte di riferimento di quel controllo
 ```
 
 | Scelta | Perché |
@@ -87,8 +96,7 @@ tests/                      test automatici (Node, nessuna dipendenza da install
 3. **Costruttore Word** (`docbuilder`): trasforma il fascicolo in `.docx` (versione esercizi e versione con soluzioni).
 4. **Dati** (`data/*.js`): criteri di categorizzazione, mappa icone, lessico di controllo, caricati prima degli script che li usano.
 5. **Motore di categorizzazione**: campionamento dei criteri e recupero dei pittogrammi OpenMoji, con fallback testuale.
-6. **Cronologia condivisa**: storico anti-ripetizione, locale e (se configurato) su Firestore.
-7. **Copia di sicurezza** (`backup.js`, modulo UMD): logica pura per salvare e ripristinare i dati del browser, senza DOM, provata dai test. I due pulsanti stanno nell'app principale.
+6. **Cronologia, progressione, copia di sicurezza, esportazioni** (`js/history/`, `js/progression.js`, `js/backup/`, `js/export/`, `js/firebase-config.js`): dal passo 5 stanno in file propri. `js/backup/backup.js` è un modulo UMD con logica pura (niente pagina, niente localStorage), provato dai test; `js/backup/backup-ui.js` lo collega alla pagina.
 8. **File degli esercizi** (`js/generators/*.js`, `js/renderers/*.js`): script classici caricati con `<script src>` prima dell'app principale; usano le stesse variabili globali (`state`, `rnd`, `pick`…) di prima. Un piccolo controllo subito dopo avvisa con una banda rossa se uno di questi file manca (caricamento incompleto).
 9. **App principale**: stato, mappe `GENERATORS` (un generatore per esercizio) e `RENDERERS` (un renderer per esercizio), `weekParams(week)` per il Fascicolo, pannello di progressione, esportazioni, interfaccia, pulsanti della copia di sicurezza.
 
@@ -128,7 +136,7 @@ Perché lo stesso criterio/parola/griglia non venga riproposto allo stesso grupp
 Per abilitare la cronologia condivisa tra dispositivi/colleghi:
 1. Creare un progetto Firebase (o riusarne uno esistente) su console.firebase.google.com.
 2. Abilitare Firestore Database e Authentication → metodo "Anonimo".
-3. Incollare la config del progetto nell'oggetto `firebaseConfig` in cima alla sezione "Cronologia condivisa" di `index.html`.
+3. Incollare la config del progetto nell'oggetto `firebaseConfig` di `js/firebase-config.js`.
 4. Impostare le regole Firestore per consentire lettura/scrittura solo a utenti autenticati (anche anonimi), sulle collezioni `catHistory`, `accessoHistory`, `fascicoloHistory`, `materialHistory`, `groupProgress`.
 
 Finché `firebaseConfig` resta vuoto, questa parte non fa nulla e l'app funziona come sempre, solo senza memoria tra dispositivi diversi. (Per il progetto attuale la configurazione è già inserita.)
@@ -159,7 +167,7 @@ In fondo alla barra laterale ci sono due pulsanti: **Salva copia di sicurezza** 
 - **Se Firebase è connesso**, il ripristino prova anche a copiare i dati online e dice quante scritture sono riuscite e quante no (con il codice di errore): così un rifiuto delle regole non resta silenzioso.
 - **Sicurezza del file importato**: è trattato come dato non fidato. Si accettano solo le chiavi note, ogni contenuto viene controllato, nessuna parte del file viene eseguita; file di un'altra app, danneggiati o creati da una versione più recente vengono rifiutati con un messaggio chiaro.
 - **Privacy**: il file contiene i nomi dei gruppi. Va tenuto al sicuro e nei nomi non vanno mai dati che identificano i pazienti.
-- **Dove sta il codice**: logica pura nel blocco `backup.js` di `index.html` (provata da `tests/backup.test.js`), pulsanti in fondo allo script principale. Al passo 5 il blocco passerà in un file proprio.
+- **Dove sta il codice**: logica pura in `js/backup/backup.js` (provata da `tests/backup.test.js`), collegamento alla pagina in `js/backup/backup-ui.js`, pulsanti e loro eventi nello script principale di `index.html`.
 
 ## Il modulo "Fascicolo esercizi a casa"
 
@@ -227,6 +235,8 @@ Cosa controllano:
 
 **Controllo "prima e dopo" in browser** (`tests/golden-browser.js`): apre `index.html` in Chromium senza rete, fissa il generatore casuale con un seme, genera ogni esercizio a 11 livelli e 2 semi (più le opzioni dei controlli e le 12 settimane del fascicolo, 183 casi) e confronta le impronte del materiale e di ciò che l'app disegna con `tests/golden-browser.json`. Serve a dimostrare che spostare il codice non cambia l'output. Richiede Playwright con Chromium (lo lancia Claude; non serve per usare l'app): `node tests/golden-browser.js` confronta, con `--update` riscrive le impronte (solo se il cambiamento è voluto). Nella categorizzazione le immagini arrivano in ritardo, quindi si confronta solo ciò che viene disegnato.
 
+**Controllo delle esportazioni** (`tests/export-browser.js`): per 6 esercizi a 3 livelli e per 2 settimane del fascicolo preme il pulsante di esportazione, intercetta i file scaricati (PowerPoint e Word) e confronta l'impronta di ogni parte interna con `tests/export-browser.json` (escluse le date di creazione). Stesso modo d'uso di `golden-browser.js` (`--update` per riscrivere le impronte).
+
 Limiti noti (da dichiarare con onestà):
 - I test Node coprono il Fascicolo, i dati e la copia di sicurezza. Gli altri esercizi sono coperti dal controllo "prima e dopo" in browser (`tests/golden-browser.js`, vedi sotto): confronta le impronte, non verifica le regole cliniche di ciascuno.
 - La regola "12 parole valide, ≥ 6 frequenti (Zipf ≥ 3.0)" richiede il lessico `wordfreq`/Hunspell, che non è nel repository: non è verificata dai test.
@@ -236,7 +246,7 @@ Limiti noti (da dichiarare con onestà):
 
 L'app è pubblicata con **GitHub Pages** dal ramo `main`: ogni modifica caricata viene ripubblicata automaticamente in 1–2 minuti (lo stato "pending/in progress" accanto al commit è la pubblicazione in corso). Dopo ogni aggiornamento: ricaricare il sito con Ctrl+Shift+R, generare un'attività e scaricare un PowerPoint e un Word, aprirli.
 
-Quando si carica su GitHub vanno caricate **le cartelle intere** (`data`, `js`, `tests`, `vendor`), non i file che contengono: i file singoli finirebbero nella cartella principale e `index.html` non troverebbe più i suoi script.
+Quando si carica su GitHub vanno caricate **le cartelle intere** (`data`, `js`, `tests`, `vendor`; dentro `js` ci sono le sottocartelle `generators`, `renderers`, `export`, `history`, `backup`), non i file che contengono: i file singoli finirebbero nella cartella principale e `index.html` non troverebbe più i suoi script.
 
 ## Come modificare i dati e le librerie
 
@@ -255,9 +265,9 @@ Obiettivo: rendere il codice leggibile, correggibile e professionale **senza cam
 | 2 | Librerie in `vendor/` con versioni fissate | fatto |
 | 3 | Dati in `data/` | fatto per criteri, icone e lessico di controllo; le banche del motore restano dentro l'engine per ora |
 | 4 | Un file per generatore e per renderer (`js/generators/`, `js/renderers/`) | fatto (provato con il controllo "prima e dopo": 183 casi identici; i generatori sono ancora a `Math.random()`, il seme si fissa solo nel test) |
-| 5 | Esportazioni, cronologia e progressione in file propri | da fare |
+| 5 | Esportazioni, cronologia, progressione e copia di sicurezza in file propri | fatto (`js/export/`, `js/history/`, `js/progression.js`, `js/backup/`, `js/firebase-config.js`; provato con 62 test, 183 casi "prima e dopo" e 20 esportazioni identiche) |
 | 6 | CSS in file separato; README spezzato per argomento in `docs/` | da fare |
-| 7 | Pulsante "Esporta/Importa tutto" per il backup dello stato locale | fatto (Salva / Ripristina copia di sicurezza, con test; il blocco `backup.js` passerà in un file proprio al passo 5) |
+| 7 | Pulsante "Esporta/Importa tutto" per il backup dello stato locale | fatto (Salva / Ripristina copia di sicurezza, con test; la logica sta in `js/backup/backup.js` dal passo 5) |
 
 ## Sicurezza, privacy e licenze
 
