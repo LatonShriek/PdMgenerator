@@ -491,6 +491,15 @@
   </div>
 
   <div id="progressPanel" style="display:none;"></div>
+
+  <div class="field" style="margin-top:18px;">
+    <label>Copia di sicurezza (dati di questo browser)</label>
+    <button class="action ghost" id="btnBackupExport" style="margin-top:6px;">Salva copia di sicurezza</button>
+    <button class="action ghost" id="btnBackupImport" style="margin-top:8px;">Ripristina da una copia di sicurezza</button>
+    <input type="file" id="backupFileInput" accept=".json,application/json" style="display:none;">
+    <div class="level-note" id="backupStatus" style="margin-top:6px;"></div>
+    <div class="level-note" style="margin-top:6px;">Salva in un file la memoria dei gruppi, i livelli e lo storico. Ripristinando non si cancella niente: si aggiunge solo ciò che manca. Il file contiene i nomi dei gruppi: tienilo al sicuro.</div>
+  </div>
 </div>
 
 <div id="historyPanel" style="display:none;">
@@ -2608,6 +2617,174 @@ function updateHistoryStatus(){
 </script>
 <script>
 /* =========================================================
+   copia di sicurezza (backup.js) — Esporta / Importa tutto (passo 7).
+   Logica pura: niente DOM, niente accesso diretto a localStorage (le funzioni ricevono le letture
+   e restituiscono cosa scrivere), così si può provare con i test (tests/backup.test.js).
+   Cosa entra nella copia: nome e numero gruppo, memoria del materiale già proposto (pdm_hist::),
+   progressione e livelli (pdm_progress::), storico generazioni. Nient'altro viene letto o scritto.
+   Il file importato è trattato come dato non fidato: solo chiavi note, contenuti controllati,
+   nessuna esecuzione. Ripristinare AGGIUNGE e unisce: non cancella mai niente di ciò che c'è già.
+   ========================================================= */
+(function (root, factory) {
+  if (typeof module === "object" && module.exports) module.exports = factory();
+  else root.PdmBackup = factory();
+})(typeof self !== "undefined" ? self : this, function () {
+  "use strict";
+  const FORMAT = "pdm-cdcd-backup";
+  const VERSION = 1;
+  const MAX_ENTRIES = 5000;
+  const MAX_ITEMS = 5000;
+  const MAX_TEXT = 20 * 1024 * 1024;
+  const STORICO_CAP = 200;
+  const KEY_STORICO = "pdm_generatore_storico";
+  const KEY_NAME = "pdm_group_name";
+  const KEY_NUMBER = "pdm_group_number";
+  const P_HIST = "pdm_hist::";
+  const P_PROG = "pdm_progress::";
+  const WORD = /^[A-Za-z][A-Za-z0-9]*$/;
+
+  function isPlainObject(x) { return x !== null && typeof x === "object" && !Array.isArray(x); }
+  function safeParse(text) { try { return JSON.parse(text); } catch (e) { return undefined; } }
+
+  // Riconosce le sole chiavi che la copia può contenere; tutto il resto è ignorato.
+  function classify(key) {
+    if (typeof key !== "string" || key.length === 0 || key.length > 400) return null;
+    if (key === KEY_STORICO) return { type: "storico" };
+    if (key === KEY_NAME) return { type: "groupName" };
+    if (key === KEY_NUMBER) return { type: "groupNumber" };
+    if (key.startsWith(P_HIST)) {
+      const parts = key.slice(P_HIST.length).split("::");
+      if (parts.length < 3) return null;
+      const field = parts.pop(), collection = parts.pop(), group = parts.join("::");
+      if (!group || !WORD.test(field) || !WORD.test(collection)) return null;
+      return { type: "hist", group: group, collection: collection, field: field };
+    }
+    if (key.startsWith(P_PROG)) {
+      const group = key.slice(P_PROG.length);
+      return group ? { type: "progress", group: group } : null;
+    }
+    return null;
+  }
+
+  // Controlla il contenuto di una voce e lo restituisce in forma pulita (testo JSON), o null se non valido.
+  function normalize(c, value) {
+    if (typeof value !== "string" || value.length > MAX_TEXT) return null;
+    if (c.type === "groupName" || c.type === "groupNumber") {
+      const t = value.trim();
+      return t.length <= 200 ? t : null;
+    }
+    const v = safeParse(value);
+    if (v === undefined) return null;
+    if (c.type === "hist") {
+      const ok = Array.isArray(v) && v.length <= MAX_ITEMS && v.every(function (x) { return typeof x === "string" || typeof x === "number"; });
+      return ok ? JSON.stringify(v) : null;
+    }
+    if (c.type === "progress") return isPlainObject(v) && isPlainObject(v.ex) ? JSON.stringify(v) : null;
+    if (c.type === "storico") {
+      if (!Array.isArray(v)) return null;
+      return JSON.stringify(v.filter(function (e) { return isPlainObject(e) && typeof e.when === "number"; }).slice(0, STORICO_CAP * 2));
+    }
+    return null;
+  }
+
+  // keys: tutte le chiavi del browser; getItem(k): il loro valore. Prende solo quelle note.
+  function buildBackup(keys, getItem, nowIso) {
+    const entries = {};
+    Array.from(keys).filter(function (k) { return classify(k); }).sort().forEach(function (k) {
+      const v = getItem(k);
+      if (typeof v !== "string") return;
+      const c = classify(k);
+      if ((c.type === "groupName" || c.type === "groupNumber") && !v.trim()) return;
+      entries[k] = v;
+    });
+    return { format: FORMAT, version: VERSION, exportedAt: nowIso, entries: entries };
+  }
+
+  function validate(obj) {
+    if (!isPlainObject(obj) || obj.format !== FORMAT) return { ok: false, error: "Questo file non è una copia di sicurezza di PdM CDCD." };
+    if (typeof obj.version !== "number" || obj.version < 1) return { ok: false, error: "La copia è danneggiata (versione mancante)." };
+    if (obj.version > VERSION) return { ok: false, error: "Questa copia è stata creata da una versione più recente dell'app: aggiorna l'app prima di ripristinarla." };
+    if (!isPlainObject(obj.entries)) return { ok: false, error: "La copia è danneggiata (mancano i dati)." };
+    const keys = Object.keys(obj.entries);
+    if (keys.length > MAX_ENTRIES) return { ok: false, error: "La copia contiene troppe voci: non sembra un file valido." };
+    const entries = [], skipped = [], groups = new Set();
+    keys.forEach(function (k) {
+      const c = classify(k);
+      if (!c) { skipped.push({ key: k, reason: "voce non riconosciuta" }); return; }
+      const value = normalize(c, obj.entries[k]);
+      if (value === null) { skipped.push({ key: k, reason: "contenuto non valido" }); return; }
+      if (c.group) groups.add(c.group);
+      entries.push({ key: k, c: c, value: value });
+    });
+    return {
+      ok: true,
+      exportedAt: typeof obj.exportedAt === "string" ? obj.exportedAt : null,
+      entries: entries,
+      skipped: skipped,
+      groups: Array.from(groups).sort()
+    };
+  }
+
+  function parseText(text) {
+    if (typeof text !== "string" || text.length > MAX_TEXT) return { ok: false, error: "Il file è troppo grande o non è un file di testo." };
+    const obj = safeParse(text.replace(/^﻿/, ""));
+    if (obj === undefined) return { ok: false, error: "Il file non si può leggere: non è una copia di sicurezza valida." };
+    return validate(obj);
+  }
+
+  function parseArray(s) { const v = typeof s === "string" ? safeParse(s) : undefined; return Array.isArray(v) ? v : []; }
+  function parseProgress(s) { const v = typeof s === "string" ? safeParse(s) : undefined; return isPlainObject(v) && isPlainObject(v.ex) ? v : null; }
+
+  // validated: risultato di validate(). getLocal(k): valore attuale (stringa o null).
+  // opts.mergeProgress(locale, importato): unione di due progressioni (quella dell'app).
+  // Restituisce le scritture da fare: mai cancellazioni.
+  function planImport(validated, getLocal, opts) {
+    const mergeProgress = opts && opts.mergeProgress;
+    const writes = [];
+    let unchanged = 0;
+    validated.entries.forEach(function (e) {
+      const local = getLocal(e.key);
+      const c = e.c;
+      let next = null;
+      if (c.type === "groupName" || c.type === "groupNumber") {
+        if (e.value && !(typeof local === "string" ? local : "").trim()) next = e.value;
+      } else if (c.type === "hist") {
+        const loc = parseArray(local);
+        const have = new Set(loc);
+        const added = JSON.parse(e.value).filter(function (x) { return !have.has(x); });
+        if (added.length) next = JSON.stringify(added.concat(loc).slice(-MAX_ITEMS));
+      } else if (c.type === "progress") {
+        const loc = parseProgress(local);
+        if (!loc) next = e.value;
+        else if (typeof mergeProgress === "function") {
+          const merged = JSON.stringify(mergeProgress(loc, JSON.parse(e.value)));
+          const baseline = JSON.stringify(mergeProgress(loc, loc));
+          if (merged !== baseline) next = merged;
+        }
+      } else if (c.type === "storico") {
+        const loc = parseArray(local);
+        const seen = new Set(loc.map(function (x) { return JSON.stringify(x); }));
+        const add = JSON.parse(e.value).filter(function (x) { return !seen.has(JSON.stringify(x)); });
+        if (add.length) {
+          next = JSON.stringify(loc.concat(add).sort(function (a, b) { return (b.when || 0) - (a.when || 0); }).slice(0, STORICO_CAP));
+        }
+      }
+      if (next === null) unchanged++;
+      else writes.push({ key: e.key, value: next, c: c });
+    });
+    return { writes: writes, unchanged: unchanged };
+  }
+
+  function fileName(date) {
+    const p = function (n) { return String(n).padStart(2, "0"); };
+    return "PdM-copia-di-sicurezza-" + date.getFullYear() + "-" + p(date.getMonth() + 1) + "-" + p(date.getDate()) + ".json";
+  }
+
+  return { FORMAT: FORMAT, VERSION: VERSION, classify: classify, buildBackup: buildBackup, validate: validate, parseText: parseText, planImport: planImport, fileName: fileName };
+});
+</script>
+<script>
+/* =========================================================
    DATI DI BASE
    ========================================================= */
 const ALPHABET = "ABCDEFGHILMNOPQRSTUVZ".split("");
@@ -2981,1411 +3158,37 @@ function exportFileName(exId, level, ext){
    GENERATORI — uno per esercizio, dipendenti dal livello
    ========================================================= */
 
-// ---------- GRIGLIE-CONTEGGIO ----------
-// Dimensione FISSA a ogni livello: 5 righe × 7 colonne (35 celle), come negli originali.
-// La difficoltà non passa mai dalla dimensione/numerosità della griglia — solo dal tipo di
-// simbolo (asse 1) e dalla complessità/varietà delle regole disponibili (asse 2).
-// Dimensione della griglia in funzione del livello (numerosità di stimoli, righe e colonne
-// crescenti — segnalato da Rodrigo): 5×7 (livelli 1-11, invariato) → 6×8 (12-22, -12,5% di area
-// per cerchio) → 6×9 (23-32, -22%). Crescita più contenuta della prima versione (fino a 8×10,
-// -34%): l'area della slide/pagina è fissa, quindi più celle vuol dire per forza cerchi più
-// piccoli — qui non si va mai oltre un quarto in meno rispetto all'originale (segnalato di nuovo
-// da Rodrigo: leggibilità).
-function gridRowsForLevel(level){ return level<=11 ? 5 : 6; }
-function gridColsForLevel(level){ return level<=11 ? 7 : level<=22 ? 8 : 9; }
-
-// Categoria di simboli per fascia di livello (4 livelli per categoria, 1-32): 1-4 forme, 5-8 frecce,
-// 9-12 numeri, 13-16 lettere, 17-20 misto numeri/lettere, 21-24 cirillico, 25-28 ideogrammi, 29-32 ge'ez.
-// Dentro ogni categoria i 4 sotto-livelli salgono di difficoltà per complessità delle regole (vedi
-// tierQuotaForLevel). Ogni categoria ha piu' varianti di pool: la generazione ne pesca una a caso ogni
-// volta, cosi due cicli consecutivi allo stesso livello non espongono mai lo stesso materiale identico.
-const GRID_CATEGORIES = ["shapes","arrows","digits","letters","mixed","cyrillic","cjk","geez"];
-const GRID_CATEGORY_BY_LEVEL = [null].concat(Array.from({length:MAX_LEVEL}, (_,i)=> GRID_CATEGORIES[Math.min(GRID_CATEGORIES.length-1, Math.floor(i/4))]));
-const GRID_CATEGORY_LABELS = { shapes:"Forme geometriche", arrows:"Frecce", digits:"Cifre", letters:"Lettere", mixed:"Alfanumerico misto", cyrillic:"Cirillico", cjk:"Ideogrammi cinesi", geez:"Ge'ez" };
-// Ogni categoria ha molte varianti di pool (prima 4): a ogni generazione si sceglie una variante
-// MAI proposta a quel gruppo (o, esaurite le nuove, la meno recente), così né due cicli allo stesso
-// livello né livelli diversi della stessa categoria espongono lo stesso materiale.
-const GRID_CATEGORY_POOLS = {
-  shapes:   { kind:"shape", variants:[["●","▲","■"], ["●","▲","■","◆"], ["○","△","□","◇"], ["★","☆","●","■"],
-                                       ["●","■","◆","★"], ["○","□","◇","☆"], ["▲","▼","■","◆"], ["△","▽","□","◇"],
-                                       ["●","○","■","□"], ["▲","△","◆","◇"], ["●","○","▲","△"], ["■","□","★","☆"]] },
-  arrows:   { kind:"arrow", variants:[["↑","↓","←","→"], ["↑","↓","←","→","↗"], ["↖","↗","↘","↙"], ["↑","→","↙","↖"],
-                                       ["↑","↓","↗","↙"], ["←","→","↖","↘"], ["↑","↗","→","↘"], ["↓","↙","←","↖"],
-                                       ["↑","↓","←","→","↗","↙"], ["←","→","↑","↖","↘"]] },
-  digits:   { kind:"char",  variants:[["1","2","3","4"], ["3","4","6","7"], ["2","5","8","9"], ["0","1","7","9"],
-                                       ["1","3","6","8"], ["2","4","7","9"], ["0","3","4","8"], ["1","5","6","7"],
-                                       ["2","3","6","9"], ["0","4","5","9"], ["1","4","7","8"], ["3","6","8","9"]] },
-  letters:  { kind:"char",  variants:[["A","B","D","E"], ["A","U","N","L"], ["M","P","R","S"], ["C","E","I","O"],
-                                       ["A","C","M","T"], ["E","B","L","R"], ["I","D","N","P"], ["O","F","S","V"],
-                                       ["U","G","H","Z"], ["A","N","S","V"],
-                                       ["A","e","B","d"], ["a","E","b","D"], ["R","a","T","n"], ["g","E","N","r"]] },
-  mixed:    { kind:"char",  variants:[["1","4","D","A"], ["2","B","7","E"], ["3","A","9","L"], ["5","M","0","R"],
-                                       ["6","T","2","N"], ["8","C","4","P"], ["7","S","3","U"], ["5","F","9","O"],
-                                       ["2","H","6","E"], ["4","Z","8","A"],
-                                       ["6","g","2","N"], ["8","r","4","D"], ["3","a","7","T"], ["9","e","5","B"]] },
-  cyrillic: { kind:"unicode", variants:[{base:0x0410,count:5}, {base:0x0416,count:5}, {base:0x0420,count:4}, {base:0x042A,count:5},
-                                       {base:0x041B,count:5}, {base:0x0424,count:5}] },
-  cjk:      { kind:"unicode", variants:[{base:0x53E3,count:4}, {base:0x4E00,count:4}, {base:0x6708,count:4}, {base:0x706B,count:4},
-                                       {pool:["土","士","干","于"]}, {pool:["日","曰","目","自"]}, {pool:["末","未","木","本"]}, {pool:["己","已","巳","巴"]},
-                                       {pool:["大","太","犬","天"]}, {pool:["田","由","甲","申"]}, {pool:["刀","力","刁","乃"]}, {pool:["人","入","八","又"]}] },
-  geez:     { kind:"unicode", variants:[{base:0x1200,count:5}, {base:0x1218,count:5}, {base:0x1228,count:5}, {base:0x1230,count:5},
-                                       {base:0x1208,count:5}, {base:0x1240,count:5}, {base:0x1260,count:5}, {base:0x1270,count:5},
-                                       {base:0x1290,count:5}, {base:0x12A8,count:5}, {base:0x12E8,count:5}, {base:0x12F0,count:5}, {base:0x1308,count:5}] }
-};
-function gridVariantId(v){
-  if(Array.isArray(v)) return v.join("");
-  if(v.pool) return v.pool.join("");
-  return v.base + ":" + v.count;
-}
-function familyForLevel(level, ctx){
-  const cat = GRID_CATEGORY_BY_LEVEL[level] || "shapes";
-  const def = GRID_CATEGORY_POOLS[cat];
-  const keyOf = v => "V:" + cat + "|" + gridVariantId(v);
-  const variant = ctx ? lruOrder(def.variants, keyOf, ctx)[0] : pick(def.variants);
-  const variantKey = keyOf(variant);
-  if(def.kind === "unicode" && variant.pool) return { kind:"char", pool:variant.pool, category:cat, variantKey };
-  return def.kind === "unicode"
-    ? { kind:"unicode", base:variant.base, count:variant.count, category:cat, variantKey }
-    : { kind:def.kind, pool:variant, category:cat, variantKey };
-}
-
-// Tre assi di colore indipendenti — sfondo, bordo, e colore del simbolo stesso.
-// REGOLA: in una stessa griglia non compaiono mai lo stesso colore in versione chiara e scura
-// (azzurro+blu, verde chiaro+verde scuro, rosa+rosso, arancio+marrone): troppo facili da
-// confondere. Ogni colore ha una famiglia di tinta (`hue`) e una griglia usa famiglie di tinta
-// DIVERSE per gli sfondi e per gli inchiostri (bordo e simbolo).
-// SFONDI: cinque tinte chiare, distanza cromatica minima ΔE≈41 (CIELAB) tra loro; l'inchiostro
-// scuro resta leggibile su tutti (contrasto ≥ 4.5:1 con tutti gli inchiostri).
-// INCHIOSTRI (bordo e colore del simbolo): sei tinte scure. Coppie troppo vicine (rosso/marrone
-// ΔE≈36, blu/viola ΔE≈40) non compaiono mai insieme nella stessa griglia.
-const FILL_POOL = [
-  { name:"giallo", css:"#FFE45C", hue:"giallo" },
-  { name:"azzurro", css:"#8FD3FF", hue:"blu" },
-  { name:"verde chiaro", css:"#A6E8A0", hue:"verde" },
-  { name:"rosa", css:"#FFB3D1", hue:"rosso" },
-  { name:"arancio chiaro", css:"#FFB685", hue:"arancio" }
-];
-const INK_POOL = [
-  { name:"rosso", css:"#A80018", hue:"rosso" },
-  { name:"blu", css:"#0B3D91", hue:"blu" },
-  { name:"verde scuro", css:"#0A5A24", hue:"verde" },
-  { name:"nero", css:"#000000", hue:"nero" },
-  { name:"marrone", css:"#7A3E0C", hue:"arancio" },
-  { name:"viola", css:"#6A1FAE", hue:"viola" }
-];
-const INK_CONFLICTS = [["rosso","marrone"], ["blu","viola"], ["marrone","nero"]];
-// Sfondi troppo simili tra loro anche se di famiglie di tinta diverse (segnalato da Rodrigo:
-// "giallino" e "arancione chiaro" si confondono) — stessa logica di INK_CONFLICTS, ma per gli sfondi.
-const FILL_CONFLICTS = [["giallo","arancio chiaro"]];
-const COLORS = [...FILL_POOL, ...INK_POOL];
-function colorCombos(arr, k){
-  if(k===0) return [[]];
-  const out = [];
-  arr.forEach((x,i)=> colorCombos(arr.slice(i+1), k-1).forEach(rest=> out.push([x, ...rest])));
-  return out;
-}
-// Sceglie la palette di UNA griglia: 3 inchiostri (usati sia per il bordo sia per il colore del
-// simbolo) senza coppie in conflitto, e 3 sfondi di famiglie di tinta diverse da quelle degli
-// inchiostri scelti.
-function pickGridPalette(){
-  const hasConflict = t => INK_CONFLICTS.some(([a,b]) => t.some(c=>c.name===a) && t.some(c=>c.name===b));
-  const hasFillConflict = t => FILL_CONFLICTS.some(([a,b]) => t.some(c=>c.name===a) && t.some(c=>c.name===b));
-  const inkTriples = shuffle(colorCombos(INK_POOL, 3).filter(t=>!hasConflict(t)));
-  for(const inks of inkTriples){
-    const hues = new Set(inks.map(c=>c.hue));
-    const fillTriples = colorCombos(FILL_POOL.filter(f=>!hues.has(f.hue)), 3).filter(t=>!hasFillConflict(t));
-    if(fillTriples.length) return { inks, fills: pick(fillTriples) };
-  }
-  return { inks: pickN(INK_POOL, 3), fills: pickN(FILL_POOL, 3) }; // non raggiungibile con queste tavolozze
-}
-function randInt(lo,hi){ return lo + rnd(hi-lo+1); }
-
-// Scompone `total` in `k` parti tra lo e hi con pesi casuali: le dimensioni dei gruppi NON
-// sono più bilanciate (prima 35 celle / 4 simboli = sempre 9-9-9-8, e quindi tutte le
-// ricerche davano lo stesso conteggio, tipo 9 e 4 — troppo prevedibile). Richiede almeno
-// `minDistinct` valori diversi tra le parti.
-function balancedParts(total, k){
-  const base = Math.floor(total/k), rem = total%k;
-  return Array.from({length:k}, (_,i)=> base + (i<rem?1:0));
-}
-function weightedComposition(total, k, lo, hi, minDistinct){
-  if(k*lo > total || k*hi < total) return balancedParts(total, k);
-  for(let tries=0; tries<400; tries++){
-    const w = Array.from({length:k}, ()=> 0.3 + Math.random()*1.7);
-    const parts = Array(k).fill(lo);
-    let left = total - lo*k, guard = 0;
-    while(left>0 && guard<20000){
-      guard++;
-      const room = parts.map((p,i)=> p<hi ? w[i] : 0);
-      const sum = room.reduce((a,b)=>a+b,0);
-      if(sum<=0) break;
-      let r = Math.random()*sum, i = 0;
-      while(i<k-1 && r>=room[i]){ r -= room[i]; i++; }
-      if(parts[i]<hi){ parts[i]++; left--; }
-    }
-    if(left===0 && new Set(parts).size >= Math.min(k, minDistinct)) return parts;
-  }
-  return balancedParts(total, k);
-}
-
-// Assegna un attributo di colore (sfondo/bordo/colore-simbolo) a tutte le celle: sceglie `n`
-// colori dalla tavolozza data e li distribuisce in gruppi di dimensione VARIABILE (7-16
-// celle ciascuno su 35), non più sempre bilanciati.
-function assignAttribute(cells, allIdx, pool, propName, n){
-  const chosen = pickN(pool, Math.min(n, pool.length));
-  const idx = shuffle(allIdx);
-  const sizes = weightedComposition(idx.length, chosen.length, 7, 16, 2);
-  let cursor = 0;
-  chosen.forEach((color,ci)=>{
-    idx.slice(cursor, cursor+sizes[ci]).forEach(i=>{ cells[i][propName] = color.name; });
-    cursor += sizes[ci];
-  });
-  return chosen;
-}
-// Sfondo assegnato come sopra, ma riservando un gruppo di celle "vuote" (nessun colore, il cerchio
-// mostra solo il contorno). Prima "pieno/vuoto" esisteva SOLO per la famiglia forme, cambiando il
-// GLIFO stesso (● vs ○): non generalizzabile alle altre famiglie (cifre, lettere, cirillico...).
-// Qui "vuoto" diventa un valore dello SFONDO, indipendente dal simbolo mostrato — vale quindi per
-// QUALUNQUE famiglia (richiesta di Rodrigo). export/exportGriglie non cambia: una cella con
-// fill=null è già disegnata senza sfondo colorato.
-function assignFillWithVoid(cells, allIdx, pool, n){
-  const chosen = pickN(pool, Math.min(n, pool.length));
-  const idx = shuffle(allIdx);
-  const voidCount = 8 + rnd(9); // 8-16 celle su 35 restano vuote (nessuno sfondo)
-  const voidIdx = idx.slice(0, voidCount), rest = idx.slice(voidCount);
-  voidIdx.forEach(i=> cells[i].fill = null);
-  const sizes = weightedComposition(rest.length, chosen.length, 3, 16, Math.min(2, chosen.length));
-  let cursor = 0;
-  chosen.forEach((color,ci)=>{
-    rest.slice(cursor, cursor+sizes[ci]).forEach(i=>{ cells[i].fill = color.name; });
-    cursor += sizes[ci];
-  });
-  return chosen;
-}
-
-// Proprietà "interne" della famiglia di simboli USATA (pari/dispari solo per le cifre,
-// vocale/consonante solo per le lettere, direzione solo per le frecce, pieno/vuoto solo
-// per le figure): `plain` è il testo della regola da sola, `np` la forma da combinare con
-// altri criteri ("Conta le vocali con sfondo giallo").
-function familyPredicates(symbols){
-  const out = [];
-  const mk = (np, f) => ({ plain:`Conta ${np}.`, np, f });
-  const isAllDigits = symbols.every(s => /^[0-9]$/.test(s));
-  const isAllLetters = symbols.every(s => /^[A-Za-z]$/.test(s));
-  const isDigitOrLetter = symbols.every(s => /^[0-9A-Za-z]$/.test(s));
-  const VOWELS = ["A","E","I","O","U"];
-  const ITAL = "ABCDEFGHILMNOPQRSTUVZ"; // alfabeto italiano: A–L = prima metà (10), M–Z = seconda (11)
-  const ARROWS = ["↑","↓","←","→","↖","↗","↘","↙"];
-  const isAllArrows = symbols.every(s => ARROWS.includes(s));
-  const both = (set) => symbols.some(s=>set.includes(s)) && symbols.some(s=>!set.includes(s));
-  if (isAllDigits) {
-    out.push(
-      { plain:"Conta tutti gli elementi con cifra pari.", np:"le cifre pari", f:c=>Number(c.sym)%2===0 },
-      { plain:"Conta tutti gli elementi con cifra dispari.", np:"le cifre dispari", f:c=>Number(c.sym)%2===1 });
-    if (symbols.some(s=>Number(s)>5) && symbols.some(s=>Number(s)<5)) out.push(
-      mk("le cifre maggiori di 5", c=>Number(c.sym)>5),
-      mk("le cifre minori di 5", c=>Number(c.sym)<5));
-    // (solo se non c'è lo 0, che è multiplo di 3 ma spesso non viene contato come tale)
-    if (!symbols.includes("0") && both(["3","6","9"])) out.push(
-      mk("le cifre multiple di 3", c=>["3","6","9"].includes(c.sym)));
-  }
-  if (isAllLetters && symbols.some(s=>VOWELS.includes(s.toUpperCase())) && symbols.some(s=>!VOWELS.includes(s.toUpperCase()))) out.push(
-    { plain:"Conta tutte le vocali.", np:"le vocali", f:c=>VOWELS.includes(c.sym.toUpperCase()) },
-    { plain:"Conta tutte le consonanti.", np:"le consonanti", f:c=>!VOWELS.includes(c.sym.toUpperCase()) });
-  if (isAllLetters && symbols.some(s=>s===s.toUpperCase()) && symbols.some(s=>s===s.toLowerCase())) out.push(
-    mk("le lettere maiuscole", c=>c.sym===c.sym.toUpperCase()),
-    mk("le lettere minuscole", c=>c.sym===c.sym.toLowerCase()));
-  if (isAllLetters && symbols.some(s=>ITAL.indexOf(s.toUpperCase())<10) && symbols.some(s=>ITAL.indexOf(s.toUpperCase())>=10)) out.push(
-    mk("le lettere della prima metà dell'alfabeto (A–L)", c=>ITAL.indexOf(c.sym.toUpperCase())<10),
-    mk("le lettere della seconda metà dell'alfabeto (M–Z)", c=>ITAL.indexOf(c.sym.toUpperCase())>=10));
-  if (isDigitOrLetter && !isAllDigits && !isAllLetters) out.push(
-    mk("le lettere", c=>/[A-Za-z]/.test(c.sym)),
-    mk("le cifre", c=>/[0-9]/.test(c.sym)));
-  if (isAllArrows) {
-    const upSet = ["↑","↖","↗"], downSet = ["↓","↙","↘"];
-    out.push(
-      { plain:"Conta le frecce che puntano verso l'alto (↑ ↖ ↗).", np:"le frecce verso l'alto", f:c=>upSet.includes(c.sym) },
-      { plain:"Conta le frecce che puntano verso il basso (↓ ↙ ↘).", np:"le frecce verso il basso", f:c=>downSet.includes(c.sym) });
-    const horiz = ["←","→"], vert = ["↑","↓"], diag = ["↖","↗","↘","↙"], right = ["→","↗","↘"], left = ["←","↖","↙"];
-    if (both(horiz)) out.push(mk("le frecce orizzontali (← →)", c=>horiz.includes(c.sym)));
-    if (both(vert)) out.push(mk("le frecce verticali (↑ ↓)", c=>vert.includes(c.sym)));
-    if (both(diag)) out.push(mk("le frecce oblique (↖ ↗ ↘ ↙)", c=>diag.includes(c.sym)));
-    if (both(right) && both(left)) out.push(
-      mk("le frecce che puntano verso destra (→ ↗ ↘)", c=>right.includes(c.sym)),
-      mk("le frecce che puntano verso sinistra (← ↖ ↙)", c=>left.includes(c.sym)));
-  }
-  const FULL = ["●","■","▲","▼","◆","★"], EMPTY = ["○","□","△","▽","◇","☆"];
-  if (symbols.every(s=>FULL.includes(s)||EMPTY.includes(s)) && both(FULL)) out.push(
-    mk("le forme piene", c=>FULL.includes(c.sym)),
-    mk("le forme vuote (solo contorno)", c=>EMPTY.includes(c.sym)));
-  return out;
-}
-// Base "neutra" per i criteri relazionali (adiacenza, uguale al vicino): vale per QUALUNQUE materiale,
-// quindi è l'unico caso in cui una regola non parte da un simbolo o da una proprietà della famiglia.
-const ANY_PRED = { plain:"Conta tutti gli elementi.", np:"gli elementi", f:()=>true, any:true };
-
-// Criteri di posizione. La numerazione è quella "umana" (prima riga = riga 1 = dispari):
-// prima erano usati gli indici da 0 e "pari/dispari" risultava invertito.
-// Ogni opzione ha un peso di difficoltà `w`: 1 = un solo criterio di riga/colonna/bordo; 2 = criterio
-// composto (intersezione riga∩colonna, blocchi, scacchiera, righe/colonne non contigue). Le opzioni
-// con w=2 compaiono solo dal livello 9 (vedi GRID_POS_W2_FROM).
-const GRID_POS_W2_FROM = 10;
-// Testi e filtri di posizione si ricalcolano sulle dimensioni EFFETTIVE della griglia di questa
-// sessione (righe/colonne crescono col livello, vedi gridRowsForLevel/gridColsForLevel): prima
-// erano scritti per una 5×7 fissa (es. "colonne 1, 4 e 7"), ora restano corretti a ogni dimensione.
-function buildPosOptions(rows, cols){
-  const isFrame = c => c.row===0 || c.row===rows-1 || c.col===0 || c.col===cols-1;
-  const rMid = Math.floor((rows-3)/2), cMid = Math.floor((cols-3)/2);       // per le fasce "centrali"
-  const rowSpan = Math.ceil((rows+1)/2), colSpan = Math.ceil((cols+1)/2);   // per i blocchi (si sovrappongono di una riga/colonna in mezzo, come nell'originale 5×7)
-  const colMid = Math.ceil((cols+1)/2);                                    // colonna centrale per "colonne 1, mid e ultima"
-  return [
-    { w:1, text:"nelle righe pari", f:c=>(c.row+1)%2===0 },
-    { w:1, text:"nelle righe dispari", f:c=>(c.row+1)%2===1 },
-    { w:1, text:"nelle colonne pari", f:c=>(c.col+1)%2===0 },
-    { w:1, text:"nelle colonne dispari", f:c=>(c.col+1)%2===1 },
-    { w:1, text:"nelle prime 3 righe", f:c=>c.row<3 },
-    { w:1, text:"nelle ultime 3 righe", f:c=>c.row>=rows-3 },
-    { w:1, text:"nelle prime 2 righe", f:c=>c.row<2 },
-    { w:1, text:"nelle ultime 2 righe", f:c=>c.row>=rows-2 },
-    { w:1, text:"nelle prime 4 colonne", f:c=>c.col<4 },
-    { w:1, text:"nelle ultime 4 colonne", f:c=>c.col>=cols-4 },
-    { w:1, text:"nelle prime 3 colonne", f:c=>c.col<3 },
-    { w:1, text:"nelle ultime 3 colonne", f:c=>c.col>=cols-3 },
-    { w:1, text:`nelle righe centrali (${rMid+1}–${rMid+3})`, f:c=>c.row>=rMid && c.row<=rMid+2 },
-    { w:1, text:`nelle colonne centrali (${cMid+1}–${cMid+3})`, f:c=>c.col>=cMid && c.col<=cMid+2 },
-    { w:1, text:"sulla cornice della griglia (righe e colonne esterne)", f:c=>isFrame(c) },
-    { w:1, text:"nelle celle interne (non sulla cornice)", f:c=>!isFrame(c) },
-    { w:2, text:"nelle celle in riga dispari e colonna dispari", f:c=>(c.row+1)%2===1 && (c.col+1)%2===1 },
-    { w:2, text:"nelle celle in riga dispari e colonna pari", f:c=>(c.row+1)%2===1 && (c.col+1)%2===0 },
-    { w:2, text:"nelle celle in riga pari e colonna dispari", f:c=>(c.row+1)%2===0 && (c.col+1)%2===1 },
-    { w:2, text:"nelle celle in riga pari e colonna pari", f:c=>(c.row+1)%2===0 && (c.col+1)%2===0 },
-    { w:2, text:`nel blocco in alto a sinistra (righe 1–${rowSpan}, colonne 1–${colSpan})`, f:c=>c.row<rowSpan && c.col<colSpan },
-    { w:2, text:`nel blocco in alto a destra (righe 1–${rowSpan}, colonne ${cols-colSpan+1}–${cols})`, f:c=>c.row<rowSpan && c.col>=cols-colSpan },
-    { w:2, text:`nel blocco in basso a sinistra (righe ${rows-rowSpan+1}–${rows}, colonne 1–${colSpan})`, f:c=>c.row>=rows-rowSpan && c.col<colSpan },
-    { w:2, text:`nel blocco in basso a destra (righe ${rows-rowSpan+1}–${rows}, colonne ${cols-colSpan+1}–${cols})`, f:c=>c.row>=rows-rowSpan && c.col>=cols-colSpan },
-    { w:2, text:`nella prima e nell'ultima riga (righe 1 e ${rows})`, f:c=>c.row===0 || c.row===rows-1 },
-    { w:2, text:`nelle colonne 1, ${colMid} e ${cols}`, f:c=>c.col===0 || c.col===colMid-1 || c.col===cols-1 },
-    { w:2, text:"nelle celle a scacchiera dello stesso tipo dell'angolo in alto a sinistra", f:c=>(c.row+c.col)%2===0 },
-    { w:2, text:"nelle celle a scacchiera opposte all'angolo in alto a sinistra", f:c=>(c.row+c.col)%2===1 },
-    { w:1, text:"nella metà sinistra della griglia", f:c=>c.col < Math.floor(cols/2) },
-    { w:1, text:"nella metà destra della griglia", f:c=>c.col >= Math.ceil(cols/2) },
-    { w:1, text:"nella metà superiore della griglia", f:c=>c.row < Math.floor(rows/2) },
-    { w:1, text:"nella metà inferiore della griglia", f:c=>c.row >= Math.ceil(rows/2) },
-    { w:2, text:"nella prima e nell'ultima colonna", f:c=>c.col===0 || c.col===cols-1 },
-    { w:2, text:"nella seconda e nella penultima riga", f:c=>c.row===1 || c.row===rows-2 },
-    { w:2, text:"né sulla prima riga né sulla prima colonna", f:c=>c.row>0 && c.col>0 },
-    { w:2, text:"nelle prime 2 righe oppure nelle ultime 2 colonne", f:c=>c.row<2 || c.col>=cols-2 }
-  ];
-}
-
-// ---------- PUNTEGGIO DI DIFFICOLTÀ DELLE CONSEGNE (Griglie-Conteggio) ----------
-// Ogni consegna ha un punteggio unico = S (difficoltà dello stimolo) + M (molteplicità delle condizioni) +
-// A (astrazione). In ogni griglia le 10 consegne seguono una RAMPA di punteggio centrata su una media che sale
-// in modo lineare col livello; l'astrazione massima ammessa, la quota di consegne con colori e le ripetizioni
-// dello stesso criterio sono regolate qui sotto.
-const GRID_SCORE_W = { symAlt:1, pred:0.5, fill:1, border:1, ink:1.5, size:1.5, bstyle:2, fillState:1, alt:0.5, cond:1, adj:2.5, neg:2 };
-const GRID_VAR_ABSTRACTION = { skip:1.5, either:1.5, rows:2, exclude:2, whichrow:3, double:3, sameNb:3.5, compare:3.5, dirRel:4 };
-const GRID_SCORE_MU = [1.0, 6.0];       // punteggio medio per consegna: livello 1 → 32 (lineare)
-const GRID_SCORE_SPREAD = [1.0, 2.4];   // semi-ampiezza della rampa dentro la griglia (prima consegna = media − spread, ultima = media + spread)
-const GRID_COLOR_SHARE = [0.5, 0.7];    // quota minima di consegne che usano sfondo/bordo/colore del simbolo
-const GRID_ABSTRACTION_MAX = [1, 4.2];  // astrazione massima ammessa a livello 1 → 32
-function gridTierFromScore(sc){ return sc<1.5 ? 1 : sc<3.5 ? 2 : sc<5.5 ? 3 : 4; }
-function gridScoreTargets(effLevel){
-  const t = levelT(effLevel);
-  const mu = GRID_SCORE_MU[0] + (GRID_SCORE_MU[1]-GRID_SCORE_MU[0])*t;
-  const w = GRID_SCORE_SPREAD[0] + (GRID_SCORE_SPREAD[1]-GRID_SCORE_SPREAD[0])*t;
-  return Array.from({length:10}, (_,i)=> Math.max(0, mu + w*(i-4.5)/4.5));
-}
-function gridAbstractionMax(effLevel){ const t = levelT(effLevel); return GRID_ABSTRACTION_MAX[0] + (GRID_ABSTRACTION_MAX[1]-GRID_ABSTRACTION_MAX[0])*Math.pow(t,0.9); }
-function gridColorMin(effLevel){ const t = levelT(effLevel); return Math.round(10*(GRID_COLOR_SHARE[0] + (GRID_COLOR_SHARE[1]-GRID_COLOR_SHARE[0])*t)); }
-
-// Un criterio è descritto da una "specifica": gruppo di simboli (uno, due in alternativa
-// "«A» o «B»", oppure una proprietà della famiglia) + vincoli su sfondo / bordo (colore e stile:
-// continuo, tratteggiato, puntinato) / colore del simbolo / dimensione del simbolo, posizione,
-// adiacenza a una cella con un certo sfondo o bordo, identità con il simbolo subito a destra o
-// sotto, ed eventualmente UNA negazione ("ma non con bordo blu"). Testo, funzione di conteggio e
-// gradino di complessità derivano tutti dalla stessa specifica.
-function specToRule(sp){
-  const inList = (list, v) => list.includes(v);
-  const matches = c => {
-    if(sp.pred ? !sp.pred.f(c) : !sp.syms.includes(c.sym)) return false;
-    if(sp.fill && !inList(sp.fill, c.fill)) return false;
-    if(sp.fillState==="vuoto" && c.fill) return false;
-    if(sp.fillState==="pieno" && !c.fill) return false;
-    if(sp.border && !inList(sp.border, c.border)) return false;
-    if(sp.ink && !inList(sp.ink, c.symColor)) return false;
-    if(sp.bstyle && !inList(sp.bstyle, c.bStyle)) return false;
-    if(sp.size && !inList(sp.size, c.size)) return false;
-    if(sp.pos && !sp.pos.f(c)) return false;
-    if(sp.adj && !c.nb.some(n => (sp.adj.kind==="fill" ? n.fill : n.border) === sp.adj.name)) return false;
-    if(sp.notFill && inList(sp.notFill, c.fill)) return false;
-    if(sp.notBorder && inList(sp.notBorder, c.border)) return false;
-    if(sp.notInk && inList(sp.notInk, c.symColor)) return false;
-    return true;
-  };
-  const or = list => list.join(" o ");
-  const clauses = (sp.fill?1:0) + (sp.fillState?1:0) + (sp.border?1:0) + (sp.ink?1:0) + (sp.bstyle?1:0) + (sp.size?1:0) + (sp.pos?1:0)
-                + (sp.adj?1:0) + (sp.notFill||sp.notBorder||sp.notInk ? 1 : 0);
-  let text;
-  if(clauses===0 && sp.pred) text = sp.pred.plain;
-  else {
-    text = "Conta " + (sp.pred ? sp.pred.np : "gli elementi " + sp.syms.map(s=>`«${s}»`).join(" o "));
-    if(sp.ink) text += ` di colore ${or(sp.ink)}`;
-    const withs = [];
-    if(sp.fill) withs.push(`sfondo ${or(sp.fill)}`);
-    else if(sp.fillState) withs.push(sp.fillState==="vuoto" ? "sfondo vuoto (nessun colore)" : "sfondo pieno (un colore qualsiasi)");
-    if(sp.border || sp.bstyle) withs.push("bordo " + [sp.border ? or(sp.border) : null, sp.bstyle ? or(sp.bstyle) : null].filter(Boolean).join(" "));
-    if(sp.size) withs.push(`simbolo ${or(sp.size)}`);
-    if(withs.length) text += " con " + (withs.length===1 ? withs[0] : withs.slice(0,-1).join(", ") + " e " + withs[withs.length-1]);
-    if(sp.pos) text += `, ${sp.pos.text}`;
-    if(sp.adj) text += `, adiacenti a una cella con ${sp.adj.kind==="fill" ? "sfondo" : "bordo"} ${sp.adj.name}`;
-    const negs = [];
-    if(sp.notFill) negs.push(`non con sfondo ${or(sp.notFill)}`);
-    if(sp.notBorder) negs.push(`non con bordo ${or(sp.notBorder)}`);
-    if(sp.notInk) negs.push(`non di colore ${or(sp.notInk)}`);
-    if(negs.length) text += `, ma ${negs.join(" e ")}`;
-    text += ".";
-  }
-  // PUNTEGGIO UNICO di difficoltà = STIMOLO + MOLTEPLICITÀ + ASTRAZIONE (Rodrigo):
-  //  S = quanto costa percettivamente riconoscere ciò che va contato (secondo simbolo in alternativa, proprietà
-  //      della famiglia, sfondo/bordo = 1, colore del simbolo/dimensione = 1,5, stile del bordo = 2, +0,5 se un
-  //      vincolo ammette due valori);
-  //  M = molteplicità: quante condizioni vanno tenute insieme (1 per ogni condizione oltre la prima);
-  //  A = astrazione della consegna: posizione semplice 1 / composta 2, negazione 2, adiacenza 2,5.
-  const W = GRID_SCORE_W;
-  const lists = { fill:sp.fill, border:sp.border, ink:sp.ink, bstyle:sp.bstyle, size:sp.size };
-  const axes = [], ck = [];
-  let S = (sp.syms && sp.syms.length>1 ? W.symAlt : 0) + (sp.pred && !sp.pred.any ? W.pred : 0);
-  for(const k in lists){
-    const l = lists[k]; if(!l) continue;
-    S += W[k] + (l.length>1 ? W.alt : 0); axes.push(k);
-    if(k==="fill" || k==="border" || k==="ink") l.forEach(n=>ck.push(k+":"+n));
-  }
-  if(sp.fillState){ S += W.fillState; axes.push("fillState"); }
-  const hasNeg = !!(sp.notFill || sp.notBorder || sp.notInk);
-  if(hasNeg){
-    axes.push("neg");
-    (sp.notFill||[]).forEach(n=>ck.push("fill:"+n)); (sp.notBorder||[]).forEach(n=>ck.push("border:"+n)); (sp.notInk||[]).forEach(n=>ck.push("ink:"+n));
-  }
-  if(sp.pos) axes.push("pos");
-  if(sp.adj){ axes.push("adj"); ck.push((sp.adj.kind==="fill"?"fill:":"border:")+sp.adj.name); }
-  const nCond = (sp.pred && sp.pred.any ? 0 : 1) + axes.length;
-  const M = Math.max(0, nCond-1) * W.cond;
-  const A = (sp.pos ? (sp.pos.w||1) : 0) + (sp.adj ? W.adj : 0) + (hasNeg ? W.neg : 0);
-  const score = S + M + A;
-  // Tipo di regola: 'pos' = usa un criterio di POSIZIONE; 'rel' = relazione con le celle vicine; 'stim' = solo stimoli.
-  const kind = sp.pos ? "pos" : (sp.adj ? "rel" : "stim");
-  const base = sp.pred ? (sp.pred.any ? "any" : "p:"+sp.pred.np) : "s:"+[...sp.syms].sort().join("|");
-  return { text, matches, tier: gridTierFromScore(score), kind, score, parts:{S, M, A}, base, axes, ck };
-}
-
-// Estrae a caso una specifica. Il filtro sui conteggi (4-14) è a valle. `feat` elenca gli
-// attributi extra attivi in questa griglia (stile del bordo, dimensione: dipendono dal livello).
-function sampleSpec(symbols, famPreds, F, B, I, feat){
-  const sp = { syms:null, pred:null, fill:null, fillState:null, border:null, ink:null, bstyle:null, size:null, pos:null, adj:null, rel:null, notFill:null, notBorder:null, notInk:null };
-  const r = Math.random();
-  // Criterio "intermedio": simbolo (o proprietà della famiglia) + UNA sola caratteristica, a
-  // valore singolo. Richiesti in numero maggiore da Rodrigo (prima i criteri con 3+ caratteristiche
-  // erano la maggioranza): qui si generano apposta, in quota fissa tra i candidati.
-  const simple = Math.random() < 0.40;
-  if(simple){
-    if(famPreds.length && r<0.25) sp.pred = pick(famPreds);
-    else sp.syms = [pick(symbols)];
-  }
-  else if(r<0.10) sp.pred = ANY_PRED;
-  else if(famPreds.length && r<0.30) sp.pred = pick(famPreds);
-  else if(r<0.60 && symbols.length>=2) sp.syms = pickN(symbols, 2);
-  else sp.syms = [pick(symbols)];
-  // Vincoli estratti in modo indipendente, con più peso su SFONDO e BORDO (i colori che il
-  // paziente vede meglio e che finora erano sfruttati poco), meno sul colore del simbolo,
-  // sulla posizione e sulla negazione.
-  const feats = [];
-  if(simple){
-    // Criterio con UNA sola caratteristica: metà delle volte di POSIZIONE (righe, colonne, cornice…), metà
-    // sugli STIMOLI (sfondo, bordo, colore/dimensione del simbolo, stile del bordo) — richiesta di Rodrigo:
-    // mescolare in modo uniforme regole sugli stimoli e regole sulla posizione.
-    if(Math.random()<0.5) feats.push("pos");
-    else {
-      // sfondo e bordo pesano più del colore del simbolo (segnalato di nuovo da Rodrigo:
-      // "non usi ancora abbastanza i colori degli sfondi e dei bordi") — sono i colori che il
-      // paziente vede meglio, a differenza del colore del tratto sottile del simbolo stesso.
-      const opts = ["fill","fill","fill","border","border","border","ink"];
-      if(feat.sizes) opts.push("size","size");                       // dimensione del simbolo (dal livello 3)
-      if(feat.bStyles) opts.push("bstyle");                          // stile del bordo (dal livello 5)
-      if(feat.fillVoid) opts.push("fillstate","fillstate");          // sfondo vuoto, qualunque famiglia (dal livello 5)
-      feats.push(pick(opts));
-    }
-  } else {
-  // Sfondo: o un colore preciso, o (se sbloccato) "vuoto" — mai entrambi sulla stessa regola.
-  const fillRoll = Math.random();
-  if(feat.fillVoid && fillRoll<0.15) feats.push("fillstate");
-  else if(fillRoll<0.65) feats.push("fill");
-  if(Math.random()<0.60) feats.push("border");
-  if(Math.random()<0.30) feats.push("ink");
-  if(Math.random()<0.50) feats.push("pos");
-  if(Math.random()<0.25) feats.push("neg");
-  if(feat.bStyles && Math.random()<0.30) feats.push("bstyle");
-  if(feat.sizes && Math.random()<0.35) feats.push("size");
-  if(Math.random()<0.10) feats.push("adj");
-  }
-  const nOf = pool => pickN(pool, (!simple && Math.random()<0.35) ? 2 : 1).map(c=>c.name);
-  if(feats.includes("fill")) sp.fill = nOf(F);
-  // "vuoto" è l'unico stato utile come criterio da solo: "pieno" (qualunque colore) copre quasi
-  // tutte le altre celle e non passa quasi mai il filtro sui conteggi (4-14) — coerente con come
-  // già si comportano dimensione e stile del bordo.
-  if(feats.includes("fillstate")) sp.fillState = "vuoto";
-  if(feats.includes("border")) sp.border = nOf(B);
-  if(feats.includes("ink")) sp.ink = nOf(I);
-  if(feats.includes("pos")) sp.pos = pick(feat.posOptions || POS_OPTIONS);
-  if(feats.includes("bstyle")) sp.bstyle = !simple && feat.bStyles.length>=3 && Math.random()<0.3 ? pickN(feat.bStyles, 2) : [pick(feat.bStyles)];
-  if(feats.includes("size")) sp.size = [pick(feat.sizes)];
-  if(feats.includes("adj")){
-    const useFill = Math.random()<0.5;
-    sp.adj = { kind: useFill ? "fill" : "border", name: pick(useFill ? F : B).name };
-  }
-  if(sp.pred===ANY_PRED && !sp.adj){
-    const useFill = Math.random()<0.5;
-    sp.adj = { kind: useFill ? "fill" : "border", name: pick(useFill ? F : B).name };
-  }
-  // (adiacenza e negazione nella stessa regola non si combinano: troppo pesante da applicare)
-  if(feats.includes("neg") && !sp.adj){
-    // la negazione riguarda un asse su cui non c'è già un vincolo positivo
-    const axes = [["notFill",F,sp.fill],["notBorder",B,sp.border],["notInk",I,sp.ink]].filter(a=>!a[2]);
-    if(axes.length){ const [key,pool] = pick(axes); sp[key] = [pick(pool).name]; }
-  }
-  return sp;
-}
-
-// Attributi extra a due valori (stile bordo a livelli bassi, dimensione): gruppi di dimensione
-// variabile (12-23 celle su 35), non sempre metà e metà.
-function assignBinary(cells, allIdx, names, propName){
-  const idx = shuffle(allIdx);
-  const cut = 12 + rnd(12);
-  idx.forEach((i,j)=>{ cells[i][propName] = j<cut ? names[0] : names[1]; });
-}
-const BORDER_STYLE_POOL = [{name:"continuo"}, {name:"tratteggiato"}, {name:"puntinato"}];
-
-
-// ---------- VARIETÀ DI REGOLE (Griglie-Conteggio) ----------
-// Oltre alle specifiche "simbolo + vincoli" (specToRule), la griglia offre regole di FORMA diversa,
-// per allenare operazioni mentali diverse dal semplice conteggio filtrato (richiesta di Rodrigo):
-//  - esclusione   "gli elementi X, esclusi quelli Y"
-//  - alternativa  "gli elementi X oppure quelli Y" (chi soddisfa entrambe si conta una volta sola)
-//  - doppio conteggio parallelo "quanti X e quanti Y" (due numeri)
-//  - confronto    "sono più numerosi X o Y?"
-//  - soglia/sequenza "gli X saltando i primi k" (ordine di lettura)
-//  - per riga/colonna "in quante righe compare almeno un X?" e "quale riga contiene più X?"
-//  - relazionali direzionali "gli X che hanno subito a destra/sinistra/sopra/sotto un Y" e
-//    "identici alla cella a destra/sotto".
-// Ogni regola porta `answer` (testo mostrato con "Mostra risposta") e `count` = celle evidenziate
-// (sempre 4-14, come le altre). kind 'var' (o 'rel' per le relazionali): vedi selectRules.
-const GRID_VAR_MIN_LEVEL = { skip:8, rows:10, either:12, exclude:14, whichrow:16, double:18, sameNb:20, compare:22, dirRel:24 };
-function gridVarRules(cells, rows, cols, symbols, F, B, I, feat, effLevel){
-  const attr = () => {
-    const opts = [
-      () => { const x = pick(symbols); return { axis:"sym", key:"s"+x, np:`«${x}»`, f:c=>c.sym===x }; },
-      () => { const x = pick(F).name; return { axis:"fill", key:"f"+x, np:`con sfondo ${x}`, f:c=>c.fill===x }; },
-      () => { const x = pick(B).name; return { axis:"border", key:"b"+x, np:`con bordo ${x}`, f:c=>c.border===x }; },
-      () => { const x = pick(I).name; return { axis:"ink", key:"i"+x, np:`di colore ${x}`, f:c=>c.symColor===x }; }
-    ];
-    if(feat.sizes) opts.push(() => { const x = pick(feat.sizes); return { axis:"size", key:"z"+x, np:`con simbolo ${x}`, f:c=>c.size===x }; });
-    if(feat.fillVoid) opts.push(() => ({ axis:"fill", key:"fvoid", np:"con sfondo vuoto (nessun colore)", f:c=>!c.fill }));
-    return pick(opts)();
-  };
-  const noun = a => a.axis==="sym" ? `gli elementi ${a.np}` : `gli elementi ${a.np}`;
-  const those = a => a.axis==="sym" ? `i ${a.np}` : `quelli ${a.np}`;
-  const inRange = n => n>=4 && n<=14;
-  const inLevel = k => effLevel >= GRID_VAR_MIN_LEVEL[k];
-  const kinds = Object.keys(GRID_VAR_MIN_LEVEL).filter(inLevel);
-  if(!kinds.length) return null;
-  const vk = pick(kinds);
-  const A = attr(), Bt = attr();
-  if(vk!=="skip" && vk!=="rows" && vk!=="whichrow" && vk!=="sameNb" && (A.key===Bt.key || A.axis===Bt.axis)) return null;
-  const cnt = f => cells.filter(f).length;
-  const reading = cells; // già in ordine di lettura (riga per riga, da sinistra a destra)
-  const attrS = a => ({ sym:0.5, fill:1, border:1, ink:1.5, size:1.5 }[a.axis] || 1);
-  const ckOf = a => (a.axis==="fill"||a.axis==="border"||a.axis==="ink") && a.key!=="fvoid" ? [a.axis+":"+a.key.slice(1)] : [];
-  const baseOf = a => a.axis==="sym" ? "s:"+a.key.slice(1) : "v:"+vk+":"+a.key;
-  const mk = (o) => {
-    const two = ["exclude","either","double","compare","dirRel"].includes(vk);
-    const S = vk==="sameNb" ? ({ fill:1, border:1, sym:0.5 }[o.nbKey.split("-")[0]]) : attrS(A) + (two ? attrS(Bt) : 0);
-    const M = two ? GRID_SCORE_W.cond : 0;
-    const Ab = GRID_VAR_ABSTRACTION[vk];
-    const score = S + M + Ab;
-    let ck = ckOf(A).concat(two ? ckOf(Bt) : []), base = baseOf(A);
-    if(vk==="sameNb"){ base = "nb:"+o.nbKey; ck = o.nbKey.startsWith("sym") ? [] : [o.nbKey.split("-")[0]+":*"]; }
-    return Object.assign({ kind:"var", keepText:true, score, parts:{S, M, A:Ab}, base, axes:["var"], ck }, o, { tier: gridTierFromScore(score) });
-  };
-  if(vk==="exclude"){
-    const f = c => A.f(c) && !Bt.f(c), n = cnt(f);
-    if(!inRange(n) || cnt(A.f)===n) return null;
-    return mk({ vk, text:`Conta ${noun(A)}, esclusi ${those(Bt)}.`, matches:f, count:n });
-  }
-  if(vk==="either"){
-    const f = c => A.f(c) || Bt.f(c), n = cnt(f);
-    if(!inRange(n)) return null;
-    return mk({ vk, text:`Conta ${noun(A)} oppure ${those(Bt)} (chi rispetta entrambe le condizioni si conta una volta sola).`, matches:f, count:n });
-  }
-  if(vk==="double"){
-    const a = cnt(A.f), b = cnt(Bt.f);
-    if(!inRange(a) || !inRange(b)) return null;
-    return mk({ vk, text:`Conta separatamente, tenendo due totali: quanti sono ${noun(A)} e quanti ${those(Bt)}.`,
-      matches:c=>A.f(c)||Bt.f(c), count:Math.max(a,b), answer:`${a} e ${b}` });
-  }
-  if(vk==="compare"){
-    const a = cnt(A.f), b = cnt(Bt.f);
-    if(!inRange(a) || !inRange(b) || Math.abs(a-b)<2) return null;
-    return mk({ vk, text:`Quali sono più numerosi: ${noun(A)} o ${those(Bt)}? Di quanti?`,
-      matches:c=>A.f(c)||Bt.f(c), count:Math.max(a,b),
-      answer:`${a>b ? A.np : Bt.np} (${Math.max(a,b)} contro ${Math.min(a,b)}, differenza ${Math.abs(a-b)})` });
-  }
-  if(vk==="skip"){
-    const k = 1 + rnd(3), base = cells.filter(A.f);
-    const n = base.length - k;
-    if(!inRange(n)) return null;
-    const keep = new Set(base.slice(k));
-    return mk({ vk, text:`Conta ${noun(A)}, saltando ${k===1 ? "il primo che incontri" : "i primi "+k+" che incontri"} (si legge da sinistra a destra, riga per riga).`,
-      matches:c=>keep.has(c), count:n });
-  }
-  if(vk==="rows"){
-    const byRow = Math.random()<0.6, lines = byRow ? rows : cols;
-    const set = new Set(cells.filter(A.f).map(c=>byRow ? c.row : c.col));
-    const n = set.size, total = cnt(A.f);
-    if(!inRange(total) || n<3 || n>=lines) return null;
-    return mk({ vk, text:`In quante ${byRow?"righe":"colonne"} compare almeno un elemento ${A.axis==="sym"?A.np:A.np}?`,
-      matches:A.f, count:total, answer:`${n} ${byRow?"righe":"colonne"} (${total} elementi in tutto)` });
-  }
-  if(vk==="whichrow"){
-    const byRow = Math.random()<0.6, lines = byRow ? rows : cols, per = Array(lines).fill(0);
-    cells.forEach(c=>{ if(A.f(c)) per[byRow ? c.row : c.col]++; });
-    const mx = Math.max(...per), total = per.reduce((x,y)=>x+y,0);
-    if(!inRange(total) || mx<2 || per.filter(v=>v===mx).length!==1) return null;
-    const li = per.indexOf(mx);
-    return mk({ vk, text:`Quale ${byRow?"riga":"colonna"} contiene più elementi ${A.np}? (contali ${byRow?"riga per riga":"colonna per colonna"}).`,
-      matches:A.f, count:total, answer:`${byRow?"riga":"colonna"} ${li+1} (${mx} elementi)` });
-  }
-  if(vk==="sameNb"){
-    const dir = Math.random()<0.5 ? "right" : "below", w = dir==="right" ? "a destra" : "sotto";
-    const t = pick(["fill","border","sym"]);
-    const eq = t==="sym" ? (c,n)=>c.sym===n.sym : (t==="fill" ? (c,n)=>c.fill && c.fill===n.fill : (c,n)=>c.border===n.border);
-    const f = c => c[dir] && eq(c, c[dir]), n = cnt(f);
-    if(!inRange(n)) return null;
-    const what = t==="sym" ? "lo stesso simbolo" : (t==="fill" ? "lo stesso colore di sfondo" : "lo stesso colore di bordo");
-    return mk({ vk, kind:"rel", nbKey:t+"-"+dir, text:`Conta gli elementi che hanno ${what} della cella subito ${w}.`, matches:f, count:n });
-  }
-  if(vk==="dirRel"){
-    const dirs = [["right","subito a destra"],["left","subito a sinistra"],["below","subito sotto"],["above","subito sopra"]];
-    const [dk, dw] = pick(dirs);
-    const f = c => A.f(c) && c[dk] && Bt.f(c[dk]), n = cnt(f);
-    if(!inRange(n)) return null;
-    return mk({ vk, kind:"rel", text:`Conta ${noun(A)} che hanno ${dw} un elemento ${Bt.axis==="sym"?Bt.np:Bt.np}.`, matches:f, count:n });
-  }
-  return null;
-}
-
-// Costruisce UN tentativo di griglia e valuta un ampio ventaglio di regole candidate,
-// tenendo solo quelle il cui conteggio cade tra 4 e 14. Ogni regola di colore resta
-// SEMPRE agganciata a un simbolo (o a una proprietà della famiglia): mai "conta gli sfondi
-// gialli" da solo, che non dipenderebbe dal materiale. Unica eccezione: i criteri relazionali
-// (adiacenza, identico al vicino), che dipendono comunque dalla disposizione dei simboli.
-function buildGridAttempt(symbols, level, effLevel, rows, cols){
-  const n = rows*cols;
-  const cells = Array.from({length:n}, (_,i)=>({ row:Math.floor(i/cols), col:i%cols }));
-  const allIdx = cells.map((_,i)=>i);
-  cells.forEach((c,i)=>{
-    c.right = c.col < cols-1 ? cells[i+1] : null;
-    c.below = c.row < rows-1 ? cells[i+cols] : null;
-    c.left = c.col>0 ? cells[i-1] : null;
-    c.above = c.row>0 ? cells[i-cols] : null;
-    c.nb = [c.right, c.below, c.col>0 ? cells[i-1] : null, c.row>0 ? cells[i-cols] : null].filter(Boolean);
-  });
-
-  // 1) SIMBOLI — gruppi di dimensione variabile tra 4 e 14 (non più bilanciati).
-  const shuffledIdx = shuffle(allIdx);
-  const k = symbols.length;
-  const symSizes = weightedComposition(n, k, 4, 14, 3);
-  let cursor = 0;
-  symbols.forEach((sym,si)=>{
-    shuffledIdx.slice(cursor, cursor+symSizes[si]).forEach(i=>cells[i].sym = sym);
-    cursor += symSizes[si];
-  });
-
-  // 2) COLORE — tre assi indipendenti, 3 colori a testa; palette senza gemelli chiaro/scuro (vedi pickGridPalette).
-  // Lo sfondo può anche essere "vuoto" (nessun colore, solo contorno) dal livello 5 — stessa soglia
-  // dello stile del bordo, perché è un altro vincolo semplice su un solo attributo visivo, ora
-  // disponibile per QUALUNQUE famiglia di simboli e non solo per le forme piene/vuote (richiesta di
-  // Rodrigo). Vedi assignFillWithVoid.
-  const fillVoidOn = effLevel>=9;
-  const palette = pickGridPalette();
-  // Crescita graduale: ai primi livelli solo 2 colori per canale (sfondo, bordo, colore del simbolo), poi 3.
-  const nCol = 3;   // 3 colori per canale fin dal livello 1: con 2 ogni colore copre ~17 celle su 35 e le consegne di solo colore (4-14 celle) non sarebbero valide
-  const fillChosen = fillVoidOn
-    ? assignFillWithVoid(cells, allIdx, palette.fills, nCol)
-    : assignAttribute(cells, allIdx, palette.fills, "fill", nCol);
-  const borderChosen = assignAttribute(cells, allIdx, palette.inks, "border", nCol);
-  const symColorChosen = assignAttribute(cells, allIdx, palette.inks, "symColor", nCol);
-
-  // 2b) ATTRIBUTI EXTRA, in funzione del livello (32 livelli): dimensione del simbolo (grande/piccolo)
-  //     dal livello 3; stile del bordo dal livello 5 (continuo/tratteggiato; dal 17 anche puntinato);
-  //     sfondo vuoto dal livello 5 (vedi sopra).
-  //     Criteri di posizione composti (blocchi, intersezioni, scacchiera) dal livello GRID_POS_W2_FROM.
-  // Attributi extra e opzioni di posizione: gradiscono in base al livello EFFETTIVO (vedi
-  // tierEffectiveLevel), non al livello a video — stesso motivo delle quote di gradino più sotto.
-  const feat = { bStyles:null, sizes:null, fillVoid:fillVoidOn, posOptions: buildPosOptions(rows, cols).filter(o => o.w===1 || effLevel>=GRID_POS_W2_FROM) };
-  if(effLevel>=6){
-    assignBinary(cells, allIdx, ["grande","piccolo"], "size");
-    feat.sizes = ["grande","piccolo"];
-  }
-  if(effLevel>=17){
-    assignAttribute(cells, allIdx, BORDER_STYLE_POOL, "bStyle", 3);
-    feat.bStyles = BORDER_STYLE_POOL.map(x=>x.name);
-  } else if(effLevel>=12){
-    assignBinary(cells, allIdx, ["continuo","tratteggiato"], "bStyle");
-    feat.bStyles = ["continuo","tratteggiato"];
-  }
-
-  // 3) CANDIDATI — gradino 1 deterministico (ogni simbolo da solo + proprietà della
-  //    famiglia), poi ~1600 specifiche casuali che coprono i gradini 2-5.
-  const famPreds = familyPredicates(symbols);
-  const seen = new Set();
-  const evaluated = [];
-  const push = rule => {
-    if(seen.has(rule.text)) return;
-    seen.add(rule.text);
-    if(rule.count==null) rule.count = cells.filter(rule.matches).length;
-    evaluated.push(rule);
-  };
-  symbols.forEach(sym=> push(specToRule({ syms:[sym] })));
-  famPreds.forEach(p=> push(specToRule({ pred:p })));
-  // consegne di SOLO colore (sfondo / bordo / colore del simbolo), valide per qualunque materiale: sono il modo più
-  // semplice di usare i colori fin dai primi livelli
-  fillChosen.forEach(f=> push(specToRule({ pred:ANY_PRED, fill:[f.name] })));
-  borderChosen.forEach(f=> push(specToRule({ pred:ANY_PRED, border:[f.name] })));
-  symColorChosen.forEach(f=> push(specToRule({ pred:ANY_PRED, ink:[f.name] })));
-  for(let i=0; i<1600; i++) push(specToRule(sampleSpec(symbols, famPreds, fillChosen, borderChosen, symColorChosen, feat)));
-  // regole di forma diversa (esclusione, alternativa, doppio conteggio, confronto, soglia, per riga/colonna, relazionali)
-  for(let i=0; i<900; i++){
-    const vr = gridVarRules(cells, rows, cols, symbols, fillChosen, borderChosen, symColorChosen, feat, effLevel);
-    if(vr) push(vr);
-  }
-  return { cells, evaluated };
-}
-
-// Categorie di lettura: il livello EFFETTIVO corregge quello a video in base a quanto è leggibile la categoria
-// di simboli per un lettore italiano (frecce e forme più facili; cirillico, cjk, ge'ez più difficili).
-const GRID_READABILITY_DELTA = { shapes:1, arrows:1, digits:2, letters:2, mixed:1, cyrillic:-3, cjk:-5, geez:-5 };
-function tierEffectiveLevel(level, category){
-  const delta = GRID_READABILITY_DELTA[category] || 0;
-  return Math.max(1, Math.min(MAX_LEVEL, level + delta));
-}
-// Due consegne sono "quasi uguali" se riguardano lo stesso bersaglio (stesso simbolo / stessa proprietà) e i
-// vincoli dell'una sono contenuti in quelli dell'altra ("frecce a sinistra" / "frecce a sinistra nelle prime 3 colonne").
-function gridRulesConflict(a, b){
-  if(a.base !== b.base) return false;
-  const sub = (x,y) => x.every(k=>y.includes(k));
-  return sub(a.axes, b.axes) || sub(b.axes, a.axes);
-}
-// Sceglie le 10 consegne di UNA griglia seguendo la rampa di punteggio del livello (gridScoreTargets): per ogni
-// posto della rampa prende la consegna il cui punteggio è più vicino, con penalità per conteggi già usciti,
-// stesso bersaglio o stesso colore già usato, sbilanciamento stimolo/posizione; quota minima di consegne con
-// colori; astrazione massima e numero di consegne astratte limitati dal livello. Ritorna { chosen, cost }.
-function selectRulesByScore(evaluated, effLevel){
-  const N = 10, t = levelT(effLevel);
-  const amax = gridAbstractionMax(effLevel), cmin = gridColorMin(effLevel), targets = gridScoreTargets(effLevel);
-  const capA2 = Math.floor(1 + 5*t), capA3 = Math.floor(1 + 3*t), capRel = t<0.7 ? 1 : 2;
-  const pool = evaluated.filter(r => r.count>=4 && r.count<=14 && r.parts.A <= amax+1e-9);
-  let best = null;
-  for(let rep=0; rep<4; rep++){
-    const chosen = [], usedCount = {}, baseUse = {}, ckUse = {}, vks = new Set();
-    let nPos = 0, nStim = 0, nColor = 0, nA2 = 0, nA3 = 0, nRel = 0, cost = 0;
-    for(let i=0; i<N; i++){
-      const need = cmin - nColor, mustColor = need >= N - i;
-      let bi = null, bc = Infinity;
-      for(const r of pool){
-        if(chosen.includes(r)) continue;
-        const colored = r.ck.length>0;
-        if(mustColor && !colored) continue;
-        if(r.vk && vks.has(r.vk)) continue;
-        if(r.parts.A>=2 && nA2>=capA2) continue;
-        if(r.parts.A>=3 && nA3>=capA3) continue;
-        if(r.kind==="rel" && nRel>=capRel) continue;
-        if(chosen.some(x=>gridRulesConflict(r,x))) continue;
-        let c = Math.abs(r.score - targets[i]) + Math.random()*0.35
-              + 0.7*(usedCount[r.count]||0) + (r.base==='any' ? 0 : 3*(baseUse[r.base]||0))
-              + 0.8*r.ck.reduce((a,k)=>a+(ckUse[k]||0),0);
-        if(r.kind==="pos") c += 0.8*Math.max(0, nPos-nStim);
-        else if(r.kind==="stim") c += 0.8*Math.max(0, nStim-nPos);
-        if(colored && need>0) c -= 0.6;
-        if(c < bc){ bc = c; bi = r; }
-      }
-      if(!bi) break;
-      chosen.push(bi); cost += bc;
-      usedCount[bi.count] = (usedCount[bi.count]||0)+1;
-      baseUse[bi.base] = (baseUse[bi.base]||0)+1;
-      bi.ck.forEach(k=>{ ckUse[k] = (ckUse[k]||0)+1; });
-      if(bi.vk) vks.add(bi.vk);
-      if(bi.kind==="pos") nPos++; else if(bi.kind==="stim") nStim++; else if(bi.kind==="rel") nRel++;
-      if(bi.ck.length) nColor++;
-      if(bi.parts.A>=2) nA2++; if(bi.parts.A>=3) nA3++;
-    }
-    cost += (N - chosen.length)*50 + Math.max(0, cmin - nColor)*5;
-    if(!best || cost < best.cost) best = { chosen, cost };
-  }
-  if(!best) return { chosen:[], cost:1e9 };
-  best.chosen.sort((a,b)=>a.score-b.score);
-  return best;
-}
-
-function genOneGrid(symbols, level, category, rows, cols){
-  // Più tentativi di griglia, tenendo il migliore (costo minore = consegne più vicine alla rampa di punteggio,
-  // conteggi diversi tra loro, nessun bersaglio ripetuto, colori usati). La combinatoria segue il livello
-  // EFFETTIVO (leggibilità della categoria, vedi tierEffectiveLevel); la dimensione della griglia segue il livello vero.
-  const effLevel = tierEffectiveLevel(level, category);
-  let best = null;
-  for(let attempt=0; attempt<25; attempt++){
-    const { cells, evaluated } = buildGridAttempt(symbols, level, effLevel, rows, cols);
-    const sel = selectRulesByScore(evaluated, effLevel);
-    if(!best || sel.cost < best.cost) best = { cells, rules: sel.chosen, cost: sel.cost };
-    if(sel.chosen.length===10 && sel.cost < 7) break;
-  }
-  return best;
-}
-
-function genGriglie(level, excludeKeys){
-  const ctx = makeAvoidCtx(excludeKeys);
-  let fam = familyForLevel(level, ctx);
-  const ov = state.materialOverride.griglie;
-  if(ov && ov!=="auto"){
-    const opt = MATERIAL_OPTIONS.griglie.find(o=>o.id===ov);
-    fam = {...fam, kind:opt.kind, pool:opt.pool, base:opt.base, count:opt.count, variantKey:null};
-  }
-  if(fam.variantKey) ctx.use(fam.variantKey);
-  let symbols;
-  if(fam.kind==="unicode"){
-    symbols = Array.from({length:fam.count},(_,i)=>String.fromCodePoint(fam.base+i));
-  } else {
-    symbols = fam.pool;
-  }
-  const rows = gridRowsForLevel(level), cols = gridColsForLevel(level);
-
-  // Una sola griglia per sessione, con tutte le regole valide (fino a 10) selezionabili
-  // una alla volta — come nei materiali originali: non più griglie diverse, ma varianti
-  // di regola sulla stessa griglia.
-  const N_GRIDS = 1;
-  const slides = Array.from({length:N_GRIDS}, ()=>{
-    const {cells, rules} = genOneGrid(symbols, level, fam.category, rows, cols);
-    return { cells, rows, cols, rules, ruleIndex:0 };
-  });
-
-  return {
-    type:"griglie",
-    rows, cols,
-    slides,
-    historyKeys: ctx.newKeys
-  };
-}
-
-// ---------- INTRUSO PERCETTIVO ----------
-// Rianalizzato sugli originali: ogni schermata (slide) è una lista di 15 o 18 elementi
-// (mai altri valori), dove esattamente UN valore compare una sola volta (il target da
-// trovare) e tutti gli altri compaiono almeno 2 volte — senza tetto massimo: con pool
-// piccoli (es. dadi, 6 facce) i conteggi "normali" salgono naturalmente sopra 3 pur di
-// riempire n. Ogni SESSIONE (livello) è un mazzo di 9 schermate, ciascuna con una
-// famiglia di stimolo diversa — non una singola schermata isolata.
-function codeRange(base, count, step){
-  step = step||1;
-  return Array.from({length:count},(_,i)=>String.fromCodePoint(base+i*step));
-}
-// Famiglie "testuali": l'elemento è una stringa di `len` caratteri presa dal pool,
-// la lunghezza cresce col livello (asse 1 di difficoltà, come negli originali).
-// unlockLevel = livello minimo (su 32) da cui questa famiglia può comparire in sessione. Gli sblocchi sono
-// distribuiti in modo uniforme tra il livello 1 e il 28 (prima 1-15); i livelli 29-32 hanno già tutte le
-// famiglie e salgono per numero di elementi, lunghezza e somiglianza dei tipi.
-const INTRUSO_TEXT_FAMILIES = [
-  {id:"digit", label:"cifre", pool:"0123456789".split(""), unlockLevel:1},
-  {id:"letter", label:"lettere", pool:"ABCDEFGHILMNOPQRSTUVZ".split(""), unlockLevel:1},
-  {id:"roman", label:"numeri romani", pool:["Ⅰ","Ⅱ","Ⅲ","Ⅳ","Ⅴ","Ⅵ","Ⅶ","Ⅷ","Ⅸ","Ⅹ"], unlockLevel:3},
-  {id:"cyrillic", label:"cirillico", pool: codeRange(0x0410,32), unlockLevel:6},
-  {id:"armenian", label:"armeno", pool: codeRange(0x0530,38), unlockLevel:11},
-  {id:"thai", label:"thai", pool: codeRange(0x0E01,40), unlockLevel:13},
-  {id:"geez", label:"ge'ez", pool: codeRange(0x1200,60), unlockLevel:17},
-  {id:"cyrillic-arcaico", label:"cirillico arcaico", pool: codeRange(0x0460,16,2), unlockLevel:24},
-  {id:"canadian", label:"sillabario canadese", pool: codeRange(0x1400,50), unlockLevel:26},
-  // Nuove famiglie (livelli 1-14): lettere minuscole e a/A mescolate (livelli bassi), alfabeto greco,
-  // poi scritture non latine via via meno familiari. Stessi criteri delle altre: un solo singolo,
-  // tutti gli altri almeno 2 volte, pool ampio di caratteri simili tra loro.
-  {id:"lower", label:"lettere minuscole", pool:"abdeghilmnopqrstuvz".split(""), unlockLevel:1},
-  {id:"mixedcase", label:"lettere maiuscole e minuscole", pool:["a","A","b","B","d","D","e","E","g","G","n","N","r","R","t","T"], unlockLevel:1},
-  {id:"greek", label:"alfabeto greco", pool: codeRange(0x0391,25).filter(ch=>ch.codePointAt(0)!==0x03A2), unlockLevel:5},
-  {id:"katakana", label:"katakana", pool: codeRange(0x30A2,48), unlockLevel:16},
-  {id:"hiragana", label:"hiragana", pool: codeRange(0x3042,48), unlockLevel:18},
-  // (ebraico senza le lettere finali ך ם ן ף ץ, che a metà stringa risulterebbero scorrette)
-  {id:"hebrew", label:"ebraico", pool: codeRange(0x05D0,27).filter(ch=>![0x05DA,0x05DD,0x05DF,0x05E3,0x05E5].includes(ch.codePointAt(0))), unlockLevel:20},
-  {id:"devanagari", label:"devanagari", pool: codeRange(0x0915,25), unlockLevel:22}
-];
-// Famiglie "atomiche": l'elemento è un solo glifo (dadi, domino...), come negli
-// originali — non concatenato in stringhe, la difficoltà sta nella somiglianza visiva.
-// "carte" rimossa: i glifi Unicode delle carte da gioco sono troppo piccoli/poco
-// leggibili anche ingranditi (segnalato da Rodrigo). unlockLevel come sopra: solo
-// dal livello indicato la famiglia può comparire, così gli ideogrammi (i più
-// difficili) non escono più al livello 1 come accadeva prima di questa correzione.
-const INTRUSO_ATOMIC_FAMILIES = [
-  {id:"arrow", label:"frecce", pool:["↑","↓","←","→","↖","↗","↘","↙","⇑","⇓","⇐","⇒"], unlockLevel:1},
-  {id:"geometric", label:"forme", pool:["●","○","■","□","▲","△","▼","▽","◆","◇","★","☆"], unlockLevel:1},
-  // Famiglie a pool ristretto (semi, note, dadi): con 4-6 opzioni l'unico singolo si trova a
-  // colpo d'occhio, e ai livelli alti diventava troppo facile (segnalato da Rodrigo). Per
-  // questo hanno `small:true`: dal livello `extraFrom` il pool si allarga con simboli
-  // molto simili a quelli base (semi pieni + semi "vuoti", note + alterazioni), e dal
-  // livello `pairsFrom` gli elementi diventano SEQUENZE di 2 simboli (dal `triplesFrom`
-  // di 3) scelte tra varianti quasi identiche — cambia un solo simbolo o l'ordine — invece
-  // di simboli scelti a caso. Vedi intrusoPoolFor / intrusoLenFor.
-  // Semi e note: soglie anticipate (pool allargato e coppie già dal livello 2, triple dal 5)
-  // perché i semi risultavano troppo facili già dal livello 2 (segnalato da Rodrigo); il
-  // livello 1 resta con 4 simboli singoli come ingresso. Dadi, cerchi e quadranti: invariati.
-  {id:"suits", label:"semi delle carte", pool:["♠","♥","♦","♣"], extra:["♤","♡","♢","♧"], small:true, extraFrom:6, pairsFrom:2, triplesFrom:9, unlockLevel:1},
-  {id:"music", label:"note musicali", pool:["♩","♪","♫","♬"], extra:["♭","♮","♯"], small:true, extraFrom:7, pairsFrom:2, triplesFrom:9, unlockLevel:1},
-  {id:"punct", label:"punteggiatura", pool:["!","?","#","%","&","@","§","*"], unlockLevel:1},
-  {id:"zodiac", label:"simboli zodiacali", pool:["♈","♉","♊","♋","♌","♍","♎","♏","♐","♑","♒","♓"], unlockLevel:1},
-  {id:"dice", label:"dadi", pool: codeRange(0x2680,6), extra:[], small:true, extraFrom:99, pairsFrom:3, triplesFrom:11, unlockLevel:1},
-  {id:"domino", label:"domino", pool: codeRange(0x1F030,32), unlockLevel:8},
-  {id:"mahjong", label:"mahjong", pool: codeRange(0x1F007,20), unlockLevel:14},
-  {id:"cjk", label:"ideogrammi", pool: codeRange(0x53E3,40), unlockLevel:28},
-  // Nuove famiglie a glifo singolo. Cerchi parziali e quadranti hanno pool ristretto (4): come semi e
-  // note, si allargano con simboli molto simili e ai livelli alti diventano sequenze di 2-3 simboli.
-  {id:"circles", label:"cerchi parzialmente pieni", pool:["◐","◑","◒","◓"], extra:["◔","◕","○","●"], small:true, extraFrom:8, pairsFrom:3, triplesFrom:13, unlockLevel:1},
-  {id:"quadrants", label:"quadranti", pool:["◰","◱","◲","◳"], extra:["◧","◨","◩","◪"], small:true, extraFrom:10, pairsFrom:5, triplesFrom:15, unlockLevel:3},
-  {id:"box", label:"tratti da tabella", pool:["┌","┐","└","┘","├","┤","┬","┴","┼"], unlockLevel:7},
-  {id:"sets", label:"simboli insiemistici", pool:["∈","∉","∩","∪","⊂","⊃","⊆","⊇","∋","∌"], unlockLevel:9},
-  {id:"braille", label:"Braille", pool: codeRange(0x2801,63), unlockLevel:14}
-];
-const INTRUSO_ALL_FAMILIES = [...INTRUSO_TEXT_FAMILIES, ...INTRUSO_ATOMIC_FAMILIES];
-
-// Curva di difficoltà di Intruso percettivo, ricalibrata perché ai livelli bassi/medi (segnalato
-// da Rodrigo: il livello 4 risultava molto facile) risultava troppo pianeggiante: quasi tutte le
-// famiglie restavano a singolo simbolo, pochi elementi, tipi ben distinti per parecchi livelli
-// prima che rodaggio/pool/quantità iniziassero a incidere. Con questa mappa concava (esponente <1)
-// la stessa progressione raggiunge un dato grado di difficoltà un po' prima: i livelli bassi e medi
-// diventano più sfidanti, mentre il livello 1 resta il più facile di tutti e il livello 32 resta il
-// tetto massimo di prima (nessuna esagerazione in cima alla scala) — sposta il gradiente verso
-// l'inizio senza cambiarne l'ampiezza complessiva. Usata SOLO per Intruso: non toglie nulla a
-// levelT(), che resta la curva lineare condivisa dagli altri esercizi.
-const INTRUSO_LEVEL_EASE = 1;   // curva LINEARE: prima era concava (0,6) e anticipava tutti i salti di lunghezza (livelli 4 e 18); ora la difficoltà segue il punteggio unico (vedi INTRUSO_SCORE_W)
-function intrusoLevelT(level){ return Math.pow(levelT(level), INTRUSO_LEVEL_EASE); }
-function intrusoEffLevel(level){ return 1 + intrusoLevelT(level) * (MAX_LEVEL - 1); }
-
-function distinctIntrusoTypes(pool, len, k, avoid){
-  if(len===1) return pickN(pool, Math.min(k,pool.length));
-  const set = new Set();
-  let tries=0;
-  while(set.size<k && tries<800){
-    const cand = Array.from({length:len},()=>pick(pool)).join("");
-    tries++;
-    // finché ci sono tentativi si scartano le combinazioni già proposte a questo gruppo
-    if(avoid && tries<500 && avoid(cand)) continue;
-    set.add(cand);
-  }
-  return [...set];
-}
-// Sequenze "quasi uguali": si parte da una sequenza casuale e ogni nuovo tipo si ottiene da
-// uno già scelto cambiando UN solo simbolo oppure scambiando due simboli adiacenti (es. ♠♥ →
-// ♥♠ o ♠♦). Così i tipi da confrontare differiscono per un dettaglio, non per l'intera
-// stringa: è questo che rende difficile trovare l'unico singolo con pool ristretti.
-function similarIntrusoTypes(pool, len, k){
-  const first = Array.from({length:len},()=>pick(pool));
-  const found = new Map([[first.join(""), first]]);
-  let tries=0;
-  while(found.size<k && tries<3000){
-    tries++;
-    const v = pick([...found.values()]).slice();
-    if(len>=2 && Math.random()<0.35){
-      const i = rnd(len-1);
-      [v[i], v[i+1]] = [v[i+1], v[i]];
-    } else {
-      const i = rnd(len);
-      let s, g=0;
-      do { s = pick(pool); g++; } while(s===v[i] && g<20);
-      v[i] = s;
-    }
-    found.set(v.join(""), v);
-  }
-  return [...found.keys()];
-}
-// Pool effettivo di una famiglia a un dato livello (allargato per le famiglie `small`).
-function intrusoPoolFor(family, level){
-  if(family.small && family.extra && intrusoEffLevel(level)>=family.extraFrom) return family.pool.concat(family.extra);
-  return family.pool;
-}
-// Lunghezza dell'elemento: 1 per le famiglie atomiche normali; per quelle `small`, 2 e poi 3
-// simboli dai livelli alti. Confrontato sul livello effettivo (vedi intrusoEffLevel): le soglie
-// pairsFrom/triplesFrom restano le stesse dichiarate sulla famiglia, cambia solo quanto in fretta
-// il livello selezionato le raggiunge.
-function intrusoLenFor(family, level, textLen){
-  if(!family.small) return textLen;
-  const lvl = intrusoEffLevel(level);
-  if(lvl>=family.triplesFrom) return 3;
-  if(lvl>=family.pairsFrom) return 2;
-  return 1;
-}
-function buildIntrusoScreen(family, len, targetN, level, ctx){
-  const pool = intrusoPoolFor(family, level||1);
-  const poolCap = len===1 ? pool.length : 99;
-  const kMax = Math.min(9 + Math.max(0, Math.floor((targetN-18)/3)), poolCap);   // 9 tipi fino a N=20, poi +1 ogni 3 elementi in più: resta "quasi tutti a coppie"
-  let k = kMax;
-  while(k>=2 && (targetN-1) < 2*(k-1)) k--;
-  if(k<2) return null;
-  // Con cronologia (ctx): i tipi da mostrare sono quelli meno recenti per questo gruppo e il
-  // singolo (l'intruso) è, tra questi, il meno recente come singolo — così cifre, lettere, forme...
-  // ruotano invece di ripresentarsi uguali a ogni livello.
-  const tKey = t => "T:" + family.id + "|" + t;
-  const oKey = t => "O:" + family.id + "|" + t;
-  let types;
-  if(len===1) types = ctx ? lruOrder(pool, tKey, ctx).slice(0, k) : pickN(pool, Math.min(k, pool.length));
-  else if(len>=2 && intrusoEffLevel(level)>=3 && Math.random() < (intrusoEffLevel(level)-2)/30) types = similarIntrusoTypes(pool, len, k);   // dal livello effettivo 3, quota crescente (+1/30) di tipi che differiscono per UN solo carattere (o per l'ordine): al 32 sempre
-  else types = distinctIntrusoTypes(pool, len, k, ctx ? (c=>ctx.last.has(tKey(c))) : null);
-  if(types.length<k) k = types.length;
-  if(k<2) return null;
-  const oddType = ctx ? lruOrder(types, oKey, ctx)[0] : pick(types);
-  const oddIdx = types.indexOf(oddType);
-  const remaining = targetN-1, groups = k-1;
-  const base = Math.floor(remaining/groups), rem = remaining%groups;
-  const extraIdx = new Set(shuffle(types.map((_,i)=>i).filter(i=>i!==oddIdx)).slice(0, rem));
-  const counts = types.map((_,i)=> i===oddIdx ? 1 : base + (extraIdx.has(i) ? 1 : 0));
-  let objs = [];
-  types.forEach((t,i)=>{ for(let c=0;c<counts[i];c++) objs.push({value:t, isOdd:i===oddIdx}); });
-  objs = shuffle(objs);
-  const oddIndex = objs.findIndex(o=>o.isOdd);
-  const items = objs.map(o=>o.value);
-  if(ctx){
-    ctx.use("F:" + family.id);
-    types.forEach(t=> ctx.use(tKey(t)));
-    ctx.use(oKey(oddType));
-  }
-  return {
-    items, oddIndex, familyLabel: family.label, familyId: family.id,
-    rule: `Trova l'unico elemento «${family.label}» che compare una sola volta (tutti gli altri sono ripetuti almeno 2 volte).`,
-    answer: `Posizione ${oddIndex+1}: «${items[oddIndex]}»`
-  };
-}
-// Le famiglie testuali NON sono tutte uguali (segnalato da Rodrigo): le cifre (10 simboli, molto
-// familiari) reggono le coppie presto, un alfabeto enorme e poco familiare come il ge'ez (60
-// simboli) ne ha bisogno molto più avanti. Quanto più il pool è ampio, tanto più a lungo la
-// famiglia resta a SINGOLO simbolo prima di passare a coppie e poi terne.
-function textFamilyWarmup(poolSize){
-  if(poolSize<=12) return {pair:6, triple:22};    // cifre, numeri romani
-  if(poolSize<=20) return {pair:8, triple:24};    // minuscole, maiuscole+minuscole, cirillico arcaico
-  if(poolSize<=28) return {pair:9, triple:26};    // lettere, ebraico, greco, devanagari
-  if(poolSize<=40) return {pair:11, triple:99};   // cirillico, armeno, thai: pool ampi, mai terne
-  return {pair:13, triple:99};                    // katakana, hiragana, canadese, ge'ez: pool grandissimi, mai terne
-}
-// Lunghezza dell'elemento per UNA famiglia testuale, a un dato livello. Il conteggio dei livelli
-// di "rodaggio" in singolo parte da QUANDO LA FAMIGLIA SI SBLOCCA (family.unlockLevel), non dal
-// livello assoluto: così anche una famiglia sbloccata tardi (es. il thai al livello 13) ha comunque
-// i propri livelli in singolo prima di passare a coppie, invece di uscire già in coppia alla prima
-// comparsa solo perché il livello assoluto era già oltre la soglia generica.
-// Tetto a 3: sequenze più lunghe non aggiungono discriminabilità utile, solo fatica di lettura.
-function lenForFamily(family, level){
-  const lvl = intrusoEffLevel(level);
-  const w = textFamilyWarmup(family.pool.length);
-  const pairFrom = family.unlockLevel + w.pair;
-  const tripleFrom = family.unlockLevel + w.triple;
-  return lvl < pairFrom ? 1 : (lvl < tripleFrom ? 2 : 3);
-}
-// ---------- PUNTEGGIO UNICO DI DIFFICOLTÀ (Intruso percettivo) ----------
-// Ogni schermata ha un punteggio D (0-1) = somma pesata di:
-//   lunghezza dell'elemento (1, 2 o 3 simboli: uguale per tutta la sessione),
-//   famiglia di stimoli (quanto è ostica: sblocco tardivo, glifo poco riconoscibile — vedi INTRUSO_RECOGNIZABILITY),
-//   somiglianza dei tipi (quota di tipi "quasi uguali", cresce col livello; solo per elementi di 2-3 simboli),
-//   numerosità (quanti elementi tra cui cercare).
-// D segue un obiettivo LINEARE del livello (INTRUSO_TARGET_D). Lunghezza e somiglianza sono decisi dal livello, la famiglia
-// dalla famiglia: la NUMEROSITÀ è la variabile che si risolve per far tornare il punteggio. Conseguenze: a ogni
-// cambio di lunghezza (livelli 9 e 21) il numero di elementi ricade un po' e poi risale (dente di sega), e nella
-// stessa schermata una famiglia più ostica ha meno elementi di una facile — a parità di livello tutte le schermate
-// pesano uguale.
-const INTRUSO_SCORE_W = { len:0.25, fam:0.25, sim:0.20, n:0.30 };
-const INTRUSO_TARGET_D = [0.05, 0.80];      // punteggio obiettivo al livello 1 → 32 (lineare)
-const INTRUSO_N_RANGE = [15, 30];           // numerosità minima / massima (27 per le terne)
-const INTRUSO_LEN_STEPS = [9, 21];          // livelli da cui gli elementi sono di 2 / di 3 simboli
-function intrusoTargetD(level){ return INTRUSO_TARGET_D[0] + (INTRUSO_TARGET_D[1]-INTRUSO_TARGET_D[0])*levelT(level); }
-function intrusoFamTerm(family){ return Math.min(1, 0.7*Math.min(1, family.unlockLevel/28) + (1 - intrusoRecognizability(family.id))); }
-function intrusoSimTerm(level, len){ return len>=2 ? Math.max(0, Math.min(1, (intrusoEffLevel(level)-2)/30)) : 0; }
-function targetNForLevelIntruso(level, family, len){
-  const W = INTRUSO_SCORE_W;
-  const rest = W.len*(len-1)/2 + W.fam*intrusoFamTerm(family) + W.sim*intrusoSimTerm(level, len);
-  const nScore = Math.max(0, Math.min(1, (intrusoTargetD(level) - rest)/W.n));
-  const cap = len>=3 ? 27 : INTRUSO_N_RANGE[1];
-  return Math.min(cap, Math.round(INTRUSO_N_RANGE[0] + nScore*(INTRUSO_N_RANGE[1]-INTRUSO_N_RANGE[0])));
-}
-// Famiglie a "tessera" (mahjong, domino, semi delle carte): il glifo occupa solo una parte del
-// riquadro del carattere, quindi a 18-30 elementi per schermata risultava molto piccolo. Prima
-// avevano un tetto fisso (12, o 15 per i semi singoli) uguale a ogni livello: nella stessa sessione
-// comparivano schermate con 12 elementi accanto ad altre con 25-30 (segnalato da Rodrigo:
-// numerosità non coerente tra famiglie). Ora la numerosità segue lo stesso andamento per livello di
-// tutte le altre famiglie, moltiplicata per un fattore di riconoscibilità fisso (0,8, scelto da
-// Rodrigo): un po' meno elementi dove il glifo si legge peggio, senza un tetto assoluto.
-// Il vincolo "un solo singolo, tutti gli altri almeno 2 volte" vale a qualsiasi numero.
-// Per le famiglie a tessera: tra n-3 e n+3 (mai sopra maxN, almeno 6) sceglie il numero di elementi
-// che, disposto in griglia piena sull'area utile della slide esportata (13,33×7,5 in con margine
-// 0,3), permette il corpo più grande — stessa stima usata in exportIntruso (altezza e larghezza
-// della cella, coppie/terne al 62%/74% della cella). A parità di corpo vince il numero più vicino
-// a quello voluto. (niceIntrusoCount usa invece 1333×500, un rapporto più largo di quello della
-// slide: per le coppie di simboli favoriva griglie a 7 colonne strette.)
-function bestTileCount(n, len, famId, maxN){
-  const areaW = 13.33-0.6, areaH = 7.5-0.6;
-  const cw = (len>=2 && INTRUSO_GROUP_CHAR_WIDTH[famId]) || INTRUSO_FAMILY_CHAR_WIDTH[famId] || INTRUSO_DEFAULT_ATOMIC_CHAR_WIDTH;
-  const frac = len>=3 ? 0.74 : (len===2 ? 0.62 : 0.85);
-  let best = Math.min(n, maxN), bestScore = -1, bestDist = Infinity;
-  for(let cand=Math.max(6,n-3); cand<=Math.min(maxN,n+3); cand++){
-    const cols = bestGridCols(cand, areaW, areaH), rows = cand/cols;
-    const cellW = areaW/cols, cellH = areaH/rows;
-    const score = len===1 ? Math.min(cellW, cellH)*72 : Math.min(cellH*32, cellW*72*frac/len/cw);
-    const dist = Math.abs(cand-n);
-    if(score > bestScore + 1e-9 || (Math.abs(score-bestScore) <= 1e-9 && dist < bestDist)){ bestScore = score; best = cand; bestDist = dist; }
-  }
-  return best;
-}
-const INTRUSO_RECOGNIZABILITY = { mahjong:0.8, domino:0.8, suits:0.8 };
-function intrusoRecognizability(famId){
-  return INTRUSO_RECOGNIZABILITY[famId] ?? 1;
-}
-// Punteggio di difficoltà (0..1) di UNA famiglia a un dato livello, comparabile fra famiglie
-// diverse. Prima le famiglie di una sessione erano scelte a rotazione fra tutte quelle sbloccate,
-// senza guardare a che punto della propria scala INTERNA (singolo/coppia/terna, distrattori simili
-// o no, pool più o meno familiare) si trovasse ciascuna: risultato, famiglie a pool piccolo (semi,
-// note, dadi, cerchi parziali) passavano a coppie di simboli quasi identici già dal livello 2-3,
-// mentre cifre e lettere restavano a singolo per molti livelli — nella stessa sessione comparivano
-// fianco a fianco schermate obiettivamente molto più difficili di altre allo stesso livello
-// (segnalato da Rodrigo: "crescita della difficoltà non omogenea, mescolate"). Pesi: la lunghezza
-// dell'elemento (singolo/coppia/terna) conta di più perché cambia il tipo di confronto richiesto;
-// la familiarità della famiglia (unlockLevel, già ordinato da Rodrigo dal più facile al più
-// ostico) e la presenza di distrattori "quasi identici" pesano meno; il numero di elementi per
-// schermata meno ancora (conta, ma resta un fattore di fatica, non di strategia).
-// Lunghezza dell'elemento UNICA per tutta la sessione (richiesta di Rodrigo: non possono coesistere
-// singoli semplici e coppie di simboli complessi). Dipende solo dal livello, non dalla famiglia:
-// tutte le schermate di una sessione hanno elementi di 1, 2 o 3 simboli, mai misti.
-function intrusoSessionLen(level){
-  const e = intrusoEffLevel(level);
-  return e < INTRUSO_LEN_STEPS[0] ? 1 : (e < INTRUSO_LEN_STEPS[1] ? 2 : 3);
-}
-// Lunghezza massima sostenibile da una famiglia (i pool enormi non arrivano alle terne; le tessere
-// di domino e mahjong restano singole: occupano già molto spazio e devono restare grandi).
-function intrusoMaxLen(family){
-  if(INTRUSO_TEXT_FAMILIES.includes(family)) return textFamilyWarmup(family.pool.length).triple<99 ? 3 : 2;
-  if(family.id==="domino" || family.id==="mahjong") return 1;
-  return family.small ? 3 : 2;
-}
-// Famiglie ammesse in una sessione di lunghezza L: sbloccate, capaci di reggere L e, se L>1,
-// "rodate" da qualche livello (non compaiono in coppia alla prima comparsa).
-function intrusoEligibleFamilies(level, L){
-  const base = INTRUSO_ALL_FAMILIES.filter(f=>f.unlockLevel<=level && intrusoMaxLen(f)>=L);
-  if(L===1) return base;
-  const settled = base.filter(f=>level >= f.unlockLevel+3);
-  return settled.length>=4 ? settled : base;
-}
-// Lunghezza effettiva della sessione: quella del livello, ridotta solo se troppo poche famiglie la reggono.
-function intrusoPlanLen(level){
-  let L = intrusoSessionLen(level);
-  while(L>1 && intrusoEligibleFamilies(level, L).length < 4) L--;
-  return L;
-}
-// Punteggio di difficoltà (0..1) di UNA famiglia a lunghezza L: ora la lunghezza è la stessa per
-// tutte, quindi differenziano solo la familiarità (unlockLevel), la somiglianza dei distrattori
-// (uguale per tutte, dipende dal livello) e il numero di elementi.
-function intrusoFamilyDifficulty(family){ return intrusoFamTerm(family); }
-function levelFamiliesIntruso(level, count, ctx){
-  // Tutte le schermate della sessione hanno la STESSA lunghezza dell'elemento (intrusoPlanLen).
-  // Tra le famiglie ammesse, ordinate per difficoltà, si sceglie una finestra il cui punto di
-  // partenza sale con il livello: livelli bassi = famiglie più familiari, livelli alti = più ostiche,
-  // ma dentro una sessione la forbice resta stretta. Dentro la finestra, rotazione per cronologia.
-  count = count || 9;
-  const L = intrusoPlanLen(level);
-  const eligible = intrusoEligibleFamilies(level, L).slice().sort((a,b)=>intrusoFamilyDifficulty(a, level, L)-intrusoFamilyDifficulty(b, level, L));
-  const w = Math.min(eligible.length, Math.max(Math.min(count, eligible.length), Math.ceil(eligible.length*0.5)));
-  const start = Math.round(intrusoLevelT(level) * (eligible.length - w));
-  const pool = eligible.slice(start, start + w);
-  const order = [];
-  while(order.length<count) order.push(...(ctx ? lruOrder(pool, f=>"F:"+f.id, ctx) : shuffle(pool)));
-  const chosen = order.slice(0, count);
-  return chosen.sort((a,b)=> intrusoFamilyDifficulty(a, level, L) - intrusoFamilyDifficulty(b, level, L));
-}
-
-function genIntruso(level, excludeKeys){
-  const ctx = makeAvoidCtx(excludeKeys);
-  const count = state.intrusoScreensOverride || 9;
-  const ov = state.materialOverride.intruso;
-  let fams;
-  if(ov && ov!=="auto"){
-    // Variare il materiale non deve MAI distorcere la logica: stessa famiglia per tutte
-    // le schermate, ma ciascuna generata in modo indipendente con la stessa identica
-    // regola di conteggio (n=15/18, un solo singolo) usata in modalità automatica.
-    const overrideFam = INTRUSO_ALL_FAMILIES.find(f=>f.id===ov) || INTRUSO_TEXT_FAMILIES[0];
-    fams = Array.from({length:count}, ()=>overrideFam);
-  } else {
-    fams = levelFamiliesIntruso(level, count, ctx);
-  }
-  const slides = fams
-    .map(fam=>{
-      const famLen = Math.min(intrusoPlanLen(level), intrusoMaxLen(fam));   // stessa lunghezza per tutta la sessione
-      // numerosità risolta dal punteggio unico (vedi INTRUSO_SCORE_W), che include già la riconoscibilità della
-      // famiglia; per le famiglie a tessera si sceglie poi, entro qualche unità, il numero che dà i simboli più
-      // grandi sull'area REALE della slide (mai sopra il tetto)
-      const levelN = targetNForLevelIntruso(level, fam, famLen);
-      const targetN = intrusoRecognizability(fam.id) < 1
-        ? bestTileCount(levelN, famLen, fam.id, Math.min(famLen>=3 ? 27 : INTRUSO_N_RANGE[1], levelN+2))
-        : niceIntrusoCount(levelN, 1333, 500);
-      return buildIntrusoScreen(fam, famLen, targetN, level, ctx);
-    })
-    .filter(Boolean);
-
-  return {
-    type:"intruso",
-    slides,
-    rule: "Trova l'unico elemento che compare una sola volta (tutti gli altri sono ripetuti almeno 2 volte).",
-    historyKeys: ctx.newKeys
-  };
-}
-function shuffleInPlace(a){
-  for(let i=a.length-1;i>0;i--){const j=rnd(i+1);[a[i],a[j]]=[a[j],a[i]];}
-  return a;
-}
-
-// ---------- INVERSIONE E RIORDINO ----------
-// Contrassegni: livelli 1-4: 1 solo rosso; 5-15: 1 rosso oppure 2 rossi, con quota di "2" in salita
-// (+1/12 a livello); 16-32: rosso e verde insieme.
-function markChars(text, level){
-  const positions = [...text].map((_,i)=>i);
-  let n, colors;
-  if(level>=16){ n=2; colors=["#D64545","#3E9B4F"]; }
-  else { n = (level>=5 && Math.random() < Math.min(1,(level-4)/12)) ? 2 : 1; colors=["#D64545","#D64545"]; }
-  n = Math.min(n, text.length);
-  const chosen=[];
-  while(chosen.length<n){ const i=pick(positions); if(!chosen.includes(i)) chosen.push(i); }
-  chosen.sort((a,b)=>a-b);
-  return chosen.map((idx,k)=>({index:idx, color:colors[k]}));
-}
-function withMarks(text, level){
-  return {text, marks: markChars(text, level)};
-}
-
-// Non-parole pronunciabili: sillabe aperte italiane (consonante+vocale, oppure gruppo
-// consonantico+vocale come BR, TR, SP, GN), mai due vocali di fila e mai finali in consonante.
-// Prima si concatenavano onset+vocale e si tagliava alla lunghezza voluta, con esiti a volte
-// impronunciabili e non-parole che coincidevano per caso con parole vere (PANE, LUNA...): ora la
-// struttura è esatta per ogni lunghezza e le parole vere sono escluse con INV_REAL_BLOCK.
-const IT_ONSETS_SIMPLE = ["B","C","D","F","G","L","M","N","P","R","S","T","V","Z"];
-const IT_ONSETS_CLUSTER = ["BR","CR","DR","FR","GR","PR","TR","VR","BL","CL","FL","GL","PL","ST","SP","SC","GN"];
-const IT_VOWELS = ["A","E","I","O","U"];
-function _cv(){ return pick(IT_ONSETS_SIMPLE) + pick(IT_VOWELS); }
-function _ccv(){ return pick(IT_ONSETS_CLUSTER) + pick(IT_VOWELS); }
-function pronounceableNonword(len){
-  const patterns = {
-    3: [()=>_ccv(), ()=>_ccv(), ()=>pick(IT_VOWELS)+_cv(), ()=>_cv()+pick(["L","M","N","R","S","T"])],
-    4: [()=>_cv()+_cv(), ()=>_cv()+_cv(), ()=>pick(IT_VOWELS)+_ccv()],
-    5: [()=>_cv()+_ccv(), ()=>_ccv()+_cv(), ()=>pick(IT_VOWELS)+_cv()+_cv()]
-  };
-  const list = patterns[len];
-  if(!list){ let t = ""; while(t.length < len) t += _cv(); return t.slice(0, len); }
-  return pick(list)();
-}
-function nonwordFor(len, level){
-  // livelli bassi (non-parole "iniziali"): sempre pronunciabile.
-  // livelli alti: introduce gradualmente combinazioni meno pronunciabili (in linea col
-  // gradiente generale "riduzione del supporto fonologico"), ma mai al livello 1.
-  // In ogni caso: mai una lettera ripetuta nella stessa stringa e mai una parola vera.
-  const isReal = w => INV_REAL_BLOCK.has(w.toUpperCase());
-  const pronounceProb = invPronounceProb(level);
-  if(Math.random()<pronounceProb){
-    for(let tries=0; tries<80; tries++){
-      const w = pronounceableNonword(len);
-      if(!hasDuplicateChars(w) && !isReal(w)) return w;
-    }
-  }
-  for(let tries=0; tries<40; tries++){
-    const w = randLetters(len);
-    if(!isReal(w)) return w;
-  }
-  return randLetters(len);
-}
-
-// Numero totale di elementi nell'intera sessione (somma di tutti i blocchi/consegne), non
-// più un numero fisso di elementi per blocco: 20 nei livelli 1-8, 30 dal livello 9 in poi,
-// distribuiti in modo il più possibile uniforme tra le consegne effettivamente presenti in
-// quella sessione (auto o override che sia).
-// Totale elementi di sessione: 20 fino al livello 14, 30 dal 15.
-function inversioneSessionTotal(level){
-  return level>=15 ? 30 : 20;
-}
-// Lunghezze dei blocchi (32 livelli, finestra scorrevole per non moltiplicare i blocchi):
-// 1-3: solo 3 caratteri; 4-14: 3-4; 15-22: 3-5; 23-28: 4-5; 29-32: 4-6.
-function inversioneLens(level){
-  if(level<=3) return [3];
-  if(level<=14) return [3,4];
-  if(level<=22) return [3,4,5];
-  if(level<=28) return [4,5];
-  return [4,5,6];
-}
-const INV_ALNUM_FROM = 11, INV_LEXICAL_UNTIL = 8;
-// Quota di non-parole PRONUNCIABILI (il resto sono sequenze di lettere casuali): 100% fino al livello 9,
-// poi scende in modo lineare fino al 20% del livello 32.
-function invPronounceProb(level){ return level<=9 ? 1 : Math.max(0.2, 1 - 0.8*(level-9)/23); }
-// Quota di stringhe a maiuscole/minuscole MISTE: nessuna fino al livello 14, poi sale fino al 100% del 26.
-function invMixedCaseProb(level){ return level<=14 ? 0 : Math.min(1, (level-14)/12); }
-// Numero medio di blocchi in modalità automatica a un dato livello, usato solo per mostrare
-// un valore di default sensato nello slider "Numero di stimoli per blocco" (il conteggio
-// reale per blocco viene poi ricalcolato in genInversione in base alle consegne presenti).
-function inversioneAutoBlockCount(level){
-  const lens = inversioneLens(level);
-  let n = lens.length*2; // lettere + numeri
-  if(level>=INV_ALNUM_FROM) n += lens.filter(l=>l>=4).length;
-  return n || 1;
-}
-function defaultItemsPerInversione(level){
-  return Math.round(inversioneSessionTotal(level) / inversioneAutoBlockCount(level));
-}
-
-function genInversione(level, excludeKeys){
-  // excludeKeys: cronologia del gruppo (elementi già proposti, anche a livelli diversi).
-  const ctx = makeAvoidCtx(excludeKeys);
-  const lexical = level<=INV_LEXICAL_UNTIL;
-  const pCase = invMixedCaseProb(level);
-  const alnum = level>=INV_ALNUM_FROM || state.inversioneForceAlnum; // la spunta anticipa il blocco alfanumerico, la complessità (lunghezza, maiuscole) resta comunque legata al livello vero
-  const lens = inversioneLens(level);
-  const ov = state.materialOverride.inversione;
-  const alnumLens = ov==="mixed" ? lens : lens.filter(l=>l>=4);
-
-  // Prima si stabilisce l'elenco delle consegne (blocchi) che verranno effettivamente
-  // generate, poi si distribuisce il totale di sessione in modo uniforme tra queste — così
-  // la somma resta 20 (livelli 1-8) o 30 (dal 9° in poi) qualunque sia il materiale attivo.
-  const blockSpecs = [];
-  if(!ov || ov==="auto" || ov==="letters"){
-    lens.forEach(len=> blockSpecs.push({kind:"letters", len}));
-  }
-  if(!ov || ov==="auto" || ov==="digits"){
-    lens.forEach(len=> blockSpecs.push({kind:"digits", len}));
-  }
-  if(ov==="mixed" || (alnum && (!ov || ov==="auto"))){
-    alnumLens.forEach(len=> blockSpecs.push({kind:"alnum", len}));
-  }
-
-  const nBlocks = blockSpecs.length || 1;
-  let itemsForBlock;
-  if(state.inversioneItemsOverride){
-    // Controllo manuale "Numero di stimoli per blocco": resta un valore fisso per blocco,
-    // scelto in seduta dal terapista — non entra nella distribuzione automatica del totale.
-    itemsForBlock = new Array(nBlocks).fill(state.inversioneItemsOverride);
-  } else {
-    const total = inversioneSessionTotal(level);
-    const base = Math.floor(total/nBlocks), rem = total%nBlocks;
-    itemsForBlock = new Array(nBlocks).fill(base);
-    shuffle(blockSpecs.map((_,i)=>i)).slice(0,rem).forEach(i=>{ itemsForBlock[i]++; });
-  }
-
-  const notTrivial = str => !isTrivialOrder(str);
-  const blocks = [];
-  blockSpecs.forEach((spec,i)=>{
-    const itemsPer = itemsForBlock[i];
-    const len = spec.len;
-    if(spec.kind==="letters"){
-      let raw;
-      if(lexical && REAL_WORDS[len]){
-        // Mai una lettera ripetuta nella stessa parola (già garantito dal pool), mai una
-        // parola già proposta a questo gruppo finché ne restano di nuove.
-        // Si escludono le parole già in ordine alfabetico (o al contrario), che renderebbero banale
-        // il riordino — ma solo se il pool resta ampio: le parole da 3 lettere sono poche e le
-        // teniamo tutte, piuttosto che ripetere spesso le stesse.
-        const allWords = REAL_WORDS[len].filter(w=>!hasDuplicateChars(w));
-        const nonTrivial = allWords.filter(w=>!isTrivialOrder(w));
-        const pool = nonTrivial.length>=60 ? nonTrivial : allWords;
-        raw = pickFreshFromPool(pool, Math.min(itemsPer, pool.length), w=>invKey("L", w), ctx);
-      } else {
-        // In uno stesso blocco, iniziali tutte diverse finché possibile (niente serie tipo FRE FRI FRO).
-        const firsts = new Set();
-        raw = Array.from({length:itemsPer}, ()=>{
-          const w = genFresh(
-            ()=>{ const t = nonwordFor(len, level); return Math.random()<pCase ? randCase(t) : t; },
-            t=>invKey("L", t), ctx, t=>notTrivial(t) && !firsts.has(t[0].toUpperCase()));
-          firsts.add(w[0].toUpperCase());
-          return w;
-        });
-      }
-      const items = raw.map(t=>withMarks(t, level));
-      blocks.push({label:`Lettere — ${len} caratteri`, items, kind:"letters"});
-    } else if(spec.kind==="digits"){
-      const firstDigits = new Set(); // prime cifre tutte diverse nello stesso blocco, finché possibile
-      const items = Array.from({length:itemsPer}, ()=>{
-        const d = genFresh(()=>randDigits(len), x=>invKey("D", x), ctx, x=>notTrivial(x) && !firstDigits.has(x[0]));
-        firstDigits.add(d[0]);
-        return withMarks(d, level);
-      });
-      blocks.push({label:`Numeri — ${len} cifre`, items, kind:"digits"});
-    } else if(spec.kind==="alnum"){
-      const items = Array.from({length:itemsPer}, ()=> withMarks(
-        genFresh(()=>randAlnum(len), a=>invKey("A", a), ctx, notTrivial), level));
-      blocks.push({label:`Alfanumerico misto — ${len} caratteri`, items, kind:"alnum"});
-    }
-  });
-  return {type:"inversione", blocks, slides:[{blocks}], historyKeys: ctx.newKeys};
-}
-
-// ---------- SERIE ATTENTIVE ALTERNATE ----------
-function genSerie(level){
-  const length = state.serieItemsOverride || 154; // come negli originali (stessa lunghezza in tutte le sessioni), regolabile
-  const pool = ["A","B","1","2"];
-  const colors = ["black","red"];
-  const MAX_RUN = 3;
-  // Le prime 4 stimolazioni sono sempre fisse, come richiesto: A (nero), B (rosso),
-  // 1 (rosso), 2 (nero) — un'apertura di riscaldamento uguale ad ogni generazione.
-  // Dalla 5ª in poi simbolo e colore restano indipendenti e liberi (per non
-  // vanificare le regole dal livello 17 in poi, che richiedono lettere E numeri
-  // in entrambi i colori), col solo vincolo di non ripetere lo stesso simbolo né
-  // lo stesso colore per più di 3 volte di fila.
-  const seq = [
-    { char: "A", color: "black" },
-    { char: "B", color: "red" },
-    { char: "1", color: "red" },
-    { char: "2", color: "black" },
-  ];
-  const runsUpTo = (arr, key, value, n) => arr.length >= n && arr.slice(-n).every(s => s[key] === value);
-  for(let i=seq.length;i<length;i++){
-    let char, tries = 0;
-    do { char = pick(pool); tries++; } while (tries < 30 && runsUpTo(seq, 'char', char, MAX_RUN));
-    let color, tries2 = 0;
-    do { color = pick(colors); tries2++; } while (tries2 < 30 && runsUpTo(seq, 'color', color, MAX_RUN));
-    seq.push({char, color});
-  }
-  const rule = SERIE_RULES[level-1];
-  const nextRule = level < SERIE_MAX_LEVEL ? SERIE_RULES[level] : null;
-  return {
-    type:"serie",
-    seq,
-    rule, nextRule,
-    slides: seq.map((s,i)=>({...s, index:i}))
-  };
-}
-
-// ---------- ACCESSO LESSICALE ----------
-function genAccesso(level, excludeWords){
-  // 4 fasce lessicali (concreto frequente → concreto specifico → astratto → raro/tecnico), MESCOLATE
-  // gradualmente: a livello 1 solo la prima, a livello 32 solo l'ultima, in mezzo ogni parola è
-  // pescata dalla fascia più vicina alla posizione del livello (vedi blendedIndex).
-  const excl = excludeWords ? new Set(excludeWords) : new Set();
-  const count = Math.min(state.accessoWordsOverride || 1, 30);
-  const words = [];
-  for(let i=0; i<count; i++){
-    const pool = LEXICAL_TIERS[blendedIndex(level, LEXICAL_TIERS.length)].words;
-    let cand = pool.filter(w=>!excl.has(w) && !words.includes(w));   // mai proposte a questo gruppo, non già in sessione
-    if(!cand.length) cand = pool.filter(w=>!words.includes(w));
-    if(!cand.length) cand = pool;
-    words.push(pick(cand));
-  }
-  return {
-    type:"accesso",
-    word: words[0],
-    words,
-    rule: "Gerarchia di facilitazione se il paziente non recupera la parola: sovraordinata → subordinata/esempi → somiglianze e parentele → usi → caratteristiche tipiche.",
-    slides: words.map(w=>({word:w}))
-  };
-}
-
+</script>
+<script src="js/generators/griglie.js"></script>
+<script src="js/generators/intruso.js"></script>
+<script src="js/generators/inversione.js"></script>
+<script src="js/generators/serie.js"></script>
+<script src="js/generators/accesso.js"></script>
+<script src="js/renderers/griglie.js"></script>
+<script src="js/renderers/intruso.js"></script>
+<script src="js/renderers/inversione.js"></script>
+<script src="js/renderers/serie.js"></script>
+<script src="js/renderers/accesso.js"></script>
+<script src="js/renderers/categorizzazione.js"></script>
+<script src="js/generators/fascicolo.js"></script>
+<script src="js/renderers/fascicolo.js"></script>
+<script>
+// Controllo di caricamento: se un file della cartella js/ manca (caricamento incompleto su GitHub), avvisa invece di lasciare pulsanti muti.
+(function () {
+  var attesi = ['genGriglie', 'genIntruso', 'genInversione', 'genSerie', 'genAccesso', 'genFascicolo',
+    'renderGriglie', 'renderIntruso', 'renderInversione', 'renderSerie', 'renderAccesso', 'renderCategorizzazione', 'renderFascicolo'];
+  var mancano = attesi.filter(function (n) { try { return typeof eval(n) !== 'function'; } catch (e) { return true; } });
+  if (!mancano.length) return;
+  window.__pdmFileMancanti = mancano;
+  var b = document.createElement('div');
+  b.setAttribute('role', 'alert');
+  b.style.cssText = 'position:fixed;top:0;left:0;right:0;z-index:99999;background:#b00020;color:#fff;padding:12px 16px;font:15px/1.4 sans-serif;text-align:center';
+  b.textContent = 'Manca un file dell\u2019app (cartella js/). Ricarica con Ctrl+Maiusc+R; se resta cos\u00ec, avvisa Rodrigo. Funzioni non trovate: ' + mancano.join(', ');
+  document.addEventListener('DOMContentLoaded', function () { document.body.appendChild(b); });
+  if (document.readyState !== 'loading') document.body.appendChild(b);
+})();
+</script>
+<script>
 // ---------- CATEGORIZZAZIONE ----------
 // (genCategorizzazione ridefinita sopra con la logica "due gruppi da 3")
 
@@ -4568,517 +3371,6 @@ function colorHex(name){
   return c? c.css : null;
 }
 
-function gridRuleLabel(r){ return r.keepText ? r.text : r.text.replace(/^Conta (tutti )?(gli )?/,""); }
-function renderOneGrid(s){
-  const rule = s.rules[s.ruleIndex];
-  const grid = document.createElement("div");
-  grid.className = "grid-wrap";
-  grid.style.gridTemplateColumns = `repeat(${s.cols}, minmax(0,1fr))`;
-  s.cells.forEach(c=>{
-    const div = document.createElement("div");
-    const isAns = state.reveal && rule.matches(c);
-    div.className = "cell circle-cell" + (isAns ? " answer":"");
-    const fillHex = colorHex(c.fill) || "#FFFFFF";
-    const borderHex = colorHex(c.border) || "#000000";
-    const symHex = colorHex(c.symColor) || "#101010";
-    div.style.background = fillHex;
-    div.style.borderWidth = "3px";
-    div.style.borderStyle = ({continuo:"solid", tratteggiato:"dashed", puntinato:"dotted"})[c.bStyle] || "solid";
-    div.style.borderRadius = "50%";
-    div.style.borderColor = isAns ? "#2F6F63" : borderHex;
-    div.style.color = symHex;
-    div.style.fontWeight = "800";
-    // Differenza grande/piccolo resa ben evidente (rapporto ~2,4:1; prima 0,6 → ~1,7:1, segnalato
-    // da Rodrigo). Le celle senza attributo dimensione (c.size assente) restano alla misura normale.
-    if(c.size==="piccolo"){
-      const sm = document.createElement("span");
-      sm.style.fontSize = "0.5em";
-      sm.textContent = c.sym;
-      div.appendChild(sm);
-    } else if(c.size==="grande"){
-      const bg = document.createElement("span");
-      bg.style.fontSize = "1.2em";
-      bg.textContent = c.sym;
-      div.appendChild(bg);
-    } else {
-      div.textContent = c.sym;
-    }
-    grid.appendChild(div);
-  });
-  return grid;
-}
-function renderGriglie(deck){
-  const wrap = document.createElement("div");
-  deck.slides.forEach((s,i)=>{
-    const block = document.createElement("div");
-    block.className = "multi-block";
-    if(deck.slides.length > 1){
-      const h = document.createElement("div");
-      h.className = "multi-block-head";
-      h.innerHTML = `<b>Griglia ${i+1}/${deck.slides.length}</b>`;
-      block.appendChild(h);
-    }
-    block.appendChild(renderOneGrid(s));
-    // Tutte le regole valide per QUESTA griglia (fino a 10), visibili insieme — non serve
-    // più cliccare "prossima regola" per vederle una alla volta: quella attiva (evidenziata
-    // sulla griglia sopra) è segnata, le altre restano lì come alternative pronte all'uso.
-    const list = document.createElement("ol");
-    list.className = "rule-list";
-    s.rules.forEach((r,ri)=>{
-      const li = document.createElement("li");
-      li.className = ri===s.ruleIndex ? "rule-active" : "";
-      li.innerHTML = gridRuleLabel(r) + (state.reveal ? ` <span class="answer-inline">(${r.answer || (r.count+" elementi")})</span>` : "");
-      li.style.cursor = "pointer";
-      li.onclick = ()=>{ s.ruleIndex = ri; render(); };
-      list.appendChild(li);
-    });
-    block.appendChild(list);
-    wrap.appendChild(block);
-  });
-  return wrap;
-}
-
-function bestGridCols(n, areaW, areaH){
-  // Stessa logica di dimensionamento usata nell'export PowerPoint: cerca, tra i SOLI numeri
-  // di colonne che dividono n esattamente, quello che rende le celle più vicine possibile al
-  // quadrato — così a schermo e nel file esportato l'ultima riga è sempre piena quanto le
-  // altre (mai righe a metà, segnalato da Rodrigo), non solo "il più vicino al quadrato"
-  // anche a costo di una riga incompleta come prima.
-  let cols = 1, bestMinSide = -1;
-  for(let c=1; c<=n; c++){
-    if(n % c !== 0) continue;
-    const r = n / c;
-    const minSide = Math.min(areaW/c, areaH/r);
-    if(minSide > bestMinSide){ bestMinSide = minSide; cols = c; }
-  }
-  return cols;
-}
-// Qualità (lato minimo della cella) della migliore disposizione a griglia PIENA per n elementi
-// nell'area indicata — usata solo per scegliere, in fase di generazione, un n vicino a quello
-// ideale del livello ma che si presti bene a una griglia piena (vedi niceIntrusoCount).
-function bestGridScore(n, areaW, areaH){
-  const cols = bestGridCols(n, areaW, areaH);
-  const rows = n / cols;
-  return Math.min(areaW/cols, areaH/rows);
-}
-// Il numero di elementi "ideale" per livello (targetNForLevelIntruso) a volte cade su un valore
-// scomodo da disporre in griglia piena (es. un numero primo, o quasi): una sola colonna o una
-// sola riga lunghissima. Si cerca invece, entro poche unità di distanza, il numero più vicino
-// che permette una griglia piena ragionevolmente quadrata — la difficoltà del livello non
-// cambia per una differenza di 1-2 elementi, ma l'impaginazione sì.
-// Numeri "comodi": disponibili in griglia PIENA con 3-6 righe e 3-10 colonne (15, 16, 18, 20, 21, 24, 25, 27, 28, 30).
-function intrusoGridFriendly(c){
-  for(let r=3; r<=6; r++) if(c % r === 0 && c/r >= 3 && c/r <= 10) return true;
-  return false;
-}
-function niceIntrusoCount(n, areaW, areaH, maxN){
-  maxN = maxN==null ? Infinity : maxN;
-  // il più vicino (entro 2) tra i numeri comodi: cambia di poco la difficoltà ma lascia sempre una griglia piena e regolare
-  let best = null, bestD = Infinity;
-  for(let d=0; d<=2; d++){
-    for(const cand of (d===0 ? [n] : [n-d, n+d])){
-      if(cand < 4 || cand > maxN || !intrusoGridFriendly(cand)) continue;
-      if(d < bestD){ best = cand; bestD = d; }
-    }
-    if(best!=null) break;
-  }
-  if(best!=null) return best;
-  let fb = Math.min(n, maxN), bestScore = -1;
-  for(let d=0; d<=4; d++){
-    for(const cand of (d===0 ? [n] : [n-d, n+d])){
-      if(cand < 4 || cand > maxN) continue;
-      const score = bestGridScore(cand, areaW, areaH);
-      if(score > bestScore){ bestScore = score; fb = cand; }
-    }
-  }
-  return fb;
-}
-// Elementi di 2-3 glifi di una famiglia a simboli (zodiaco, semi, dadi, forme…): ogni elemento è racchiuso in una
-// cornice sottile, così si legge come UNITÀ anche quando i glifi sono larghi e lo spazio dentro l'elemento e quello tra
-// un elemento e l'altro sembrano uguali (segnalato da Rodrigo sullo zodiaco: «non si capisce che sono coppie»).
-// Le famiglie testuali (cifre, lettere…) restano senza cornice: lì la sequenza è già una parola.
-function intrusoFramed(familyId, itemLen){
-  return itemLen>=2 && INTRUSO_ATOMIC_FAMILIES.some(f=>f.id===familyId);
-}
-function renderIntruso(deck){
-  const wrap = document.createElement("div");
-  deck.slides.forEach((s,i)=>{
-    const block = document.createElement("div");
-    block.className = "multi-block";
-    const h = document.createElement("div");
-    h.className = "multi-block-head";
-    h.innerHTML = `<b>Schermata ${i+1}/${deck.slides.length}</b> (${s.familyLabel}) — ${s.rule}` + (state.reveal ? ` <span class="answer-inline">${s.answer}</span>` : "");
-    block.appendChild(h);
-    const strip = document.createElement("div");
-    strip.className = "strip";
-    const cols = bestGridCols(s.items.length, 1333, 500); // stesso rapporto larghezza/altezza dell'export
-    strip.style.gridTemplateColumns = `repeat(${cols}, minmax(0,1fr))`;
-    const useInkFit = INTRUSO_INK_FIT.has(s.familyId);
-    if(useInkFit){
-      // come nella slide: area con lo stesso rapporto e righe di pari altezza, così la cella è grande
-      strip.style.aspectRatio = "1333 / 500";
-      strip.style.gridTemplateRows = `repeat(${Math.ceil(s.items.length/cols)}, minmax(0,1fr))`;
-    }
-    s.items.forEach((it,ci)=>{
-      const div = document.createElement("div");
-      div.className = "cell" + (state.reveal && ci===s.oddIndex ? " answer":"");
-      div.style.borderColor = "#D9DFD9";
-      div.style.background = "#fff";
-      if(intrusoFramed(s.familyId, [...String(it)].length)){
-        const fr = document.createElement("span");
-        fr.textContent = it;
-        fr.style.cssText = "display:inline-block;border:1.5px solid #8A948E;border-radius:.3em;padding:.04em .28em;line-height:1.25";
-        div.appendChild(fr);
-      } else div.textContent = it;
-      strip.appendChild(div);
-    });
-    block.appendChild(strip);
-    wrap.appendChild(block);
-    if(useInkFit){
-      // dopo l'impaginazione: corpo del carattere calcolato sull'ingombro reale del glifo
-      setTimeout(()=>{
-        const first = strip.firstElementChild;
-        if(!first) return;
-        const rect = first.getBoundingClientRect();
-        const fam = getComputedStyle(first).fontFamily;
-        const gl = Math.max(1, ...s.items.map(it=>[...String(it)].length));
-        const cw = INTRUSO_GROUP_CHAR_WIDTH[s.familyId] || INTRUSO_FAMILY_CHAR_WIDTH[s.familyId] || INTRUSO_DEFAULT_ATOMIC_CHAR_WIDTH;
-        // coppie/terne: occupano solo il 62% / 74% della cella, per lasciare uno spazio chiaro tra un elemento e l'altro
-        const px = gl===1 ? fitInkFontSize(s.items, rect.width - 8, rect.height - 8, fam, INTRUSO_FILL)
-                          : Math.min(rect.width*(gl>=3 ? 0.74 : 0.62)/gl/cw, (rect.height-8)*0.7);
-        if(px) [...strip.children].forEach(cell=>{ cell.style.fontSize = Math.floor(px) + "px"; cell.style.padding = "0"; });
-      }, 0);
-    }
-  });
-  return wrap;
-}
-
-function renderMarkedText(item){
-  // item = {text, marks:[{index,color}]}
-  const frag = document.createElement("span");
-  const markMap = {};
-  item.marks.forEach(m=>markMap[m.index]=m.color);
-  [...item.text].forEach((ch,i)=>{
-    const c = document.createElement("span");
-    c.textContent = ch;
-    if(markMap[i]) c.style.color = markMap[i];
-    frag.appendChild(c);
-  });
-  return frag;
-}
-
-function renderInversione(deck){
-  const wrap = document.createElement("div");
-  wrap.className = "word-list";
-  deck.blocks.forEach(b=>{
-    const block = document.createElement("div");
-    block.className = "word-block";
-    const h = document.createElement("h3");
-    h.textContent = b.label;
-    block.appendChild(h);
-    const row = document.createElement("div");
-    row.className = "word-items";
-    b.items.forEach(it=>{
-      const span = document.createElement("span");
-      span.appendChild(renderMarkedText(it));
-      if(state.reveal){
-        // Tutte le regole applicabili a QUESTO tipo di blocco, mostrate insieme (non una
-        // sola selezionata) — così ogni stimolo porta già pronte tutte le trasformazioni
-        // valide, da usare liberamente durante la seduta.
-        const applicable = SEQUENCE_RULES.filter(r=>r.kinds.includes(b.kind));
-        applicable.forEach(rule=>{
-          const small = document.createElement("small");
-          small.textContent = `${rule.label}: ${rule.apply(it.text)}`;
-          span.appendChild(small);
-        });
-      }
-      row.appendChild(span);
-    });
-    block.appendChild(row);
-    wrap.appendChild(block);
-  });
-  return wrap;
-
-}
-
-function renderSerie(deck){
-  const s = deck.slides[state.slideIndex];
-  const div = document.createElement("div");
-  div.className = "single-item";
-  div.style.color = s.color==="red" ? "#B23A2C" : "#1E2A26";
-  div.textContent = s.char;
-  const label = document.createElement("div");
-  label.className = "sub-label";
-  label.textContent = `Stimolo ${s.index+1} / ${deck.slides.length}`;
-  const holder = document.createElement("div");
-  holder.style.position="relative";
-  holder.style.width="100%";
-  holder.style.height="100%";
-  holder.style.display="flex";
-  holder.style.alignItems="center";
-  holder.style.justifyContent="center";
-  holder.appendChild(label);
-  holder.appendChild(div);
-  return holder;
-}
-
-function renderAccesso(deck){
-  if(deck.slides.length === 1){
-    const s = deck.slides[0];
-    const div = document.createElement("div");
-    div.className = "single-word";
-    div.textContent = s.word;
-    // font adattato alla lunghezza della parola: corta -> grande, lunga -> più contenuta,
-    // così riempie sempre bene lo spazio senza mai uscire dal riquadro.
-    const len = s.word.length;
-    const size = Math.max(48, Math.min(150, Math.round(1400/len)));
-    div.style.fontSize = size + "px";
-    return div;
-  }
-  // Più parole nella stessa sessione: elenco impilato, ciascuna comunque grande e
-  // adattata alla propria lunghezza, invece di una sola parola gigante a schermo.
-  const wrap = document.createElement("div");
-  deck.slides.forEach((s,i)=>{
-    const block = document.createElement("div");
-    block.className = "multi-block";
-    const h = document.createElement("div");
-    h.className = "multi-block-head";
-    h.innerHTML = `<b>Parola ${i+1}/${deck.slides.length}</b>`;
-    block.appendChild(h);
-    const div = document.createElement("div");
-    div.className = "single-word";
-    div.textContent = s.word;
-    const len = s.word.length;
-    div.style.fontSize = Math.max(36, Math.min(90, Math.round(900/len))) + "px";
-    block.appendChild(div);
-    wrap.appendChild(block);
-  });
-  return wrap;
-}
-
-function renderCatTileContent(tile, it){
-  tile.innerHTML = "";
-  if(it.image && it.image.src){
-    const img = document.createElement("img");
-    img.src = it.image.src;
-    img.alt = it.it;
-    img.className = "cat-tile-img";
-    img.onerror = () => { renderCatTileFallback(tile, it); };
-    tile.appendChild(img);
-  } else {
-    renderCatTileFallback(tile, it);
-  }
-}
-function renderCatTileFallback(tile, it){
-  tile.innerHTML = "";
-  const label = document.createElement("div");
-  label.className = "cat-tile-label";
-  label.textContent = it.it;
-  tile.appendChild(label);
-}
-function renderOneCatSlide(deck, s, idx){
-  const block = document.createElement("div");
-  block.className = "multi-block";
-  const h = document.createElement("div");
-  h.className = "multi-block-head";
-  h.innerHTML = `<b>Prova ${idx+1}/${deck.slides.length}</b> — Criterio: ${s.label}`;
-  block.appendChild(h);
-  const wrap = document.createElement("div");
-  wrap.className = "cat-grid";
-  const tiles = s.items.map(it=>{
-    const tile = document.createElement("div");
-    tile.className = "cat-tile";
-    if(state.reveal){
-      tile.style.outline = "3px solid " + (it.group==="A" ? "#2F6F63" : "#A6503A");
-      tile.style.background = it.group==="A" ? "#E7F1EE" : "#F6E9E4";
-    }
-    renderCatTileContent(tile, it);
-    wrap.appendChild(tile);
-    return tile;
-  });
-  block.appendChild(wrap);
-  // Risolve i pittogrammi OpenMoji in background (una sola volta per prova):
-  // la griglia si aggiorna man mano che arrivano, senza bloccare la schermata.
-  // Se una richiesta fallisce (rete assente, CORS, rate limit) resta l'etichetta
-  // testuale — non è mai un errore visibile.
-  if(!s._imagesResolved){
-    s._imagesResolved = true;
-    s.items.forEach(async (it, i)=>{
-      const img = await fetchCategorizationImage(it.en);
-      it.image = img;
-      if(state.exercise==="categorizzazione" && state.deck===deck){
-        renderCatTileContent(tiles[i], it);
-        if(state.reveal){
-          tiles[i].style.outline = "3px solid " + (it.group==="A" ? "#2F6F63" : "#A6503A");
-          tiles[i].style.background = it.group==="A" ? "#E7F1EE" : "#F6E9E4";
-        }
-      }
-    });
-  }
-  return block;
-}
-function renderCategorizzazione(deck){
-  const wrap = document.createElement("div");
-  deck.slides.forEach((s,i)=> wrap.appendChild(renderOneCatSlide(deck, s, i)));
-  return wrap;
-}
-
-/* ---------- FASCICOLO ESERCIZI A CASA ---------- */
-function genFascicolo(){
-  return window.Engine.buildFascicolo(state.fascicoloWeek, Math.floor(Math.random()*1e9), {});
-}
-
-function fEl(tag, attrs, children){
-  const e = document.createElement(tag);
-  Object.entries(attrs||{}).forEach(([k,v])=>{
-    if(k==="class") e.className=v; else if(k==="html") e.innerHTML=v; else e.setAttribute(k,v);
-  });
-  (Array.isArray(children)?children:[children]).forEach(c=>{
-    if(c==null) return;
-    e.appendChild(typeof c==="string" ? document.createTextNode(c) : c);
-  });
-  return e;
-}
-// Costruisce l'insieme "riga,colonna" da evidenziare a partire da uno o più elenchi di
-// occorrenze nella forma [[r,c],[r,c],...] — stessa logica del gemello in docbuilder.js,
-// qui per l'anteprima a schermo (celle <td> colorate invece di celle di tabella Word).
-function highlightSetFromJS(occurrenceLists){
-  const set = new Set();
-  occurrenceLists.forEach(cellsList=>{ cellsList.forEach(([r,c])=>set.add(r+","+c)); });
-  return set;
-}
-function fGridTable(grid, cls, highlight){
-  const table = fEl("table", {class:"fasc-grid " + (cls||"")});
-  grid.forEach((row,r)=>{
-    const tr = fEl("tr");
-    row.forEach((sym,c)=>{
-      const isHi = highlight && highlight.has(r+","+c);
-      tr.appendChild(fEl("td",{class: isHi ? "fasc-cell-hi" : ""}, sym));
-    });
-    table.appendChild(tr);
-  });
-  return table;
-}
-function fWordList(words){
-  // Se la stessa parola compare più volte in griglia (frequente per le corte, tipo "ORO"),
-  // la si elenca una sola volta con il numero di occorrenze, invece di ripeterla identica.
-  const counts = {};
-  words.forEach(w=>{ counts[w] = (counts[w]||0)+1; });
-  const wrap = fEl("div",{class:"fasc-wordlist"});
-  Object.keys(counts).sort().forEach(w=>{
-    const label = counts[w]>1 ? `${w} (×${counts[w]})` : w;
-    wrap.appendChild(fEl("span",{class:"fasc-wordlist-item"}, label));
-  });
-  return wrap;
-}
-function fLegend(targets, counts, showSolutions){
-  const wrap = fEl("div",{class:"fasc-legend-grid"});
-  targets.forEach((t,i)=>{
-    wrap.appendChild(fEl("div",{class:"fasc-legend-item"},[
-      fEl("span",{class:"fasc-legend-seq"}, t.join(" ")),
-      showSolutions ? fEl("span",{class:"fasc-legend-count"}, ` → ${counts[i]}`) : null
-    ]));
-  });
-  return wrap;
-}
-function fPromptTable(prompts, solutions, showSolutions){
-  const table = fEl("table",{class:"fasc-prompt"});
-  prompts.forEach((p,i)=>{
-    const tr = fEl("tr");
-    tr.appendChild(fEl("td",{class:"fasc-prompt-cell"}, String(p)));
-    tr.appendChild(fEl("td",{class:"fasc-answer-cell"}, showSolutions && solutions ? String(solutions[i] ?? "") : ""));
-    table.appendChild(tr);
-  });
-  return table;
-}
-function fSection(title, sub, content, regenKey){
-  const wrap = fEl("div",{class:"fasc-block"});
-  const titleRow = fEl("div",{class:"fasc-title-row"});
-  titleRow.appendChild(fEl("h3",{},title));
-  if(regenKey){
-    // Rigenera SOLO questa parte del fascicolo, al livello (settimana) scelto qui accanto
-    // — non necessariamente quello della settimana globale — stessa identica logica di
-    // generazione (incluse le liste anti-ripetizione) senza toccare il resto del fascicolo.
-    const controls = fEl("div",{class:"fasc-regen-controls"});
-    const select = fEl("select",{class:"fasc-week-select", title:"Livello (settimana) da usare per questa parte"});
-    for(let w=1; w<=12; w++){
-      const opt = fEl("option",{value:String(w)}, `Sett. ${w}`);
-      if(w === (state.fascicoloPartWeek[regenKey] ?? state.fascicoloWeek)) opt.setAttribute("selected","selected");
-      select.appendChild(opt);
-    }
-    select.onchange = ()=>{ state.fascicoloPartWeek[regenKey] = Number(select.value); };
-    const btn = fEl("button",{class:"fasc-regen-btn", type:"button", title:"Rigenera solo questa parte, al livello scelto a sinistra"}, "↻ Rigenera");
-    btn.onclick = ()=>regenerateFascicoloPart(regenKey, btn, Number(select.value));
-    controls.appendChild(select);
-    controls.appendChild(btn);
-    titleRow.appendChild(controls);
-  }
-  wrap.appendChild(titleRow);
-  if(sub) wrap.appendChild(fEl("div",{class:"fasc-sub"}, sub));
-  wrap.appendChild(content);
-  return wrap;
-}
-function renderFascicolo(deck){
-  const root = fEl("div",{class:"fasc-root"});
-  const p = deck.params;
-  const showSolutions = state.reveal;
-  const E = window.Engine;
-
-  root.appendChild(fEl("h2",{}, `Fascicolo ${deck.week} — ${deck.week}°settimana`));
-  if(deck.notices && deck.notices.length){
-    const warn = fEl("div",{class:"fasc-warn"});
-    warn.style.cssText = "border:2px solid #C77700;background:#FFF4E0;color:#5A3A00;border-radius:8px;padding:8px 12px;margin:8px 0;font-size:0.9em;";
-    warn.innerHTML = "<b>Materiale nuovo esaurito per questo gruppo</b> — nessuna parola è stata ripetuta, ma alcune pagine ne contengono meno del solito:<br>" + deck.notices.map(n=>"• "+n).join("<br>") + "<br><i>Per ricominciare da zero usa il pulsante «Azzera il materiale già proposto» del gruppo.</i>";
-    root.appendChild(warn);
-  }
-
-  deck.grids.forEach((g,i)=>{
-    root.appendChild(fSection(
-      `Cerchiare e contare tutte le sequenze ${g.target.join("")} (orizzontale e verticale)`,
-      showSolutions ? `Occorrenze presenti nella griglia: ${g.count} — evidenziate in griglia.` : null,
-      fGridTable(g.grid, null, showSolutions ? highlightSetFromJS(g.occurrences) : null),
-      `grid${i}`
-    ));
-  });
-
-  const multiWrap = fEl("div");
-  multiWrap.appendChild(fGridTable(deck.multi.grid, null, showSolutions ? highlightSetFromJS(deck.multi.positions.flat()) : null));
-  multiWrap.appendChild(fLegend(deck.multi.targets, deck.multi.counts, showSolutions));
-  root.appendChild(fSection("Cerchiare tutte le sequenze indicate", null, multiWrap, "multi"));
-
-  // Crucipuzzle italiano a ricerca libera: nessun elenco bersaglio nel fascicolo bianco —
-  // il paziente cerca da solo parole di senso compiuto. Nelle soluzioni si evidenziano
-  // TUTTE le parole realmente presenti in griglia (piazzate di proposito o comparse per
-  // caso nel rumore di fondo), con l'elenco sotto.
-  const cruciWrap = fEl("div");
-  cruciWrap.appendChild(fGridTable(deck.crucipuzzle.grid, "fasc-cruci", showSolutions ? highlightSetFromJS(deck.crucipuzzle.foundWords.map(f=>f.cells)) : null));
-  if(showSolutions) cruciWrap.appendChild(fWordList(deck.crucipuzzle.foundWords.map(f=>f.word)));
-  root.appendChild(fSection(
-    "Cerca nella griglia tutte le parole italiane di senso compiuto che riesci a trovare",
-    `(almeno ${deck.crucipuzzle.minWordsToFind} — orizzontale, verticale e obliquo, in avanti e all'indietro)`,
-    cruciWrap, "crucipuzzle"
-  ));
-
-  const seqTitle = E.sequencingInstructionText(deck.sequencing.mode);
-  const seqDiv = fEl("div",{class:"fasc-svg-wrap", html: E.renderSequencingSVG(deck.sequencing)});
-  root.appendChild(fSection(seqTitle, showSolutions ? `Ordine corretto: ${deck.sequencing.order.join(" → ")}` : null, seqDiv, "sequencing"));
-
-  const mazeDiv = fEl("div",{class:"fasc-svg-wrap", html: E.renderMazeSVG(deck.maze, 18, showSolutions)});
-  root.appendChild(fSection("Risolvere il labirinto", null, mazeDiv, "maze"));
-
-  root.appendChild(fSection(deck.lexicalBlock.label, null, fPromptTable(deck.lexicalBlock.prompts, null, false), "lexicalBlock"));
-
-  root.appendChild(fSection(`Scrivere parole che appartengano alle categorie (almeno ${deck.categoriesMinWords ?? p.categoryMinWords})`, null, fPromptTable(deck.categories, null, false), "categories"));
-
-  root.appendChild(fSection("Risolvere i seguenti anagrammi", null,
-    fPromptTable(deck.anagrams.map(a=>a.scrambled), deck.anagrams.map(a=>a.solution), showSolutions), "anagrams"));
-
-  root.appendChild(fSection("Calcolare il risultato", null,
-    fPromptTable(deck.calc.map(c=>c.expression), deck.calc.map(c=>c.result), showSolutions), "calc"));
-
-  return root;
-}
-
 // Rigenera UNA sola parte del fascicolo corrente: costruisce un fascicolo "usa e getta"
 // completo con un seed nuovo (stessa identica funzione, stesse liste anti-ripetizione
 // della settimana attiva) ma al livello (settimana) scelto per QUESTA parte — non
@@ -5166,7 +3458,6 @@ async function regenerateFascicoloPart(partKey, btn, weekOverride){
     if(btn){ btn.disabled = false; btn.textContent = original; }
   }
 }
-
 
 async function rasterizeSVGBrowser(svgString){
   const m = svgString.match(/width="(\d+)"\s+height="(\d+)"/);
@@ -6235,6 +4526,127 @@ document.getElementById("btnClearGroupHistory").addEventListener("click", async 
     alert("Fatto: la memoria di questo gruppo è stata azzerata.");
   }
 });
+
+/* =========================================================
+   COPIA DI SICUREZZA — pulsanti "Salva" e "Ripristina" (la logica pura è in PdmBackup, sopra).
+   ========================================================= */
+const BACKUP_LAST_KEY = "pdm_last_backup";
+function backupFmtDate(iso){
+  const d = iso ? new Date(iso) : null;
+  return d && !isNaN(d) ? d.toLocaleDateString("it-IT", {day:"numeric", month:"long", year:"numeric"}) : "data sconosciuta";
+}
+function backupGroupsText(groups){
+  if(!groups.length) return "nessun gruppo";
+  return groups.slice(0, 12).join(", ") + (groups.length > 12 ? ` … (+${groups.length - 12})` : "");
+}
+function backupSetStatus(text){
+  const el = document.getElementById("backupStatus");
+  if(el) el.textContent = text;
+}
+function backupRefreshStatus(){
+  let last = null;
+  try{ last = localStorage.getItem(BACKUP_LAST_KEY); }catch(e){}
+  backupSetStatus(last ? `Ultima copia di sicurezza: ${backupFmtDate(last)}.` : "Nessuna copia di sicurezza fatta finora su questo browser.");
+}
+// Copia online (solo se la cronologia condivisa è connessa): stesso schema di appendUsed e progressPushRemote,
+// ma riporta quante scritture sono riuscite, così un rifiuto delle regole Firebase non resta silenzioso.
+async function backupPushRemote(writes){
+  if(!firebaseConfig.apiKey || !sharedHistoryReady) return null;
+  let ok = 0, fail = 0, error = null;
+  for(const w of writes){
+    try{
+      if(w.c.type === "hist"){
+        const ref = firestoreDb.collection(w.c.collection).doc(w.c.group);
+        const doc = await ref.get();
+        const prev = doc.exists ? (doc.data()[w.c.field] || []) : [];
+        const have = new Set(prev);
+        const merged = prev.concat(JSON.parse(w.value).filter(x=>!have.has(x))).slice(-5000);
+        await ref.set({ [w.c.field]: merged, updatedAt: Date.now() }, {merge:true});
+      } else if(w.c.type === "progress"){
+        const ref = firestoreDb.collection("groupProgress").doc(w.c.group);
+        const doc = await ref.get();
+        let data = JSON.parse(w.value);
+        if(doc.exists){ try{ data = progressMerge(data, JSON.parse(doc.data().data || "{}")); }catch(e){} }
+        await ref.set({ data: JSON.stringify(data), updatedAt: Date.now() }, {merge:true});
+      } else { continue; }
+      ok++;
+    } catch(e){
+      fail++;
+      error = e && e.code ? e.code : String(e);
+    }
+  }
+  return { ok, fail, error };
+}
+
+document.getElementById("btnBackupExport").addEventListener("click", ()=>{
+  const now = new Date();
+  const bk = PdmBackup.buildBackup(Object.keys(localStorage), k=>localStorage.getItem(k), now.toISOString());
+  const n = Object.keys(bk.entries).length;
+  if(!n){
+    alert("Non c'è ancora niente da salvare: la memoria di questo browser è vuota.");
+    return;
+  }
+  const groups = Array.from(new Set(Object.keys(bk.entries).map(k=>{ const c = PdmBackup.classify(k); return c && c.group; }).filter(Boolean))).sort();
+  const blob = new Blob([JSON.stringify(bk, null, 1)], {type:"application/json"});
+  try{
+    saveAs(blob, PdmBackup.fileName(now));
+  } catch(e){
+    const a = document.createElement("a");
+    a.href = URL.createObjectURL(blob);
+    a.download = PdmBackup.fileName(now);
+    document.body.appendChild(a); a.click(); a.remove();
+  }
+  try{ localStorage.setItem(BACKUP_LAST_KEY, bk.exportedAt); }catch(e){}
+  backupSetStatus(`Copia salvata: ${n} voci. Gruppi trovati: ${backupGroupsText(groups)}. Il file è nella cartella Download.`);
+});
+
+document.getElementById("btnBackupImport").addEventListener("click", ()=>{
+  const input = document.getElementById("backupFileInput");
+  input.value = "";
+  input.click();
+});
+
+document.getElementById("backupFileInput").addEventListener("change", async (ev)=>{
+  const file = ev.target.files && ev.target.files[0];
+  if(!file) return;
+  let text;
+  try{ text = await file.text(); }
+  catch(e){ alert("Non riesco a leggere il file."); return; }
+  const v = PdmBackup.parseText(text);
+  if(!v.ok){ alert(v.error); return; }
+  if(!v.entries.length){ alert("La copia non contiene dati da ripristinare."); return; }
+  const msg = `Copia del ${backupFmtDate(v.exportedAt)}: ${v.entries.length} voci. Gruppi: ${backupGroupsText(v.groups)}.` +
+    (v.skipped.length ? `\n${v.skipped.length} voci non valide verranno ignorate.` : "") +
+    "\n\nIl ripristino AGGIUNGE ciò che manca e non cancella niente di ciò che c'è già in questo browser. Procedere?";
+  if(!confirm(msg)) return;
+
+  const plan = PdmBackup.planImport(v, k=>localStorage.getItem(k), {mergeProgress: progressMerge});
+  let writeFailed = 0;
+  const done = [];
+  for(const w of plan.writes){
+    try{ localStorage.setItem(w.key, w.value); done.push(w); }
+    catch(e){ writeFailed++; }
+  }
+
+  groupInput.value = currentGroupName();
+  groupNumberInput.value = localStorage.getItem("pdm_group_number") || "";
+  state.groupNumber = groupNumberInput.value.trim();
+  updateHistoryStatus();
+  recallGroupLevel();
+  renderProgressPanel();
+
+  const remote = await backupPushRemote(done);
+  let line = `Ripristino fatto: ${done.length} voci aggiornate, ${plan.unchanged} già presenti.`;
+  if(writeFailed) line += ` ${writeFailed} non si sono potute salvare (memoria del browser piena?).`;
+  if(remote){
+    line += remote.fail
+      ? ` Online: ${remote.ok} copiate, ${remote.fail} NO (errore: ${remote.error}). Controlla le regole di Firebase.`
+      : (remote.ok ? ` Copiate anche online (${remote.ok}).` : "");
+  }
+  backupSetStatus(line);
+  alert(line);
+});
+backupRefreshStatus();
 
 buildExList();
 renderExControls();
