@@ -1,0 +1,152 @@
+{
+ "griglie|L3": [
+  {
+   "fname": "3 - Griglie-Conteggio.3.pptx",
+   "hash": "cae8c3baffd9ceae",
+   "parti": 18
+  }
+ ],
+ "griglie|L12": [
+  {
+   "fname": "3 - Griglie-Conteggio.12.pptx",
+   "hash": "7f88ded40a04c6e5",
+   "parti": 18
+  }
+ ],
+ "griglie|L24": [
+  {
+   "fname": "3 - Griglie-Conteggio.24.pptx",
+   "hash": "07318141d3a17cda",
+   "parti": 18
+  }
+ ],
+ "intruso|L3": [
+  {
+   "fname": "2 - Intruso percettivo.3.pptx",
+   "hash": "ff9b00a21b4746a7",
+   "parti": 50
+  }
+ ],
+ "intruso|L12": [
+  {
+   "fname": "2 - Intruso percettivo.12.pptx",
+   "hash": "24a611ea389c52a5",
+   "parti": 50
+  }
+ ],
+ "intruso|L24": [
+  {
+   "fname": "2 - Intruso percettivo.24.pptx",
+   "hash": "3b0ee8c0c73ac5a7",
+   "parti": 50
+  }
+ ],
+ "inversione|L3": [
+  {
+   "fname": "5 - Inversione e riordino.3.pptx",
+   "hash": "626c0f9c39866f29",
+   "parti": 178
+  }
+ ],
+ "inversione|L12": [
+  {
+   "fname": "5 - Inversione e riordino.12.pptx",
+   "hash": "a33c69479d897ed5",
+   "parti": 178
+  }
+ ],
+ "inversione|L24": [
+  {
+   "fname": "5 - Inversione e riordino.24.pptx",
+   "hash": "f44e328e9d53b2bd",
+   "parti": 258
+  }
+ ],
+ "serie|L3": [
+  {
+   "fname": "4 - Serie attentive alternate.3.pptx",
+   "hash": "94f0996eecd7e601",
+   "parti": 634
+  }
+ ],
+ "serie|L12": [
+  {
+   "fname": "4 - Serie attentive alternate.12.pptx",
+   "hash": "37e3d904d0c36913",
+   "parti": 634
+  }
+ ],
+ "serie|L24": [
+  {
+   "fname": "4 - Serie attentive alternate.24.pptx",
+   "hash": "fb55ebe9658612a5",
+   "parti": 634
+  }
+ ],
+ "accesso|L3": [
+  {
+   "fname": "6 - Accesso lessicale online.3.pptx",
+   "hash": "b3cd815f668c89da",
+   "parti": 18
+  }
+ ],
+ "accesso|L12": [
+  {
+   "fname": "6 - Accesso lessicale online.12.pptx",
+   "hash": "a66ad239529efae8",
+   "parti": 18
+  }
+ ],
+ "accesso|L24": [
+  {
+   "fname": "6 - Accesso lessicale online.24.pptx",
+   "hash": "41eec98ff63d64af",
+   "parti": 18
+  }
+ ],
+ "categorizzazione|L3": [
+  {
+   "fname": "1 - Categorizzazione.3.pptx",
+   "hash": "274c3ace3fa4ac97",
+   "parti": 50
+  }
+ ],
+ "categorizzazione|L12": [
+  {
+   "fname": "1 - Categorizzazione.12.pptx",
+   "hash": "bf25c8f9f1775d56",
+   "parti": 50
+  }
+ ],
+ "categorizzazione|L24": [
+  {
+   "fname": "1 - Categorizzazione.24.pptx",
+   "hash": "af0511d13d60880c",
+   "parti": 50
+  }
+ ],
+ "fascicolo|W1": [
+  {
+   "fname": "Fascicolo.1 - soluzioni.docx",
+   "hash": "a3236f9e3694a2f8",
+   "parti": 15
+  },
+  {
+   "fname": "Fascicolo.1.docx",
+   "hash": "ac08cad05b6068b9",
+   "parti": 15
+  }
+ ],
+ "fascicolo|W7": [
+  {
+   "fname": "Fascicolo.7 - soluzioni.docx",
+   "hash": "d475f3f430d2fe2a",
+   "parti": 15
+  },
+  {
+   "fname": "Fascicolo.7.docx",
+   "hash": "08780ee502b0356a",
+   "parti": 15
+  }
+ ]
+}

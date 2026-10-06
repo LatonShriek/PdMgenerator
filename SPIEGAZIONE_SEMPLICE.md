@@ -20,7 +20,7 @@ Adesso la cucina ha **degli scaffali con l'etichetta**:
 | Cartella o file | Cos'è, in cucina | A cosa serve |
 |---|---|---|
 | `index.html` | **La cucina vera**, dove si cucina | Le istruzioni dell'app: come si genera un esercizio, come si disegna, come si esporta |
-| `js/` | **Le schede di lavoro, una per piatto** | Per ogni esercizio, un file che *prepara* il materiale (`generators/`) e uno che lo *impiatta* a schermo (`renderers/`). Prima stavano tutti nella cucina |
+| `js/` | **Le schede di lavoro, una per compito** | Per ogni esercizio, un file che *prepara* il materiale (`generators/`) e uno che lo *impiatta* a schermo (`renderers/`); poi i file per *portare via il piatto* (`export/`, PowerPoint e Word), per il *quaderno delle prenotazioni* (`history/`), per *mantieni/sali di livello* (`progression.js`), per la *copia di sicurezza* (`backup/`) e uno minuscolo con la *chiave del magazzino online* (`firebase-config.js`) |
 | `data/` | **Il ricettario e gli elenchi** | Le liste di criteri di categorizzazione, le icone, le parole di controllo. Sono cose che *tu* conosci da clinico: si possono rivedere senza leggere nessuna istruzione |
 | `vendor/` | **La dispensa** | Gli "ingredienti" fatti da altri (le librerie che creano PowerPoint e Word, quella per la cronologia condivisa). Li teniamo in casa, con la versione segnata |
 | `tests/` | **L'assaggio di controllo** | Prove automatiche: dopo ogni riordino verificano che il piatto esca identico a prima |
@@ -45,7 +45,7 @@ Adesso la cucina ha **degli scaffali con l'etichetta**:
 
 ### A che punto siamo
 
-I passi **1, 2, 3, 4 e 7 sono fatti** (test, librerie in casa, dati separati, una scheda per ogni esercizio, copia di sicurezza). Per il passo 4 ho fatto un "assaggio" più severo: 183 piatti assaggiati prima e dopo lo spostamento, tutti identici. Restano i passi 5 e 6: separare esportazioni e cronologia, separare l'aspetto grafico.
+I passi **1, 2, 3, 4, 5 e 7 sono fatti** (test, librerie in casa, dati separati, una scheda per ogni compito, copia di sicurezza). Per i passi 4 e 5 ho fatto un "assaggio" più severo: 183 piatti assaggiati prima e dopo lo spostamento, più 20 file PowerPoint e Word scaricati e confrontati dentro, tutti identici. Resta il passo 6: separare l'aspetto grafico (CSS) e spezzare la documentazione.
 
 ---
 
