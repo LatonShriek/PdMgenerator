@@ -10,17 +10,39 @@ intruso, griglie, serie attentive, inversione, accesso lessicale, fascicolo a
 casa), 32 livelli, anti-ripetizione per gruppo, progressione di gruppo,
 esportazione PowerPoint (pptxgenjs) e Word (docx). Cronologia in
 `localStorage`, condivisione opzionale via Firebase/Firestore.
-Il README.md documenta in dettaglio logica, banche di parole e regole di
-qualità: **va letto prima di toccare i generatori e non va perso.**
+Il README.md documenta in dettaglio scopo, struttura, logica, banche di parole
+e regole di qualità: **va letto prima di toccare i generatori e non va perso.**
+Per Rodrigo esiste anche `SPIEGAZIONE_SEMPLICE.md` (perché la struttura è fatta
+così e cosa si può ancora migliorare, in parole semplici).
 
-## Stato attuale (da rifattorizzare)
-- `index.html` ~540 KB, ~15.400 righe, 13 blocchi `<script>`.
-- Righe lunghissime (fino a ~28.000 caratteri): sono dati incorporati
-  (criteri, categorie, lessico).
-- Punti di giunzione già esistenti: mappe `GENERATORS` e `RENDERERS`,
-  `weekParams(week)`, sezioni commentate.
-- Librerie da CDN esterni: pptxgenjs 3.12.0, docx 8.5.0, FileSaver 2.0.5,
-  Firebase 10.14.1 (compat).
+## Stato attuale (refactoring in corso: passi 1, 2, 3, 4 e 7 fatti)
+- `index.html` ~270 KB (era ~543 KB). Passo 4: generatori in `js/generators/` (griglie, intruso,
+  inversione, serie, accesso, fascicolo) e renderer in `js/renderers/` (gli stessi + categorizzazione),
+  script classici caricati con `<script src>` PRIMA dello script principale (stesso ordine di prima;
+  sono solo dichiarazioni di funzione, nessuna chiamata al caricamento). Una banda rossa avvisa se manca un file.
+  Restano in `index.html`: `genCategorizzazioneV2`, `genFresh`, mappe `GENERATORS`/`RENDERERS`, stato, esportazioni.
+- Librerie in `vendor/`, versioni fissate, niente CDN a runtime: pptxgenjs 3.12.0,
+  docx 8.5.0, FileSaver 2.0.5, Firebase 10.14.1 (compat). Unica eccezione: un
+  piccolo script di sicurezza in `index.html` scarica `docx` da unpkg.com solo se
+  il file locale non si carica.
+- Dati in `data/` (3 file `.js`): `categorizzazione.js` (190 voci: 142 reali +
+  48 proposte), `openmoji-map.js` (568 voci), `inv-real-block.js`.
+- Test in `tests/`: `node --test tests/*.test.js` → 62 test, tutti passano.
+  Coprono il Fascicolo (seme fisso, snapshot settimane 1-12, regole di qualità,
+  anti-ripetizione), i file di dati e la copia di sicurezza (`backup.test.js`).
+- `tests/golden-browser.js` (Playwright, Chromium senza rete, seme fisso): 183 casi, impronte in
+  `golden-browser.json`. **Regola: prima e dopo ogni spostamento di codice deve dare "OK: 183 casi identici"**
+  (si lancia in background: ~2 min; NODE_PATH e CHROMIUM_PATH impostati).
+- Copia di sicurezza (passo 7): blocco `backup.js` (logica pura, UMD) dentro
+  `index.html` + due pulsanti in fondo alla barra laterale. Salva/ripristina solo
+  le chiavi note (`pdm_hist::`, `pdm_progress::`, storico, nome/numero gruppo);
+  il ripristino aggiunge e non cancella; file importato = dato non fidato.
+  Provato anche in un browser vero (Playwright) con salva → svuota → ripristina.
+- Le banche di parole del Fascicolo (`WORD_BANK_EXTRA`, `CATEGORY_LETTER_BANK`,
+  `PHONEMIC_DB`, `CATEGORY_POOL`…) restano dentro il motore in `index.html`:
+  spostarle ora cambierebbe il motore testato. Si valuta dopo il passo 4.
+- Punti di giunzione già esistenti per i prossimi passi: mappe `GENERATORS` e
+  `RENDERERS`, `weekParams(week)`, sezioni commentate.
 - Pittogrammi OpenMoji (CC BY-SA 4.0) con fallback testuale.
 
 ## Regole di lavoro (sempre)
@@ -33,44 +55,104 @@ qualità: **va letto prima di toccare i generatori e non va perso.**
    generatori devono produrre lo stesso materiale prima e dopo ogni passo.
    Servono test sulle regole di qualità e sull'anti-ripetizione.
 4. Un passo = un commit leggibile, app funzionante a fine passo.
-5. Spiega le scelte in italiano, in modo breve e verificabile.
-6. Nessun build tool pesante: moduli ES nativi, ospitabile su GitHub Pages.
+5. Spiega le scelte in italiano semplice, senza gergo, passo per passo:
+   Rodrigo non ha formazione informatica e vuole istruzioni come per chi parte
+   da zero. Ogni termine tecnico va spiegato con un esempio quotidiano.
+6. Nessun build tool pesante: moduli ES nativi o script classici, ospitabile su
+   GitHub Pages e apribile con doppio clic su `index.html`.
 7. Materiale nuovo, stessa struttura: mai varianti quasi identiche degli
    originali (principio di design del progetto).
+8. I dati stanno in file `.js` caricati con `<script src>`, **non** in `.json`:
+   un `.json` richiede una richiesta di rete che il browser blocca aprendo
+   `index.html` con doppio clic.
+
+## Come lavorare su questo progetto (per Claude)
+- L'area di lavoro parte vuota e da lì GitHub non è raggiungibile. La versione vera
+  è su GitHub: chiedere a Rodrigo lo ZIP (Code → Download ZIP) e scompattarlo in
+  una cartella nuova.
+- La copia di `index.html` nel Progetto Claude ha la config Firebase **rimossa**:
+  mai consegnarla a Rodrigo. Si parte sempre dallo ZIP del repository.
+- Nel Progetto Claude stanno solo `index.html`, README e questo file; `data/`,
+  `tests/` e `vendor/` stanno solo su GitHub.
+
+## Come si consegna il lavoro a Rodrigo
+Rodrigo carica su GitHub dal sito (Add file → Upload files), non da terminale.
+- Mandare solo ciò che è cambiato: **una zip per cartella** (es. `tests.zip`) più
+  i file singoli della radice (`index.html`, `CLAUDE_pdmgenerator.md`, `README.md`).
+- Si trascinano le **cartelle intere**, mai i file contenuti: i file singoli
+  finirebbero nella radice e `index.html` non troverebbe più i suoi script.
+- Prima del Commit, nell'elenco di GitHub i nomi devono avere il prefisso della
+  cartella (es. `data/categorizzazione.js`). Se non c'è, non fare Commit.
+- Cartelle nuove al passo 4: `js` (con `generators/` e `renderers/`): il prefisso nell'elenco deve essere
+  `js/generators/griglie.js` ecc. Se manca, l'app mostra la banda rossa.
+- Se compaiono nella radice i doppioni `categorizzazione.js` e
+  `fascicolo.test.js` (restano da un invio precedente), vanno eliminati.
+- Dopo ogni aggiornamento: attendere 1-2 minuti, Ctrl+Shift+R, generare
+  un'attività, scaricare e aprire un PowerPoint e un Word.
+- Alternativa se serve: VS Code (clone, copia, commit, push) o pull request su un
+  ramo separato collegando il repository `LatonShriek/PdMgenerator`.
+
+## Struttura attuale
+```
+index.html            app: interfaccia, stato, esportazioni, cronologia, copia di sicurezza
+CLAUDE_pdmgenerator.md  questo file
+README.md             documentazione completa
+SPIEGAZIONE_SEMPLICE.md spiegazione in parole semplici
+data/                 criteri, icone, lessico di controllo (file .js)
+vendor/               librerie esterne con versione fissata (+ README.md, licenses/)
+js/generators/        un file per esercizio (passo 4 fatto)
+js/renderers/         un file per esercizio (passo 4 fatto)
+tests/                load-engine.js, fascicolo.test.js, backup.test.js, snapshots.json, golden-browser.js/.json
+```
 
 ## Struttura obiettivo
 ```
 index.html, css/
-vendor/               # librerie scaricate con versione fissata (no CDN a runtime)
-data/                 # criteri, categorie, lessico, pittogrammi in JSON
+vendor/               # già fatto
+data/                 # già fatto per criteri, icone, lessico; poi le banche del motore
 js/generators/        # un file per esercizio (da GENERATORS)
 js/renderers/         # un file per esercizio (da RENDERERS)
 js/export/            # pptx.js, docx.js
 js/history/           # anti-ripetizione: localStorage + Firestore
 js/progression.js     # mantieni/sali di livello
 js/state.js
-tests/                # generatori con seme fisso, regole di qualità
+tests/                # già fatto per il Fascicolo; poi gli altri generatori
 docs/                 # README spezzato per argomento
 ```
 
 ## Piano a passi
-- [x] 1. Test con seme fisso sui generatori + test sulle regole di qualità.
-      Fatto per il **Fascicolo** (`tests/`, `node --test tests/*.test.js`). Restano da coprire
-      gli altri generatori (usano `Math.random()` e `state`/DOM): serve iniettare l'RNG, da fare
-      all'inizio del passo 4. Il controllo Zipf≥3.0 / parole valide richiede il lessico esterno.
-- [x] 2. Scaricare le librerie in `vendor/` (versioni fissate) e riferirle in locale.
-      Fatto da npm (vedi `vendor/README.md`). Esportazione pptx/docx provata in locale.
-- [ ] 3. Spostare i dati (criteri, categorie, lessico) in `data/`.
-      Fatto: `CATEGORIZZAZIONE_LIBRARY` (190 criteri), `OPENMOJI_ICON_MAP` e `INV_REAL_BLOCK` in
-      `data/*.js`, caricati con `<script src>` prima degli script che li usano (scelta: .js e non
-      .json, così il doppio clic su index.html continua a funzionare).
-      Restano nell'engine (volutamente, per tenerlo autonomo e testabile in Node): `WORD_BANK_EXTRA`,
-      `CATEGORY_LETTER_BANK`, `PHONEMIC_DB` e le altre banche. Da spostare solo insieme al passo 4,
-      quando l'engine diventa un modulo.
-- [ ] 4. Estrarre `js/generators/` e `js/renderers/` lungo le mappe esistenti.
+- [x] 1. Test con seme fisso + regole di qualità + anti-ripetizione (per ora
+      solo Fascicolo e dati; gli altri generatori usano `Math.random()` e vanno
+      resi testabili al passo 4).
+- [x] 2. Librerie in `vendor/` (versioni fissate, scaricate da npm) e riferite in
+      locale. Esportazione pptx/docx provata in locale.
+- [x] 3. Dati in `data/`: criteri di categorizzazione, mappa icone, lessico di
+      controllo (in `.js`, vedi regola 8). Le banche del motore restano dentro.
+- [x] 4. Estratti `js/generators/` e `js/renderers/` lungo le mappe esistenti, provato
+      con il controllo "prima e dopo" in browser (183 casi identici). Il generatore casuale
+      resta `Math.random()`: il seme si fissa solo nel test, non si è toccato il codice.
 - [ ] 5. Estrarre esportazioni, cronologia, progressione.
 - [ ] 6. CSS in file separato; spezzare il README in `docs/`.
-- [ ] 7. Pulsante "Esporta/Importa tutto in JSON" per il backup dello stato locale.
+- [x] 7. Pulsanti "Salva copia di sicurezza" / "Ripristina" (file JSON) per il
+      backup dello stato locale. Il blocco `backup.js` passa in un file proprio
+      al passo 5.
+
+## Cose aperte
+- I file `.pptx` che non si aprivano bene in LibreOffice (segnalato da Rodrigo
+  con screenshot): non chiarito se il problema era sul sito ancora vecchio o in
+  locale. Da riprendere.
+- Cronologia condivisa Firebase: da qui non si raggiunge la rete, quindi non
+  provabile. Nello screenshot di Rodrigo (6 ott 2026) Firestore mostrava solo le
+  raccolte `accessoHistory` (documenti 23, 28, gruppo-23, gruppo-28) e
+  `catHistory`: mancavano `fascicoloHistory`, `materialHistory`, `groupProgress`.
+  Il codice ingoia in silenzio i rifiuti di scrittura e "Connesso" significa solo
+  accesso anonimo riuscito. Rodrigo cerca i gruppi "IS" e "PB": non sappiamo ancora
+  dove siano (chiesti screenshot di `catHistory` e della scheda Regole).
+  Possibile miglioramento: far mostrare all'app quando una scrittura online fallisce.
+- Regole Firestore: da verificare nella console Firebase (vedi sotto).
+- La regola "≥6 parole frequenti, Zipf ≥ 3.0" richiede il lessico
+  `wordfreq`/Hunspell, che non è nel repository: i test non la controllano.
+- Il crucipuzzle può piazzare meno parole di quelle scelte (minimo 8 nel test).
 
 ## Sicurezza e privacy
 - La config Firebase nel file è pubblica per progetto (`pdmgenerator`);
