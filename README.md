@@ -17,16 +17,17 @@ Non c'è backend: l'app gira interamente nel browser (JavaScript vanilla, nessun
 7. [Anti-ripetizione](#anti-ripetizione-storico-per-gruppopaziente)
 8. [Progressione del gruppo](#progressione-del-gruppo-mantieni--sali-di-livello)
 9. [Esportazione](#esportazione)
-10. [Il modulo "Fascicolo esercizi a casa"](#il-modulo-fascicolo-esercizi-a-casa)
-11. [Accesso lessicale e categorie semantiche — banche verificate](#accesso-lessicale-e-categorie-semantiche--banche-verificate)
-12. [Categorizzazione — libreria criteri](#categorizzazione--libreria-criteri)
-13. [Interfaccia](#interfaccia)
-14. [Test](#test)
-15. [Pubblicazione e aggiornamento](#pubblicazione-e-aggiornamento)
-16. [Come modificare i dati e le librerie](#come-modificare-i-dati-e-le-librerie)
-17. [Stato del refactoring](#stato-del-refactoring)
-18. [Sicurezza, privacy e licenze](#sicurezza-privacy-e-licenze)
-19. [Come lavora Rodrigo su questo progetto](#come-lavora-rodrigo-su-questo-progetto)
+10. [Copia di sicurezza (salva e ripristina i dati)](#copia-di-sicurezza-salva-e-ripristina-i-dati)
+11. [Il modulo "Fascicolo esercizi a casa"](#il-modulo-fascicolo-esercizi-a-casa)
+12. [Accesso lessicale e categorie semantiche — banche verificate](#accesso-lessicale-e-categorie-semantiche--banche-verificate)
+13. [Categorizzazione — libreria criteri](#categorizzazione--libreria-criteri)
+14. [Interfaccia](#interfaccia)
+15. [Test](#test)
+16. [Pubblicazione e aggiornamento](#pubblicazione-e-aggiornamento)
+17. [Come modificare i dati e le librerie](#come-modificare-i-dati-e-le-librerie)
+18. [Stato del refactoring](#stato-del-refactoring)
+19. [Sicurezza, privacy e licenze](#sicurezza-privacy-e-licenze)
+20. [Come lavora Rodrigo su questo progetto](#come-lavora-rodrigo-su-questo-progetto)
 
 ## Scopo
 
@@ -44,20 +45,26 @@ L'app genera al volo materiale **nuovo ma di difficoltà controllata**, tiene tr
 ## Struttura del repository e perché è fatta così
 
 ```
-index.html                  l'app (interfaccia, generatori, renderer, esportazioni, cronologia)
+index.html                  l'app (interfaccia, stato, esportazioni, cronologia, copia di sicurezza)
 CLAUDE_pdmgenerator.md      regole di lavoro e stato dei passi di refactoring
 README.md                   questo file
 data/                       dati puri, separati dalla logica
   categorizzazione.js         libreria dei criteri di categorizzazione
   openmoji-map.js             mappa termine inglese -> icona OpenMoji
   inv-real-block.js           lessico di controllo per le non-parole dell'Intruso
+js/                         il codice degli esercizi, un file per esercizio (passo 4)
+  generators/                 genera il materiale: griglie, intruso, inversione, serie, accesso, fascicolo
+  renderers/                  lo disegna a schermo: i sei sopra + categorizzazione
 vendor/                     librerie esterne, versione fissata, servite in locale
   README.md                   tabella versioni/licenze e come aggiornarle
   licenses/                   testi delle licenze
 tests/                      test automatici (Node, nessuna dipendenza da installare)
-  load-engine.js              carica il motore del Fascicolo direttamente da index.html
+  load-engine.js              carica da index.html il motore del Fascicolo e il modulo di backup
   fascicolo.test.js           test con seme fisso, regole di qualità, anti-ripetizione, dati
+  backup.test.js              test della copia di sicurezza (salva / ripristina)
   snapshots.json              impronte di riferimento del fascicolo (settimane 1-12, 3 semi)
+  golden-browser.js           controllo "prima e dopo" in un browser vero: tutti gli esercizi (183 casi)
+  golden-browser.json         le impronte di riferimento di quel controllo
 ```
 
 | Scelta | Perché |
@@ -68,6 +75,7 @@ tests/                      test automatici (Node, nessuna dipendenza da install
 | **`vendor/` con versioni fissate** | L'app non dipende più da CDN esterni (salvo il fallback di sicurezza per `docx`, che scatta solo se il file locale non si carica): funziona anche se un CDN cambia o sparisce o se la rete (es. aziendale) lo blocca. Le versioni non cambiano da sole. |
 | **`tests/` senza dipendenze** | Si usa il test runner incluso in Node (`node --test`), niente da installare. Servono a verificare che il riordino del codice non cambi ciò che l'app produce. |
 | **Motore del Fascicolo autonomo** (`engine`) | È l'unica parte con generatore casuale seedabile (`mulberry32`) e senza DOM: per questo è testabile in Node. Le sue banche di parole restano nel motore volutamente, per non rompere i test. |
+| **Copia di sicurezza in un file** | La memoria dei gruppi vive nel browser (e, se Firebase funziona, anche online). Un file salvato sul computer è una copia indipendente da entrambi: serve se si perdono i dati del browser, se si cambia computer o se Firebase non salva davvero. Il ripristino **aggiunge e non cancella mai**. |
 | **Cronologia in `localStorage` + Firebase opzionale** | Funziona sempre in locale; la condivisione tra colleghi è un di più che si attiva solo configurando Firebase. |
 
 ## Come funziona l'app dentro
@@ -80,7 +88,9 @@ tests/                      test automatici (Node, nessuna dipendenza da install
 4. **Dati** (`data/*.js`): criteri di categorizzazione, mappa icone, lessico di controllo, caricati prima degli script che li usano.
 5. **Motore di categorizzazione**: campionamento dei criteri e recupero dei pittogrammi OpenMoji, con fallback testuale.
 6. **Cronologia condivisa**: storico anti-ripetizione, locale e (se configurato) su Firestore.
-7. **App principale**: stato, mappe `GENERATORS` (un generatore per esercizio) e `RENDERERS` (un renderer per esercizio), `weekParams(week)` per il Fascicolo, pannello di progressione, esportazioni, interfaccia.
+7. **Copia di sicurezza** (`backup.js`, modulo UMD): logica pura per salvare e ripristinare i dati del browser, senza DOM, provata dai test. I due pulsanti stanno nell'app principale.
+8. **File degli esercizi** (`js/generators/*.js`, `js/renderers/*.js`): script classici caricati con `<script src>` prima dell'app principale; usano le stesse variabili globali (`state`, `rnd`, `pick`…) di prima. Un piccolo controllo subito dopo avvisa con una banda rossa se uno di questi file manca (caricamento incompleto).
+9. **App principale**: stato, mappe `GENERATORS` (un generatore per esercizio) e `RENDERERS` (un renderer per esercizio), `weekParams(week)` per il Fascicolo, pannello di progressione, esportazioni, interfaccia, pulsanti della copia di sicurezza.
 
 Flusso di una generazione: l'utente sceglie esercizio e livello → `GENERATORS[esercizio]` costruisce il materiale (escludendo ciò che la cronologia del gruppo segnala già usato) → `RENDERERS[esercizio]` lo disegna → l'esportazione (PowerPoint/Word) riusa gli stessi dati.
 
@@ -123,6 +133,8 @@ Per abilitare la cronologia condivisa tra dispositivi/colleghi:
 
 Finché `firebaseConfig` resta vuoto, questa parte non fa nulla e l'app funziona come sempre, solo senza memoria tra dispositivi diversi. (Per il progetto attuale la configurazione è già inserita.)
 
+**Limite noto (da controllare nella console Firebase):** se le regole Firestore rifiutano una scrittura, l'app **non mostra nessun errore** e continua a salvare solo nel browser, e la scritta "Connesso" indica soltanto che l'accesso anonimo è riuscito, non che i dati arrivino online. Per sapere se la cronologia è davvero condivisa si guarda in Firestore Database → Dati: devono comparire le raccolte `catHistory`, `accessoHistory`, `fascicoloHistory`, `materialHistory` e `groupProgress`, con un documento per ogni nome gruppo (il nome è usato così com'è, maiuscole comprese). Il ripristino da copia di sicurezza, invece, segnala quante scritture online sono riuscite e quali errori ha dato.
+
 ## Progressione del gruppo (mantieni / sali di livello)
 
 Pannello dedicato (per ogni esercizio a livelli, non per il Fascicolo):
@@ -137,6 +149,17 @@ Pannello dedicato (per ogni esercizio a livelli, non per il Fascicolo):
 - **Tutti gli esercizi a schermo** → **PowerPoint** (`pptxgenjs`, generato lato client, nessun server): riproduce fedelmente ciò che è a video, con nome file basato sul numero fisso dell'esercizio, livello e numero gruppo (es. `3 - Griglie-Conteggio.1(5).pptx`).
 - **Fascicolo esercizi a casa** → **Word (.docx)** (libreria `docx`; se per qualche motivo non si carica da `vendor/`, un piccolo script di sicurezza in `index.html` prova a scaricarla da unpkg.com), fedele al formato originale dei fascicoli cartacei usati finora. Il documento viene generato sia in versione "esercizi" che in versione "con soluzioni".
 - Esportazione interamente client-side, senza inviare dati a un server.
+
+## Copia di sicurezza (salva e ripristina i dati)
+
+In fondo alla barra laterale ci sono due pulsanti: **Salva copia di sicurezza** e **Ripristina da una copia di sicurezza**.
+
+- **Cosa salva**: in un solo file `PdM-copia-di-sicurezza-AAAA-MM-GG.json` (cartella Download) mette la memoria del materiale già proposto a ogni gruppo, la progressione e i livelli di ogni gruppo, lo storico delle generazioni, nome e numero gruppo. Non legge nient'altro del browser. Dopo il salvataggio l'app elenca i **gruppi trovati**: è anche un modo per vedere quali gruppi esistono davvero su quel browser.
+- **Cosa fa il ripristino**: prima mostra un riepilogo (data della copia, numero di voci, gruppi) e chiede conferma. Poi **aggiunge ciò che manca e non cancella niente**: le parole e i criteri già proposti si uniscono senza doppioni, le sedute registrate si uniscono con la stessa regola della sincronizzazione (`progressMerge`), lo storico generazioni si unisce (massimo 200, dal più recente). Nome e numero gruppo si riempiono solo se sono vuoti. Ripristinare due volte la stessa copia non cambia più nulla.
+- **Se Firebase è connesso**, il ripristino prova anche a copiare i dati online e dice quante scritture sono riuscite e quante no (con il codice di errore): così un rifiuto delle regole non resta silenzioso.
+- **Sicurezza del file importato**: è trattato come dato non fidato. Si accettano solo le chiavi note, ogni contenuto viene controllato, nessuna parte del file viene eseguita; file di un'altra app, danneggiati o creati da una versione più recente vengono rifiutati con un messaggio chiaro.
+- **Privacy**: il file contiene i nomi dei gruppi. Va tenuto al sicuro e nei nomi non vanno mai dati che identificano i pazienti.
+- **Dove sta il codice**: logica pura nel blocco `backup.js` di `index.html` (provata da `tests/backup.test.js`), pulsanti in fondo allo script principale. Al passo 5 il blocco passerà in un file proprio.
 
 ## Il modulo "Fascicolo esercizi a casa"
 
@@ -192,7 +215,7 @@ I test verificano che l'app produca **sempre lo stesso materiale a parità di se
 node --test tests/*.test.js
 ```
 
-Serve solo Node (versione 20 o successiva); non c'è niente da installare. Il risultato atteso è `fail 0`.
+Serve solo Node (versione 20 o successiva); non c'è niente da installare. Il risultato atteso è `fail 0` (62 test alla data di questo aggiornamento).
 
 Cosa controllano:
 - **Determinismo**: stesso seme e settimana → fascicolo identico; semi diversi → fascicoli diversi.
@@ -200,9 +223,12 @@ Cosa controllano:
 - **Struttura e regole di qualità** per ogni settimana: 3 griglie 25×12 con 8 sequenze orizzontali e 8 verticali, 12 bersagli distinti, anagrammi corretti e senza doppioni, 10 calcoli esatti e mai negativi, categorie distinte, consegne lessicali senza doppioni.
 - **Anti-ripetizione**: parole, categorie e chiavi lessicali già usate non riappaiono; se il materiale finisce l'app lo segnala in `notices`, non ripesca in silenzio.
 - **Banche e dati**: struttura delle banche di parole e categorie, validità e conteggi dei file in `data/`.
+- **Copia di sicurezza** (`tests/backup.test.js`): andata e ritorno (salva, svuota, ripristina = stessi dati), unione senza doppioni e senza cancellare, ripristino ripetuto che non cambia più nulla, unione reale delle progressioni (usa il vero `progressMerge` estratto da `index.html`), nome gruppo non sovrascritto, file sbagliato o ostile rifiutato o ignorato.
+
+**Controllo "prima e dopo" in browser** (`tests/golden-browser.js`): apre `index.html` in Chromium senza rete, fissa il generatore casuale con un seme, genera ogni esercizio a 11 livelli e 2 semi (più le opzioni dei controlli e le 12 settimane del fascicolo, 183 casi) e confronta le impronte del materiale e di ciò che l'app disegna con `tests/golden-browser.json`. Serve a dimostrare che spostare il codice non cambia l'output. Richiede Playwright con Chromium (lo lancia Claude; non serve per usare l'app): `node tests/golden-browser.js` confronta, con `--update` riscrive le impronte (solo se il cambiamento è voluto). Nella categorizzazione le immagini arrivano in ritardo, quindi si confronta solo ciò che viene disegnato.
 
 Limiti noti (da dichiarare con onestà):
-- Sono coperti solo il Fascicolo e i file di dati. Gli altri generatori usano `Math.random()` e dipendono da stato/DOM: per testarli serve prima poter fissare il loro generatore casuale (previsto al passo 4).
+- I test Node coprono il Fascicolo, i dati e la copia di sicurezza. Gli altri esercizi sono coperti dal controllo "prima e dopo" in browser (`tests/golden-browser.js`, vedi sotto): confronta le impronte, non verifica le regole cliniche di ciascuno.
 - La regola "12 parole valide, ≥ 6 frequenti (Zipf ≥ 3.0)" richiede il lessico `wordfreq`/Hunspell, che non è nel repository: non è verificata dai test.
 - Il crucipuzzle può piazzare meno parole di quelle scelte (piazzamento greedy); il test fissa il comportamento attuale (minimo 8) senza modificarlo.
 
@@ -210,7 +236,7 @@ Limiti noti (da dichiarare con onestà):
 
 L'app è pubblicata con **GitHub Pages** dal ramo `main`: ogni modifica caricata viene ripubblicata automaticamente in 1–2 minuti (lo stato "pending/in progress" accanto al commit è la pubblicazione in corso). Dopo ogni aggiornamento: ricaricare il sito con Ctrl+Shift+R, generare un'attività e scaricare un PowerPoint e un Word, aprirli.
 
-Quando si carica su GitHub vanno caricate **le cartelle intere** (`data`, `tests`, `vendor`), non i file che contengono: i file singoli finirebbero nella cartella principale e `index.html` non troverebbe più i suoi script.
+Quando si carica su GitHub vanno caricate **le cartelle intere** (`data`, `js`, `tests`, `vendor`), non i file che contengono: i file singoli finirebbero nella cartella principale e `index.html` non troverebbe più i suoi script.
 
 ## Come modificare i dati e le librerie
 
@@ -228,14 +254,14 @@ Obiettivo: rendere il codice leggibile, correggibile e professionale **senza cam
 | 1 | Test con seme fisso sul Fascicolo e sulle regole di qualità | fatto (Fascicolo; gli altri generatori al passo 4) |
 | 2 | Librerie in `vendor/` con versioni fissate | fatto |
 | 3 | Dati in `data/` | fatto per criteri, icone e lessico di controllo; le banche del motore restano dentro l'engine per ora |
-| 4 | Un file per generatore e per renderer (`js/generators/`, `js/renderers/`) | da fare |
+| 4 | Un file per generatore e per renderer (`js/generators/`, `js/renderers/`) | fatto (provato con il controllo "prima e dopo": 183 casi identici; i generatori sono ancora a `Math.random()`, il seme si fissa solo nel test) |
 | 5 | Esportazioni, cronologia e progressione in file propri | da fare |
 | 6 | CSS in file separato; README spezzato per argomento in `docs/` | da fare |
-| 7 | Pulsante "Esporta/Importa tutto" per il backup dello stato locale | da fare |
+| 7 | Pulsante "Esporta/Importa tutto" per il backup dello stato locale | fatto (Salva / Ripristina copia di sicurezza, con test; il blocco `backup.js` passerà in un file proprio al passo 5) |
 
 ## Sicurezza, privacy e licenze
 
-- **Nessun dato clinico lascia il browser**, salvo la cronologia opzionale su Firestore. Nomi e numeri di gruppo **non devono contenere dati identificativi di pazienti**.
+- **Nessun dato clinico lascia il browser**, salvo la cronologia opzionale su Firestore. Nomi e numeri di gruppo **non devono contenere dati identificativi di pazienti**: il nome gruppo diventa l'identificativo del documento online e finisce anche nel file della copia di sicurezza.
 - La configurazione Firebase nel file è **pubblica per natura** (progetto `pdmgenerator`): non è una password. La protezione sono le **regole Firestore**: con autenticazione anonima, regole troppo larghe rendono la cronologia dei gruppi leggibile da chiunque abbia l'indirizzo. Da verificare nella console Firebase.
 - **Licenze**: i pittogrammi **OpenMoji** sono CC BY-SA 4.0 e vanno citati una sola volta nel fascicolo/deck esportato, non su ogni slide. Le librerie in `vendor/` hanno licenza MIT (`pptxgenjs`, `docx`, `FileSaver`) e Apache-2.0 (Firebase); i testi sono in `vendor/licenses/` e la tabella versioni in `vendor/README.md`.
 
