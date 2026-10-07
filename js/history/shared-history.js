@@ -75,7 +75,9 @@ async function fetchRecentUsed(collection, field){
     try{
       const doc = await firestoreDb.collection(collection).doc(group).get();
       if(doc.exists) remote = doc.data()[field] || [];
+      remoteWriteOk(collection);
     } catch(e){
+      remoteWriteFailed(collection, e);
       remote = []; // rete assente o permessi non pronti: si procede con la sola memoria locale
     }
   }
@@ -95,7 +97,9 @@ async function appendUsed(collection, field, newItems, cap){
     const prev = doc.exists ? (doc.data()[field] || []) : [];
     const merged = [...prev, ...newItems].slice(-cap);
     await ref.set({ [field]: merged, updatedAt: Date.now() }, {merge:true});
+    remoteWriteOk(collection);
   } catch(e){
+    remoteWriteFailed(collection, e); // visibile all'utente: prima restava in silenzio
     // mai bloccare la generazione per un errore di rete/permessi qui
   }
 }

@@ -45,7 +45,7 @@ Adesso la cucina ha **degli scaffali con l'etichetta**:
 
 ### A che punto siamo
 
-I passi **1, 2, 3, 4, 5 e 7 sono fatti** (test, librerie in casa, dati separati, una scheda per ogni compito, copia di sicurezza). Per i passi 4 e 5 ho fatto un "assaggio" più severo: 183 piatti assaggiati prima e dopo lo spostamento, più 20 file PowerPoint e Word scaricati e confrontati dentro, tutti identici. Resta il passo 6: separare l'aspetto grafico (CSS) e spezzare la documentazione.
+I passi **1, 2, 3, 4, 5 e 7 sono fatti, e il 6 a metà (l'aspetto grafico è in un file suo)** (test, librerie in casa, dati separati, una scheda per ogni compito, copia di sicurezza). Per i passi 4 e 5 ho fatto un "assaggio" più severo: 183 piatti assaggiati prima e dopo lo spostamento, più 20 file PowerPoint e Word scaricati e confrontati dentro, tutti identici. Resta di spezzare la documentazione per argomento.
 
 ---
 

@@ -2,7 +2,7 @@
 
 *Documento vivo: nasce dal lavoro di riordino di PdM CDCD e si aggiorna a ogni passo. Ogni regola dice **cosa fare**, **perché**, **come si è visto nel progetto** e **come si controlla**. Scritta in italiano semplice: non serve essere programmatori per capire il "perché".*
 
-*Aggiornata al passo 5 del refactoring.*
+*Aggiornata al passo 6 (CSS) del refactoring.*
 
 ---
 
@@ -28,7 +28,7 @@ Una web app è come una cucina professionale. Le buone pratiche servono a tre co
 ### A3. Se un salvataggio può fallire, l'app deve dirlo
 - **Cosa fare:** mai "ingoiare" gli errori in silenzio. Se una scrittura online viene rifiutata, mostrare un avviso comprensibile.
 - **Perché:** il messaggio "Connesso" dice solo che l'accesso è riuscito, non che i dati vengono salvati. Nel progetto per mesi tre esercizi non hanno salvato online perché mancava una regola, senza che nessuno se ne accorgesse.
-- **Come si controlla:** guardare davvero nel database se i dati ci sono, non fidarsi della scritta verde. *(Miglioramento ancora da fare nell'app.)*
+- **Come si controlla:** guardare davvero nel database se i dati ci sono, non fidarsi della scritta verde. *Fatto nel progetto: un avviso rosso compare da solo se un salvataggio online viene rifiutato, e il pulsante "Verifica il salvataggio online" prova una scrittura in ognuna delle raccolte e dice quali funzionano. Provato con un database finto che rifiuta una raccolta.*
 
 ### A4. La privacy si decide prima di scrivere il codice
 - **Cosa fare:** chiedersi "quali dati personali potrebbero finire qui dentro?" e avvisare l'utente nel punto in cui li scrive.
@@ -46,6 +46,7 @@ Una web app è come una cucina professionale. Le buone pratiche servono a tre co
   1. **Test sul motore** (`node --test`): 62 prove, senza browser.
   2. **Controllo "prima e dopo" dell'output** (`golden-browser`): 183 casi, tutti gli esercizi a più livelli, con i "dadi truccati" (generatore casuale con un seme fisso). Si confronta l'impronta del materiale e di ciò che viene disegnato.
   3. **Controllo "prima e dopo" delle esportazioni** (`export-browser`): scarica i file PowerPoint e Word e confronta l'impronta di ogni parte interna.
+  4. **Controllo "prima e dopo" dell'aspetto** (`style-browser`): gli stili che il browser applica davvero a ogni elemento, in 16 stati (computer e telefono). *Lezione:* le schermate a pixel sembravano la scelta ovvia ma cambiano a caso di qualche pixel; un controllo instabile non serve a niente, quindi si è passati agli stili calcolati, che sono identici a ogni lancio.
 - **Attenzione:** questo tipo di controllo dimostra "non è cambiato niente", non "è giusto". Le regole di qualità vanno provate a parte.
 
 ### B2. Un passo alla volta, e a fine passo l'app funziona
@@ -73,7 +74,10 @@ Una web app è come una cucina professionale. Le buone pratiche servono a tre co
 - **Cosa fare:** scaricare le librerie in `vendor/`, scrivere versione e licenza, non caricarle da internet a ogni apertura.
 - **Perché:** se il sito che le ospita cambia, chiude o è bloccato dalla rete aziendale (succede nelle AUSL), l'app smette di funzionare. Una versione fissa non cambia da sola.
 
-### B7. La configurazione sta in un posto solo
+### B7. Un controllo che a volte sbaglia da solo non è un controllo
+- Un test che cambia risultato senza che il codice cambi va sistemato o sostituito subito, altrimenti si smette di fidarsi anche di quando segnala un errore vero.
+
+### B8. La configurazione sta in un posto solo
 - **Nel progetto (passo 5):** `js/firebase-config.js` contiene solo la configurazione di Firebase. Per collegare o scollegare la cronologia online si tocca solo quel file; il resto del codice non va aperto.
 
 ---
@@ -127,9 +131,8 @@ Lavorare su una copia di prova (ramo separato) e pubblicare solo dopo il control
 8. Dopo ogni pubblicazione: giro di controllo manuale di cinque minuti.
 
 ## Cosa resta da migliorare (ordine di importanza)
-1. Avvisare l'utente quando una scrittura online viene rifiutata (A3).
-2. Regole Firestore riviste e scritte nel README (A4).
-3. Un controllore automatico che lancia i test a ogni caricamento (C2).
-4. Numero di versione visibile nell'app e breve elenco "cosa è cambiato".
-5. Ramo di prova prima della pubblicazione (D5).
-6. Licenza del codice e riconoscimenti (OpenMoji, CC BY-SA).
+1. Regole Firestore scritte nel README e riviste (A4).
+2. Un controllore automatico che lancia i test a ogni caricamento (C2).
+3. Numero di versione visibile nell'app e breve elenco "cosa è cambiato".
+4. Ramo di prova prima della pubblicazione (D5).
+5. Licenza del codice e riconoscimenti (OpenMoji, CC BY-SA).

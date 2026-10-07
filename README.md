@@ -54,11 +54,12 @@ data/                       dati puri, separati dalla logica
   categorizzazione.js         libreria dei criteri di categorizzazione
   openmoji-map.js             mappa termine inglese -> icona OpenMoji
   inv-real-block.js           lessico di controllo per le non-parole dell'Intruso
+css/style.css                l'aspetto dell'app (passo 6)
 js/                         il codice, un file per argomento (passi 4 e 5)
   generators/                 genera il materiale: griglie, intruso, inversione, serie, accesso, fascicolo
   renderers/                  lo disegna a schermo: i sei sopra + categorizzazione
   export/                     esportazioni PowerPoint (un file per esercizio) e Word (fascicolo); exporters.js sceglie quella giusta
-  history/                    cronologia condivisa (localStorage + Firestore) e storico delle generazioni
+  history/                    cronologia condivisa (localStorage + Firestore), storico delle generazioni e avvisi sul salvataggio online (online-status.js)
   progression.js              progressione del gruppo (mantieni / sali di livello)
   backup/                     copia di sicurezza: backup.js (logica pura) e backup-ui.js (collegamento alla pagina)
   firebase-config.js          configurazione Firebase (l'unico file da toccare per collegare/scollegare la cronologia online)
@@ -74,6 +75,9 @@ tests/                      test automatici (Node, nessuna dipendenza da install
   golden-browser.json         le impronte di riferimento di quel controllo
   export-browser.js           controllo "prima e dopo" delle esportazioni: scarica i file PowerPoint e Word e ne confronta l'interno
   export-browser.json         le impronte di riferimento di quel controllo
+  online-browser.js           prova dell'avviso sul salvataggio online (Firestore finto, nessuna rete)
+  style-browser.js            controllo "prima e dopo" dell'aspetto: stili calcolati di ogni elemento in 16 stati (computer e telefono)
+  style-browser.json          le impronte di riferimento di quel controllo
 ```
 
 | Scelta | Perché |
@@ -235,6 +239,10 @@ Cosa controllano:
 
 **Controllo "prima e dopo" in browser** (`tests/golden-browser.js`): apre `index.html` in Chromium senza rete, fissa il generatore casuale con un seme, genera ogni esercizio a 11 livelli e 2 semi (più le opzioni dei controlli e le 12 settimane del fascicolo, 183 casi) e confronta le impronte del materiale e di ciò che l'app disegna con `tests/golden-browser.json`. Serve a dimostrare che spostare il codice non cambia l'output. Richiede Playwright con Chromium (lo lancia Claude; non serve per usare l'app): `node tests/golden-browser.js` confronta, con `--update` riscrive le impronte (solo se il cambiamento è voluto). Nella categorizzazione le immagini arrivano in ritardo, quindi si confronta solo ciò che viene disegnato.
 
+**Controllo dell'aspetto** (`tests/style-browser.js`): per ogni elemento della pagina calcola gli stili che il browser applica davvero e confronta l'impronta con `tests/style-browser.json` (avvio e 7 esercizi, schermo da computer e da telefono). Si è scelto questo invece delle schermate a pixel perché queste ultime cambiano a caso di qualche pixel per il disegno dei caratteri. Non copre le regole di stampa.
+
+**Avviso sul salvataggio online** (`tests/online-browser.js`): con un Firestore finto che rifiuta una raccolta, verifica che il pulsante "Verifica il salvataggio online" e l'avviso rosso lo dicano, e che spariscano quando le regole sono a posto.
+
 **Controllo delle esportazioni** (`tests/export-browser.js`): per 6 esercizi a 3 livelli e per 2 settimane del fascicolo preme il pulsante di esportazione, intercetta i file scaricati (PowerPoint e Word) e confronta l'impronta di ogni parte interna con `tests/export-browser.json` (escluse le date di creazione). Stesso modo d'uso di `golden-browser.js` (`--update` per riscrivere le impronte).
 
 Limiti noti (da dichiarare con onestà):
@@ -246,7 +254,7 @@ Limiti noti (da dichiarare con onestà):
 
 L'app è pubblicata con **GitHub Pages** dal ramo `main`: ogni modifica caricata viene ripubblicata automaticamente in 1–2 minuti (lo stato "pending/in progress" accanto al commit è la pubblicazione in corso). Dopo ogni aggiornamento: ricaricare il sito con Ctrl+Shift+R, generare un'attività e scaricare un PowerPoint e un Word, aprirli.
 
-Quando si carica su GitHub vanno caricate **le cartelle intere** (`data`, `js`, `tests`, `vendor`; dentro `js` ci sono le sottocartelle `generators`, `renderers`, `export`, `history`, `backup`), non i file che contengono: i file singoli finirebbero nella cartella principale e `index.html` non troverebbe più i suoi script.
+Quando si carica su GitHub vanno caricate **le cartelle intere** (`css`, `data`, `js`, `tests`, `vendor`; dentro `js` ci sono le sottocartelle `generators`, `renderers`, `export`, `history`, `backup`), non i file che contengono: i file singoli finirebbero nella cartella principale e `index.html` non troverebbe più i suoi script.
 
 ## Come modificare i dati e le librerie
 
@@ -266,7 +274,7 @@ Obiettivo: rendere il codice leggibile, correggibile e professionale **senza cam
 | 3 | Dati in `data/` | fatto per criteri, icone e lessico di controllo; le banche del motore restano dentro l'engine per ora |
 | 4 | Un file per generatore e per renderer (`js/generators/`, `js/renderers/`) | fatto (provato con il controllo "prima e dopo": 183 casi identici; i generatori sono ancora a `Math.random()`, il seme si fissa solo nel test) |
 | 5 | Esportazioni, cronologia, progressione e copia di sicurezza in file propri | fatto (`js/export/`, `js/history/`, `js/progression.js`, `js/backup/`, `js/firebase-config.js`; provato con 62 test, 183 casi "prima e dopo" e 20 esportazioni identiche) |
-| 6 | CSS in file separato; README spezzato per argomento in `docs/` | da fare |
+| 6 | CSS in file separato; README spezzato per argomento in `docs/` | CSS fatto (`css/style.css`, 16 stati identici); README ancora unico |
 | 7 | Pulsante "Esporta/Importa tutto" per il backup dello stato locale | fatto (Salva / Ripristina copia di sicurezza, con test; la logica sta in `js/backup/backup.js` dal passo 5) |
 
 ## Sicurezza, privacy e licenze

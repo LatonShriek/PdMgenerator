@@ -15,7 +15,7 @@ e regole di qualità: **va letto prima di toccare i generatori e non va perso.**
 Per Rodrigo esiste anche `SPIEGAZIONE_SEMPLICE.md` (perché la struttura è fatta
 così e cosa si può ancora migliorare, in parole semplici).
 
-## Stato attuale (refactoring in corso: passi 1, 2, 3, 4, 5 e 7 fatti)
+## Stato attuale (refactoring in corso: passi 1, 2, 3, 4, 5 e 7 fatti, 6 a metà: CSS fatto)
 - `index.html` ~213 KB (era ~543 KB). Passo 4: generatori in `js/generators/` (griglie, intruso,
   inversione, serie, accesso, fascicolo) e renderer in `js/renderers/` (gli stessi + categorizzazione),
   script classici caricati con `<script src>` PRIMA dello script principale (stesso ordine di prima;
@@ -40,6 +40,12 @@ così e cosa si può ancora migliorare, in parole semplici).
   (si lancia in background: ~2 min; NODE_PATH e CHROMIUM_PATH impostati).
 - `tests/export-browser.js`: 20 esportazioni (PowerPoint dei 6 esercizi a 3 livelli + Word del fascicolo, settimane 1 e 7)
   confrontate per contenuto interno; **va lanciato prima e dopo ogni modifica alle esportazioni**.
+- `tests/style-browser.js`: stili calcolati di ogni elemento in 16 stati; da lanciare prima e dopo ogni modifica al CSS.
+- `tests/online-browser.js`: avviso sul salvataggio online con Firestore finto.
+- Dopo il passo 5: `js/history/online-status.js` mostra un avviso rosso se un salvataggio online è rifiutato
+  e ha il pulsante "Verifica il salvataggio online" (prova scrittura/lettura/cancellazione nelle 5 raccolte).
+  Passo 6 (parte CSS): l'aspetto sta in `css/style.css`; il banner controlla che la variabile `--bg` sia definita.
+  Lezione: le schermate a pixel sono instabili, meglio confrontare gli stili calcolati.
 - `GUIDA_BUONE_PRATICHE.md`: guida di buone pratiche, **da aggiornare a ogni passo** con ciò che si è imparato.
 - Copia di sicurezza (passo 7): blocco `backup.js` (logica pura, UMD) dentro
   `index.html` + due pulsanti in fondo alla barra laterale. Salva/ripristina solo
@@ -91,7 +97,7 @@ Rodrigo carica su GitHub dal sito (Add file → Upload files), non da terminale.
   finirebbero nella radice e `index.html` non troverebbe più i suoi script.
 - Prima del Commit, nell'elenco di GitHub i nomi devono avere il prefisso della
   cartella (es. `data/categorizzazione.js`). Se non c'è, non fare Commit.
-- Cartella `js` (con `generators/`, `renderers/`, `export/`, `history/`, `backup/`): il prefisso nell'elenco deve essere
+- Cartelle `css` e `js` (con `generators/`, `renderers/`, `export/`, `history/`, `backup/`): il prefisso nell'elenco deve essere
   `js/generators/griglie.js` ecc., UNA sola volta `js/`. Le zip si fanno con il contenuto della cartella al
   livello più alto (non una cartella `js` dentro `js.zip`), così "Estrai tutto" dà `js/generators/...`.
   Se manca un file, l'app mostra la banda rossa. `index.html` si carica PER ULTIMO.
@@ -149,7 +155,8 @@ docs/                 # README spezzato per argomento
       resta `Math.random()`: il seme si fissa solo nel test, non si è toccato il codice.
 - [x] 5. Estratti esportazioni, cronologia, progressione, copia di sicurezza e config Firebase in `js/`;
       provato con 62 test, 183 casi "prima e dopo" e 20 esportazioni identiche.
-- [ ] 6. CSS in file separato; spezzare il README in `docs/`.
+- [~] 6. CSS in `css/style.css` fatto e provato (16 stati identici). Resta: spezzare il README in `docs/`
+      e spostare lì la guida.
 - [x] 7. Pulsanti "Salva copia di sicurezza" / "Ripristina" (file JSON) per il
       backup dello stato locale. Il blocco `backup.js` passa in un file proprio
       al passo 5.
@@ -159,7 +166,7 @@ docs/                 # README spezzato per argomento
   con screenshot): non chiarito se il problema era sul sito ancora vecchio o in
   locale. Da riprendere.
 - Cronologia condivisa Firebase: da qui non si raggiunge la rete, quindi non
-  provabile. Nello screenshot di Rodrigo (6 ott 2026) Firestore mostrava solo le
+  provabile (ora l'app stessa avvisa dei rifiuti: pulsante "Verifica il salvataggio online"). Nello screenshot di Rodrigo (6 ott 2026) Firestore mostrava solo le
   raccolte `accessoHistory` (documenti 23, 28, gruppo-23, gruppo-28) e
   `catHistory`: mancavano `fascicoloHistory`, `materialHistory`, `groupProgress`.
   Il codice ingoia in silenzio i rifiuti di scrittura e "Connesso" significa solo

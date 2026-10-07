@@ -30,8 +30,8 @@ function progressStore(group, data){
 
 async function progressPushRemote(group, data){
   if(!sharedHistoryReady) return;
-  try{ await firestoreDb.collection("groupProgress").doc(group).set({ data: JSON.stringify(data), updatedAt: Date.now() }, {merge:true}); }
-  catch(e){ /* rete o permessi: si resta in locale */ }
+  try{ await firestoreDb.collection("groupProgress").doc(group).set({ data: JSON.stringify(data), updatedAt: Date.now() }, {merge:true}); remoteWriteOk("groupProgress"); }
+  catch(e){ remoteWriteFailed("groupProgress", e); /* rete o permessi: si resta in locale, ma si avvisa */ }
 }
 
 // Unione di due copie (locale + remota): registrazioni unite per timestamp, meno quelle annullate (`del`);
@@ -66,13 +66,14 @@ async function progressSyncRemote(){
   _progressSyncing = true;
   try{
     const doc = await firestoreDb.collection("groupProgress").doc(group).get();
+    remoteWriteOk("groupProgress");
     if(doc.exists){
       const remote = JSON.parse(doc.data().data || "{}");
       const merged = progressMerge(progressLoad(group), remote);
       localStorage.setItem(PROGRESS_PREFIX + group, JSON.stringify(merged));
       progressPushRemote(group, merged);
     }
-  } catch(e){ /* si resta con i dati locali */ }
+  } catch(e){ remoteWriteFailed("groupProgress", e); /* si resta con i dati locali, ma si avvisa */ }
   _progressSyncing = false;
   renderProgressPanel();
 }
