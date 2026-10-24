@@ -2,7 +2,7 @@
 
 *Documento vivo: nasce dal lavoro di riordino di PdM CDCD e si aggiorna a ogni passo. Ogni regola dice **cosa fare**, **perché**, **come si è visto nel progetto** e **come si controlla**. Scritta in italiano semplice: non serve essere programmatori per capire il "perché".*
 
-*Aggiornata al passo 6 (CSS) del refactoring.*
+*Aggiornata alla fine del piano di refactoring (passi 1-7).*
 
 ---
 
@@ -102,6 +102,9 @@ Attendere 1–2 minuti, ricaricare con Ctrl+Maiusc+R, generare un'attività per 
 
 ### D1. Una "memoria di lavoro" scritta
 Un file (`CLAUDE_pdmgenerator.md`) dice a chi lavora al progetto — persona o assistente — come si lavora, a che punto si è e cosa non va toccato. Ogni sessione parte da lì invece che da zero. Il README spiega **cosa** fa l'app e **perché** è fatta così: va tenuto aggiornato, non è un optional.
+
+### D1b. La documentazione si divide per argomento, con un indice
+Un README di 300 righe non lo legge nessuno. Un README breve (scopo, cosa fa, indice) più un file per argomento in `docs/` (struttura, attività, esportazioni, test, pubblicazione…) si consulta a colpo d'occhio e si aggiorna senza toccare il resto. *Nel progetto: passo 6.*
 
 ### D2. Mai riscrivere un file intero per una correzione
 Modifiche mirate, una per volta, dicendo quali righe cambiano e perché. Un file riscritto per intero può perdere cose che nessuno nota.

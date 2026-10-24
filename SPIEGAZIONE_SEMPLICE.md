@@ -45,7 +45,7 @@ Adesso la cucina ha **degli scaffali con l'etichetta**:
 
 ### A che punto siamo
 
-I passi **1, 2, 3, 4, 5 e 7 sono fatti, e il 6 a metà (l'aspetto grafico è in un file suo)** (test, librerie in casa, dati separati, una scheda per ogni compito, copia di sicurezza). Per i passi 4 e 5 ho fatto un "assaggio" più severo: 183 piatti assaggiati prima e dopo lo spostamento, più 20 file PowerPoint e Word scaricati e confrontati dentro, tutti identici. Resta di spezzare la documentazione per argomento.
+I passi **1, 2, 3, 4, 5, 6 e 7 sono fatti** (l'aspetto grafico è in un file suo e la documentazione è divisa per argomento in `docs/`) (test, librerie in casa, dati separati, una scheda per ogni compito, copia di sicurezza). Per i passi 4 e 5 ho fatto un "assaggio" più severo: 183 piatti assaggiati prima e dopo lo spostamento, più 20 file PowerPoint e Word scaricati e confrontati dentro, tutti identici. Il piano di riordino è completo; restano i miglioramenti elencati più sotto.
 
 ---
 

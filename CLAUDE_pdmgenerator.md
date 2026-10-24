@@ -10,13 +10,13 @@ intruso, griglie, serie attentive, inversione, accesso lessicale, fascicolo a
 casa), 32 livelli, anti-ripetizione per gruppo, progressione di gruppo,
 esportazione PowerPoint (pptxgenjs) e Word (docx). Cronologia in
 `localStorage`, condivisione opzionale via Firebase/Firestore.
-Il README.md documenta in dettaglio scopo, struttura, logica, banche di parole
-e regole di qualità: **va letto prima di toccare i generatori e non va perso.**
+Il README.md è l'indice; la documentazione dettagliata (scopo, struttura, logica, banche di parole
+e regole di qualità) sta in `docs/`: **va letta prima di toccare i generatori e non va persa.**
 Per Rodrigo esiste anche `SPIEGAZIONE_SEMPLICE.md` (perché la struttura è fatta
 così e cosa si può ancora migliorare, in parole semplici).
 
-## Stato attuale (refactoring in corso: passi 1, 2, 3, 4, 5 e 7 fatti, 6 a metà: CSS fatto)
-- `index.html` ~213 KB (era ~543 KB). Passo 4: generatori in `js/generators/` (griglie, intruso,
+## Stato attuale (refactoring: i passi 1-7 del piano sono fatti)
+- `index.html` ~201 KB (era ~543 KB). Passo 4: generatori in `js/generators/` (griglie, intruso,
   inversione, serie, accesso, fascicolo) e renderer in `js/renderers/` (gli stessi + categorizzazione),
   script classici caricati con `<script src>` PRIMA dello script principale (stesso ordine di prima;
   sono solo dichiarazioni di funzione, nessuna chiamata al caricamento). Una banda rossa avvisa se manca un file.
@@ -114,7 +114,9 @@ Rodrigo carica su GitHub dal sito (Add file → Upload files), non da terminale.
 ```
 index.html            app: interfaccia, stato, motori (Fascicolo, categorizzazione), collegamenti
 CLAUDE_pdmgenerator.md  questo file
-README.md             documentazione completa
+README.md             presentazione e indice
+docs/                 documentazione per argomento (struttura, attivita, esportazione-e-backup, fascicolo,
+                      banche-e-categorie, interfaccia, test, pubblicazione-e-refactoring)
 SPIEGAZIONE_SEMPLICE.md spiegazione in parole semplici
 data/                 criteri, icone, lessico di controllo (file .js)
 vendor/               librerie esterne con versione fissata (+ README.md, licenses/)
@@ -155,8 +157,8 @@ docs/                 # README spezzato per argomento
       resta `Math.random()`: il seme si fissa solo nel test, non si è toccato il codice.
 - [x] 5. Estratti esportazioni, cronologia, progressione, copia di sicurezza e config Firebase in `js/`;
       provato con 62 test, 183 casi "prima e dopo" e 20 esportazioni identiche.
-- [~] 6. CSS in `css/style.css` fatto e provato (16 stati identici). Resta: spezzare il README in `docs/`
-      e spostare lì la guida.
+- [x] 6. CSS in `css/style.css` (16 stati identici) e README diviso per argomento in `docs/` (il README
+      resta come indice). La guida `GUIDA_BUONE_PRATICHE.md` resta nella radice.
 - [x] 7. Pulsanti "Salva copia di sicurezza" / "Ripristina" (file JSON) per il
       backup dello stato locale. Il blocco `backup.js` passa in un file proprio
       al passo 5.
