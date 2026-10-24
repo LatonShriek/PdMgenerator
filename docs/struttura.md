@@ -11,6 +11,9 @@ README.md                   presentazione e indice della documentazione
 docs/                       la documentazione, un file per argomento (passo 6)
 GUIDA_BUONE_PRATICHE.md     guida di buone pratiche per costruire web app (documento vivo)
 data/                       dati puri, separati dalla logica
+  parentele.js                banca nomi per Parentele (≥60 per genere)
+  classificazioni.js          banca categorie per Classificazioni (voci «proposta», da validare)
+  vrt-esclusi.js              materiale del VRT da non riprodurre (nomi propri)
   categorizzazione.js         libreria dei criteri di categorizzazione
   openmoji-map.js             mappa termine inglese -> icona OpenMoji
   inv-real-block.js           lessico di controllo per le non-parole dell'Intruso

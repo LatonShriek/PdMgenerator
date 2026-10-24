@@ -11,7 +11,7 @@ let pw; try { pw = require('playwright'); } catch (e) { pw = require('playwright
 const ROOT = path.join(__dirname, '..');
 const SNAP = path.join(__dirname, 'style-browser.json');
 const UPDATE = process.argv.includes('--update');
-const SHOTS = [['griglie', 10], ['intruso', 15], ['inversione', 12], ['serie', 10], ['accesso', 12], ['categorizzazione', 8], ['parentele', 12], ['fascicolo', 1]];
+const SHOTS = [['griglie', 10], ['intruso', 15], ['inversione', 12], ['serie', 10], ['accesso', 12], ['categorizzazione', 8], ['parentele', 12], ['classificazioni', 12], ['fascicolo', 1]];
 
 function stylesHash() {
   let h = 5381, n = 0;

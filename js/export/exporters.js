@@ -10,6 +10,7 @@ const EXPORTERS = {
   serie: exportSerie,
   accesso: exportAccesso,
   parentele: exportParentele,
+  classificazioni: exportClassificazioni,
   categorizzazione: exportCategorizzazione,
   fascicolo: (deck)=>exportFascicolo(deck)
 };

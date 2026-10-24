@@ -10,7 +10,7 @@ I test verificano che l'app produca **sempre lo stesso materiale a parità di se
 node --test tests/*.test.js
 ```
 
-Serve solo Node (versione 20 o successiva); non c'è niente da installare. Il risultato atteso è `fail 0` (62 test alla data di questo aggiornamento).
+Serve solo Node (versione 20 o successiva); non c'è niente da installare. Il risultato atteso è `fail 0` (79 test alla data di questo aggiornamento).
 
 Cosa controllano:
 - **Determinismo**: stesso seme e settimana → fascicolo identico; semi diversi → fascicoli diversi.
@@ -18,9 +18,10 @@ Cosa controllano:
 - **Struttura e regole di qualità** per ogni settimana: 3 griglie 25×12 con 8 sequenze orizzontali e 8 verticali, 12 bersagli distinti, anagrammi corretti e senza doppioni, 10 calcoli esatti e mai negativi, categorie distinte, consegne lessicali senza doppioni.
 - **Anti-ripetizione**: parole, categorie e chiavi lessicali già usate non riappaiono; se il materiale finisce l'app lo segnala in `notices`, non ripesca in silenzio.
 - **Banche e dati**: struttura delle banche di parole e categorie, validità e conteggi dei file in `data/`.
+- **Parentele e Classificazioni** (`tests/parentele.test.js`, `tests/classificazioni.test.js`): risposta ricalcolata in modo indipendente dal generatore (albero completo / banca), cancelli di livello, scelta multipla, anti-ripetizione, determinismo, integrità delle banche.
 - **Copia di sicurezza** (`tests/backup.test.js`): andata e ritorno (salva, svuota, ripristina = stessi dati), unione senza doppioni e senza cancellare, ripristino ripetuto che non cambia più nulla, unione reale delle progressioni (usa il vero `progressMerge` estratto da `index.html`), nome gruppo non sovrascritto, file sbagliato o ostile rifiutato o ignorato.
 
-**Controllo "prima e dopo" in browser** (`tests/golden-browser.js`): apre `index.html` in Chromium senza rete, fissa il generatore casuale con un seme, genera ogni esercizio a 11 livelli e 2 semi (più le opzioni dei controlli e le 12 settimane del fascicolo, 183 casi) e confronta le impronte del materiale e di ciò che l'app disegna con `tests/golden-browser.json`. Serve a dimostrare che spostare il codice non cambia l'output. Richiede Playwright con Chromium (lo lancia Claude; non serve per usare l'app): `node tests/golden-browser.js` confronta, con `--update` riscrive le impronte (solo se il cambiamento è voluto). Nella categorizzazione le immagini arrivano in ritardo, quindi si confronta solo ciò che viene disegnato.
+**Controllo "prima e dopo" in browser** (`tests/golden-browser.js`): apre `index.html` in Chromium senza rete, fissa il generatore casuale con un seme, genera ogni esercizio a 11 livelli e 2 semi (più le opzioni dei controlli e le 12 settimane del fascicolo, 227 casi) e confronta le impronte del materiale e di ciò che l'app disegna con `tests/golden-browser.json`. Serve a dimostrare che spostare il codice non cambia l'output. Richiede Playwright con Chromium (lo lancia Claude; non serve per usare l'app): `node tests/golden-browser.js` confronta, con `--update` riscrive le impronte (solo se il cambiamento è voluto). Nella categorizzazione le immagini arrivano in ritardo, quindi si confronta solo ciò che viene disegnato.
 
 **Controllo dell'aspetto** (`tests/style-browser.js`): per ogni elemento della pagina calcola gli stili che il browser applica davvero e confronta l'impronta con `tests/style-browser.json` (avvio e 7 esercizi, schermo da computer e da telefono). Si è scelto questo invece delle schermate a pixel perché queste ultime cambiano a caso di qualche pixel per il disegno dei caratteri. Non copre le regole di stampa.
 

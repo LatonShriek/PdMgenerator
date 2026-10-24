@@ -5,9 +5,9 @@ Leggi questo file all'inizio di ogni sessione. Aggiornalo quando cambia qualcosa
 
 ## Cos'è
 Web app (JS vanilla, nessun backend) che genera materiale di stimolazione
-cognitiva per gruppi MCI/DNMi/DCL: 7 tipi di attività (categorizzazione,
+cognitiva per gruppi MCI/DNMi/DCL: 9 tipi di attività (categorizzazione,
 intruso, griglie, serie attentive, inversione, accesso lessicale, fascicolo a
-casa), 32 livelli, anti-ripetizione per gruppo, progressione di gruppo,
+casa, più i due nuovi moduli ispirati al VRT: Parentele e Classificazioni), 32 livelli, anti-ripetizione per gruppo, progressione di gruppo,
 esportazione PowerPoint (pptxgenjs) e Word (docx). Cronologia in
 `localStorage`, condivisione opzionale via Firebase/Firestore.
 Il README.md è l'indice; la documentazione dettagliata (scopo, struttura, logica, banche di parole
@@ -32,13 +32,13 @@ così e cosa si può ancora migliorare, in parole semplici).
   il file locale non si carica.
 - Dati in `data/` (3 file `.js`): `categorizzazione.js` (190 voci: 142 reali +
   48 proposte), `openmoji-map.js` (568 voci), `inv-real-block.js`.
-- Test in `tests/`: `node --test tests/*.test.js` → 62 test, tutti passano.
+- Test in `tests/`: `node --test tests/*.test.js` → 79 test, tutti passano.
   Coprono il Fascicolo (seme fisso, snapshot settimane 1-12, regole di qualità,
   anti-ripetizione), i file di dati e la copia di sicurezza (`backup.test.js`).
 - `tests/golden-browser.js` (Playwright, Chromium senza rete, seme fisso): 183 casi, impronte in
   `golden-browser.json`. **Regola: prima e dopo ogni spostamento di codice deve dare "OK: 183 casi identici"**
   (si lancia in background: ~2 min; NODE_PATH e CHROMIUM_PATH impostati).
-- `tests/export-browser.js`: 20 esportazioni (PowerPoint dei 6 esercizi a 3 livelli + Word del fascicolo, settimane 1 e 7)
+- `tests/export-browser.js`: 26 esportazioni (PowerPoint degli 8 esercizi a 3 livelli + Word del fascicolo, settimane 1 e 7)
   confrontate per contenuto interno; **va lanciato prima e dopo ogni modifica alle esportazioni**.
 - `tests/style-browser.js`: stili calcolati di ogni elemento in 16 stati; da lanciare prima e dopo ogni modifica al CSS.
 - `tests/online-browser.js`: avviso sul salvataggio online con Firestore finto.
@@ -46,6 +46,7 @@ così e cosa si può ancora migliorare, in parole semplici).
   e ha il pulsante "Verifica il salvataggio online" (prova scrittura/lettura/cancellazione nelle 5 raccolte).
   Passo 6 (parte CSS): l'aspetto sta in `css/style.css`; il banner controlla che la variabile `--bg` sia definita.
   Lezione: le schermate a pixel sono instabili, meglio confrontare gli stili calcolati.
+- Dal 24 ott 2026: scritta di versione in fondo alla barra laterale (`#appVersion`, da aggiornare a ogni rilascio) e controllo automatico dei test su GitHub (`.github/workflows/test.yml`, `node --test`).
 - `GUIDA_BUONE_PRATICHE.md`: guida di buone pratiche, **da aggiornare a ogni passo** con ciò che si è imparato.
 - Copia di sicurezza (passo 7): blocco `backup.js` (logica pura, UMD) dentro
   `index.html` + due pulsanti in fondo alla barra laterale. Salva/ripristina solo
@@ -58,6 +59,12 @@ così e cosa si può ancora migliorare, in parole semplici).
 - Punti di giunzione già esistenti per i prossimi passi: mappe `GENERATORS` e
   `RENDERERS`, `weekParams(week)`, sezioni commentate.
 - Pittogrammi OpenMoji (CC BY-SA 4.0) con fallback testuale.
+
+## Nuovi moduli VRT (ottobre 2026)
+- Piano e specifiche condivise: Claude Doc «PdM CDCD — Piano d'azione e specifiche moduli VRT». Ogni modulo = `data/<nome>.js` + `js/generators|renderers|export/<nome>.js` + `tests/<nome>.test.js` + registrazione in `index.html` (EXERCISES, GENERATORS, RENDERERS, EXERCISE_NUMBER, MATERIAL_HISTORY, tag script, banda rossa, levelNote, controlli, storico) + `js/export/exporters.js` + `js/history/storico.js`. I generatori nuovi sono UMD (globale nel browser, `require` in Node) con `buildXxx(level,{rng,used,count})` puro e testabile.
+- **Fatti**: Parentele (n. 7) e Classificazioni (n. 8). Banca Classificazioni = `proposta`, da validare da Rodrigo.
+- **Da fare**, in quest'ordine: Intruso concettuale, Analogie, Assurdità, Differenze e somiglianze, Idiomatiche (banche come documento di bozze `proposta`). Materiale del VRT da non riprodurre: `data/vrt-esclusi.js`.
+- Aggiungere un modulo cambia di proposito le impronte `style-browser` (+ elementi in elenco e tag script) e aggiunge casi a golden/export: si riscrivono con `--update` dopo aver verificato che i casi esistenti non cambino (il solo campo `rule` del fascicolo può variare: è il testo nascosto del riquadro regola rimasto dall'esercizio precedente nel test).
 
 ## Regole di lavoro (sempre)
 1. **Mai riscrivere un intero file** per una correzione. Modifiche mirate,
