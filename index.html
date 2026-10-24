@@ -61,7 +61,7 @@
     <div class="level-note" style="margin-top:6px;">Salva in un file la memoria dei gruppi, i livelli e lo storico. Ripristinando non si cancella niente: si aggiunge solo ciò che manca. Il file contiene i nomi dei gruppi: tienilo al sicuro.</div>
   </div>
 
-  <div class="level-note" id="appVersion" style="margin-top:14px;">Versione 10 — 24 ottobre 2026</div>
+  <div class="level-note" id="appVersion" style="margin-top:14px;">Versione 11 — 25 ottobre 2026</div>
 </div>
 
 <div id="historyPanel" style="display:none;">
@@ -397,7 +397,7 @@ const state = {
   // progresso raggiunto in quello lasciato. state.level resta comunque lo specchio del
   // livello dell'esercizio attivo (state.levels[state.exercise]) — letto/scritto ovunque
   // come prima, ma sincronizzato con la mappa a ogni cambio di esercizio o di slider.
-  levels: { categorizzazione:1, intruso:1, griglie:1, serie:1, inversione:1, accesso:1, parentele:1, classificazioni:1, intrusoconc:1, analogie:1 },
+  levels: { categorizzazione:1, intruso:1, griglie:1, serie:1, inversione:1, accesso:1, classificazioni:1, intrusoconc:1, analogie:1 },
   digitRule:"inverti",
   catMode:"raggruppa",
   materialOverride:{griglie:"auto", intruso:"auto", inversione:"auto"},
@@ -405,7 +405,6 @@ const state = {
   inversioneForceAlnum:false,
   intrusoScreensOverride:null,
   serieItemsOverride:null,
-  parenteleItemsOverride:null,
   classificazioniItemsOverride:null,
   intrusoconcItemsOverride:null,
   analogieItemsOverride:null,
@@ -432,7 +431,6 @@ const EXERCISES = [
   {id:"serie", name:"Serie attentive alternate", desc:"Attenzione alternata, task-switching, n-back"},
   {id:"inversione", name:"Inversione e riordino", desc:"Span e manipolazione di sequenze"},
   {id:"accesso", name:"Accesso lessicale online", desc:"Denominazione con cueing graduato"},
-  {id:"parentele", name:"Parentele", desc:"Ragionamento verbale: relazioni di parentela dalle premesse"},
   {id:"classificazioni", name:"Classificazioni", desc:"Ragionamento verbale: dati tre termini, nominare la categoria"},
   {id:"intrusoconc", name:"Intruso concettuale", desc:"Ragionamento verbale: quattro parole, trovare quella che non c'entra"},
   {id:"analogie", name:"Analogie", desc:"Ragionamento verbale: A sta a B come C sta a ?"},
@@ -442,7 +440,7 @@ const EXERCISES = [
 // all'ordine dei tuoi materiali originali — non l'ordine alfabetico o di comparsa
 // nell'elenco, che potrebbe cambiare in futuro senza dover rinumerare i file.
 const EXERCISE_NUMBER = {
-  categorizzazione: 1, intruso: 2, griglie: 3, serie: 4, inversione: 5, accesso: 6, parentele: 7, classificazioni: 8, intrusoconc: 9, analogie: 10,
+  categorizzazione: 1, intruso: 2, griglie: 3, serie: 4, inversione: 5, accesso: 6, classificazioni: 7, intrusoconc: 8, analogie: 9,
 };
 
 /* =========================================================
@@ -453,13 +451,10 @@ const EXERCISE_NUMBER = {
 <script src="js/generators/griglie.js"></script>
 <script src="js/generators/intruso.js"></script>
 <script src="js/generators/inversione.js"></script>
-<script src="data/vrt-esclusi.js"></script>
-<script src="data/parentele.js"></script>
 <script src="data/classificazioni.js"></script>
 <script src="data/intruso-concettuale.js"></script>
 <script src="data/analogie.js"></script>
 <script src="js/generators/serie.js"></script>
-<script src="js/generators/parentele.js"></script>
 <script src="js/generators/classificazioni.js"></script>
 <script src="js/generators/intruso-concettuale.js"></script>
 <script src="js/generators/analogie.js"></script>
@@ -468,7 +463,6 @@ const EXERCISE_NUMBER = {
 <script src="js/renderers/intruso.js"></script>
 <script src="js/renderers/inversione.js"></script>
 <script src="js/renderers/serie.js"></script>
-<script src="js/renderers/parentele.js"></script>
 <script src="js/renderers/classificazioni.js"></script>
 <script src="js/renderers/intruso-concettuale.js"></script>
 <script src="js/renderers/analogie.js"></script>
@@ -487,7 +481,6 @@ const EXERCISE_NUMBER = {
 <script src="js/export/intruso.js"></script>
 <script src="js/export/inversione.js"></script>
 <script src="js/export/serie.js"></script>
-<script src="js/export/parentele.js"></script>
 <script src="js/export/classificazioni.js"></script>
 <script src="js/export/intruso-concettuale.js"></script>
 <script src="js/export/analogie.js"></script>
@@ -498,8 +491,8 @@ const EXERCISE_NUMBER = {
 <script>
 // Controllo di caricamento: se un file delle cartelle js/ o css/ manca (caricamento incompleto su GitHub), avvisa invece di lasciare pulsanti muti.
 (function () {
-  var attesi = ['genGriglie', 'genIntruso', 'genInversione', 'genSerie', 'genAccesso', 'genParentele', 'genClassificazioni', 'genIntrusoConcettuale', 'genAnalogie', 'genCategorizzazioneV2', 'Engine', 'genFascicolo',
-    'renderGriglie', 'renderIntruso', 'renderInversione', 'renderSerie', 'renderAccesso', 'renderParentele', 'exportParentele', 'renderClassificazioni', 'exportClassificazioni', 'renderIntrusoConcettuale', 'exportIntrusoConcettuale', 'renderAnalogie', 'exportAnalogie', 'renderCategorizzazione', 'renderFascicolo',
+  var attesi = ['genGriglie', 'genIntruso', 'genInversione', 'genSerie', 'genAccesso', 'genClassificazioni', 'genIntrusoConcettuale', 'genAnalogie', 'genCategorizzazioneV2', 'Engine', 'genFascicolo',
+    'renderGriglie', 'renderIntruso', 'renderInversione', 'renderSerie', 'renderAccesso', 'renderClassificazioni', 'exportClassificazioni', 'renderIntrusoConcettuale', 'exportIntrusoConcettuale', 'renderAnalogie', 'exportAnalogie', 'renderCategorizzazione', 'renderFascicolo',
     'initSharedHistory', 'loadHistory', 'checkOnlineSaving', 'progressMerge', 'PdmBackup', 'backupRefreshStatus', 'exportCurrent', 'exportFascicolo', 'firebaseConfig'];
   var mancano = attesi.filter(function (n) { try { return typeof eval(n) === 'undefined'; } catch (e) { return true; } });
   // il file CSS è caricato se la variabile di colore --bg (definita in css/style.css) ha un valore
@@ -686,17 +679,6 @@ function levelNote(exId, level){
       const names = ["", "categorie concrete e frequenti", "categorie concrete meno immediate", "categorie funzionali o di materiali", "categorie astratte o specialistiche", "categorie molto astratte"];
       return `Fascia di astrazione ${lo===hi?hi:lo+"-"+hi}/5 (${names[hi]}); termini sempre più atipici` + (level<=8 ? "; scelta fra 4 opzioni." : "; risposta libera.");
     }
-    case "parentele": {
-      const maxP = 2 + Math.floor((level-1)/8);
-      const feats = [];
-      if(level<=8) feats.push("scelta fra 4 opzioni");
-      if(level>=5) feats.push("premesse anche in forma inversa");
-      if(level>=9) feats.push("parentele acquisite (suoceri, generi, nuore)");
-      if(level>=13) feats.push("premesse superflue");
-      if(level>=17) feats.push("cognati, cugini; premesse in ordine sparso");
-      if(level>=21) feats.push("bisnonni e pronipoti");
-      return `Fino a ${maxP} premesse` + (feats.length ? " — " + feats.join("; ") : "") + ".";
-    }
     case "serie":
       return level<=B.serie.length ? B.serie[level-1] : SERIE_NOTES_EXTRA[level-B.serie.length-1];
     case "accesso": {
@@ -816,7 +798,6 @@ const RENDERERS = {
   inversione: renderInversione,
   serie: renderSerie,
   accesso: renderAccesso,
-  parentele: renderParentele,
   classificazioni: renderClassificazioni,
   intrusoconc: renderIntrusoConcettuale,
   analogie: renderAnalogie,
@@ -830,7 +811,6 @@ const GENERATORS = {
   inversione: genInversione,
   serie: genSerie,
   accesso: genAccesso,
-  parentele: genParentele,
   classificazioni: genClassificazioni,
   intrusoconc: genIntrusoConcettuale,
   analogie: genAnalogie,
@@ -843,7 +823,6 @@ const MATERIAL_HISTORY = {
   griglie:    { field:"usedGriglie",    cap:80 },
   intruso:    { field:"usedIntruso",    cap:1500 },
   inversione: { field:"usedInversione", cap:900 },
-  parentele:  { field:"usedParentele",  cap:600 },
   classificazioni: { field:"usedClassificazioni", cap:800 },
   intrusoconc: { field:"usedIntrusoConc", cap:600 },
   analogie:    { field:"usedAnalogie", cap:900 }
@@ -956,15 +935,6 @@ const EX_CONTROLS = {
       render();
     };
     wrap.appendChild(btn);
-    return wrap;
-  },
-  parentele: ()=>{
-    const wrap = document.createElement("div");
-    const note = document.createElement("div");
-    note.className = "level-note";
-    note.textContent = "Quesiti di parentela generati da un albero genealogico: dalle premesse si ricava la relazione fra due persone. Livelli 1-8: scelta fra 4 opzioni; poi risposta libera. Nomi diversi da quelli del VRT.";
-    wrap.appendChild(note);
-    wrap.appendChild(numerosityControl("Numero di quesiti per sessione", "parenteleItemsOverride", 4, 16, 8));
     return wrap;
   },
   classificazioni: ()=>{

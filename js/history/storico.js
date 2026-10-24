@@ -30,7 +30,6 @@ function summarizeDeck(exId, level, deck){
     case "intrusoconc": return `${deck.items.length} quesiti (categorie: ${deck.items.map(i=>i.category).join(", ")})`;
     case "analogie": return `${deck.items.length} analogie (${[...new Set(deck.items.map(i=>i.relationName))].join(", ")})`;
     case "classificazioni": return `${deck.items.length} quesiti (categorie: ${deck.items.map(i=>i.category).join(", ")})`;
-    case "parentele": return `${deck.items.length} quesiti (relazioni: ${deck.items.map(i=>i.answerLabel).join(", ")})`;
     case "categorizzazione": return `${deck.slides.length} schermate (es. ${deck.slides[0].label})`;
     case "fascicolo": return `Fascicolo ${deck.week} — ${deck.week}°settimana`;
     default: return "";

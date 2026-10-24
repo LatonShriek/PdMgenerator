@@ -5,9 +5,9 @@ Leggi questo file all'inizio di ogni sessione. Aggiornalo quando cambia qualcosa
 
 ## Cos'è
 Web app (JS vanilla, nessun backend) che genera materiale di stimolazione
-cognitiva per gruppi MCI/DNMi/DCL: 11 tipi di attività (categorizzazione,
+cognitiva per gruppi MCI/DNMi/DCL: 10 tipi di attività (categorizzazione,
 intruso, griglie, serie attentive, inversione, accesso lessicale, fascicolo a
-casa, più i quattro moduli ispirati al VRT: Parentele, Classificazioni, Intruso concettuale, Analogie), 32 livelli, anti-ripetizione per gruppo, progressione di gruppo,
+casa, più tre moduli di ragionamento verbale ispirati al VRT: Classificazioni, Intruso concettuale, Analogie), 32 livelli, anti-ripetizione per gruppo, progressione di gruppo,
 esportazione PowerPoint (pptxgenjs) e Word (docx). Cronologia in
 `localStorage`, condivisione opzionale via Firebase/Firestore.
 Il README.md è l'indice; la documentazione dettagliata (scopo, struttura, logica, banche di parole
@@ -63,8 +63,8 @@ così e cosa si può ancora migliorare, in parole semplici).
 
 ## Nuovi moduli VRT (ottobre 2026)
 - Piano e specifiche condivise: Claude Doc «PdM CDCD — Piano d'azione e specifiche moduli VRT». Ogni modulo = `data/<nome>.js` + `js/generators|renderers|export/<nome>.js` + `tests/<nome>.test.js` + registrazione in `index.html` (EXERCISES, GENERATORS, RENDERERS, EXERCISE_NUMBER, MATERIAL_HISTORY, tag script, banda rossa, levelNote, controlli, storico) + `js/export/exporters.js` + `js/history/storico.js`. I generatori nuovi sono UMD (globale nel browser, `require` in Node) con `buildXxx(level,{rng,used,count})` puro e testabile.
-- **Fatti**: Parentele (n. 7), Classificazioni (n. 8), Intruso concettuale (n. 9), Analogie (n. 10). Banche Classificazioni e Analogie = `proposta`, da validare da Rodrigo.
-- **Da fare**, in quest'ordine: Assurdità, Differenze e somiglianze (banche come documento di bozze `proposta`). Variante di flessibilità dell'Intruso (6 termini, 2 raggruppamenti): non fatta. **Idiomatiche: escluso su richiesta di Rodrigo (24 ott 2026).** Materiale del VRT da non riprodurre: `data/vrt-esclusi.js`.
+- **Fatti**: Classificazioni (n. 7), Intruso concettuale (n. 8), Analogie (n. 9). **Parentele: rimosso su richiesta di Rodrigo (25 ott 2026)** insieme a `data/vrt-esclusi.js`. Banche Classificazioni e Analogie = `proposta`, da validare da Rodrigo.
+- **Da fare**, in quest'ordine: Assurdità, Differenze e somiglianze (banche come documento di bozze `proposta`). Variante di flessibilità dell'Intruso (6 termini, 2 raggruppamenti): non fatta. **Idiomatiche: escluso su richiesta di Rodrigo (24 ott 2026).** Il materiale del VRT non va riprodotto (frasi, coppie, parole): i protocolli sono nel Progetto/scratchpad della sessione originale.
 - Aggiungere un modulo cambia di proposito le impronte `style-browser` (+ elementi in elenco e tag script) e aggiunge casi a golden/export: si riscrivono con `--update` dopo aver verificato che i casi esistenti non cambino (il solo campo `rule` del fascicolo può variare: è il testo nascosto del riquadro regola rimasto dall'esercizio precedente nel test).
 
 ## Regole di lavoro (sempre)

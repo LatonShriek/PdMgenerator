@@ -9,7 +9,6 @@ const EXPORTERS = {
   inversione: exportInversione,
   serie: exportSerie,
   accesso: exportAccesso,
-  parentele: exportParentele,
   classificazioni: exportClassificazioni,
   intrusoconc: exportIntrusoConcettuale,
   analogie: exportAnalogie,
