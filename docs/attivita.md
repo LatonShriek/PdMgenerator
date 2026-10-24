@@ -2,7 +2,7 @@
 
 *Parte della documentazione di PdM CDCD: indice in [README.md](../README.md). Spostato dal README al passo 6 del refactoring, senza cambiare il testo.*
 
-## I 9 tipi di attività
+## I 11 tipi di attività
 
 | id | Nome | Cosa allena |
 |---|---|---|
@@ -14,6 +14,8 @@
 | `accesso` | Accesso lessicale online | Denominazione con cueing graduato (facilitazioni progressive) |
 | `parentele` | Parentele (ragionamento verbale, ispirato al VRT) | Dalle premesse ricavare la relazione di parentela fra due persone. Quesiti generati da un **albero genealogico** con nomi propri (banca ≥60 nomi per genere, senza i nomi del protocollo VRT); 8 quesiti per sessione (4-16). La risposta si ricava **solo dalle premesse scritte** e i test la ricalcolano dall'albero completo. Difficoltà: premesse da 2 (livelli 1-8) a 5 (25-32), premesse in forma inversa dal 5, parentele acquisite (suoceri, generi, nuore) dal 9, premesse superflue dal 13, cognati/cugini e ordine sparso dal 17, bisnonni/pronipoti dal 21; livelli 1-8 con scelta fra 4 opzioni. Anti-ripetizione per **struttura** (forma della catena + relazione chiesta), campo `usedParentele` |
 | `classificazioni` | Classificazioni (ragionamento verbale, ispirato al VRT) | Dati tre termini, nominare la categoria. Banca in `data/classificazioni.js`: 67 categorie in 5 fasce di astrazione (concreta → molto astratta), termini ordinati dal più tipico al meno tipico, sinonimi e categorie più ampie accettate. Voci marcate `proposta`: **da validare da Rodrigo**. Difficoltà = fascia + atipicità dei termini + risposta libera dal livello 9; scelta fra 4 opzioni nei livelli 1-8. Anti-ripetizione per categoria (poi per terna), campo `usedClassificazioni` |
+| `intrusoconc` | Intruso concettuale (ragionamento verbale, ispirato al VRT) | Quattro parole, tre della stessa categoria e una no. Riusa le 67 categorie di Classificazioni (voci `proposta`) e i **domini** in `data/intruso-concettuale.js`. Fino al livello 8 l'intruso viene da un dominio lontano; dal 9 la quota di intrusi dello stesso dominio (più difficili) cresce fino al 90%. Controllo di unicità: nessuna altra categoria rende ambigua la risposta. Anti-ripetizione per coppia categoria/intruso (`usedIntrusoConc`) |
+| `analogie` | Analogie (ragionamento verbale, ispirato al VRT) | A : B = C : ?  Banca di 148 coppie in 14 tipi di relazione (contrari, esempio-categoria, parte-tutto, strumento, professione, contenitore, materiale, sinonimi, causa-effetto, grado, trasformazione, autore-opera, simboli) in 5 fasce; voci `proposta` da validare. Scelta fra 4 opzioni fino al livello 12 (distrattori più plausibili salendo), risposta libera dopo; quesiti invertiti (? : D) dal 17. Anti-ripetizione per coppia (`usedAnalogie`) |
 | `fascicolo` | Fascicolo esercizi a casa | Fascicolo stampabile in Word per gli esercizi a domicilio, con progressione settimanale automatica (vedi sotto) |
 
 ## Logica di generazione e difficoltà

@@ -13,6 +13,8 @@ GUIDA_BUONE_PRATICHE.md     guida di buone pratiche per costruire web app (docum
 data/                       dati puri, separati dalla logica
   parentele.js                banca nomi per Parentele (≥60 per genere)
   classificazioni.js          banca categorie per Classificazioni (voci «proposta», da validare)
+  intruso-concettuale.js      domini delle categorie (distanza dell'intruso)
+  analogie.js                 banca di coppie per Analogie (voci «proposta», da validare)
   vrt-esclusi.js              materiale del VRT da non riprodurre (nomi propri)
   categorizzazione.js         libreria dei criteri di categorizzazione
   openmoji-map.js             mappa termine inglese -> icona OpenMoji

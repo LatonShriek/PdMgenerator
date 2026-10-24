@@ -61,7 +61,7 @@
     <div class="level-note" style="margin-top:6px;">Salva in un file la memoria dei gruppi, i livelli e lo storico. Ripristinando non si cancella niente: si aggiunge solo ciò che manca. Il file contiene i nomi dei gruppi: tienilo al sicuro.</div>
   </div>
 
-  <div class="level-note" id="appVersion" style="margin-top:14px;">Versione 9 — 24 ottobre 2026</div>
+  <div class="level-note" id="appVersion" style="margin-top:14px;">Versione 10 — 24 ottobre 2026</div>
 </div>
 
 <div id="historyPanel" style="display:none;">
@@ -397,7 +397,7 @@ const state = {
   // progresso raggiunto in quello lasciato. state.level resta comunque lo specchio del
   // livello dell'esercizio attivo (state.levels[state.exercise]) — letto/scritto ovunque
   // come prima, ma sincronizzato con la mappa a ogni cambio di esercizio o di slider.
-  levels: { categorizzazione:1, intruso:1, griglie:1, serie:1, inversione:1, accesso:1, parentele:1, classificazioni:1 },
+  levels: { categorizzazione:1, intruso:1, griglie:1, serie:1, inversione:1, accesso:1, parentele:1, classificazioni:1, intrusoconc:1, analogie:1 },
   digitRule:"inverti",
   catMode:"raggruppa",
   materialOverride:{griglie:"auto", intruso:"auto", inversione:"auto"},
@@ -407,6 +407,8 @@ const state = {
   serieItemsOverride:null,
   parenteleItemsOverride:null,
   classificazioniItemsOverride:null,
+  intrusoconcItemsOverride:null,
+  analogieItemsOverride:null,
   serieShowNextCriterion:false,
   groupNumber:"",
   categorizzazioneTrialsOverride:null,
@@ -432,13 +434,15 @@ const EXERCISES = [
   {id:"accesso", name:"Accesso lessicale online", desc:"Denominazione con cueing graduato"},
   {id:"parentele", name:"Parentele", desc:"Ragionamento verbale: relazioni di parentela dalle premesse"},
   {id:"classificazioni", name:"Classificazioni", desc:"Ragionamento verbale: dati tre termini, nominare la categoria"},
+  {id:"intrusoconc", name:"Intruso concettuale", desc:"Ragionamento verbale: quattro parole, trovare quella che non c'entra"},
+  {id:"analogie", name:"Analogie", desc:"Ragionamento verbale: A sta a B come C sta a ?"},
   {id:"fascicolo", name:"Fascicolo esercizi a casa", desc:"Fascicolo stampabile per gli esercizi a domicilio, progressione settimanale"}
 ];
 // Numero di sessione fisso per esercizio (usato nel nome del file esportato), fedele
 // all'ordine dei tuoi materiali originali — non l'ordine alfabetico o di comparsa
 // nell'elenco, che potrebbe cambiare in futuro senza dover rinumerare i file.
 const EXERCISE_NUMBER = {
-  categorizzazione: 1, intruso: 2, griglie: 3, serie: 4, inversione: 5, accesso: 6, parentele: 7, classificazioni: 8,
+  categorizzazione: 1, intruso: 2, griglie: 3, serie: 4, inversione: 5, accesso: 6, parentele: 7, classificazioni: 8, intrusoconc: 9, analogie: 10,
 };
 
 /* =========================================================
@@ -452,9 +456,13 @@ const EXERCISE_NUMBER = {
 <script src="data/vrt-esclusi.js"></script>
 <script src="data/parentele.js"></script>
 <script src="data/classificazioni.js"></script>
+<script src="data/intruso-concettuale.js"></script>
+<script src="data/analogie.js"></script>
 <script src="js/generators/serie.js"></script>
 <script src="js/generators/parentele.js"></script>
 <script src="js/generators/classificazioni.js"></script>
+<script src="js/generators/intruso-concettuale.js"></script>
+<script src="js/generators/analogie.js"></script>
 <script src="js/generators/accesso.js"></script>
 <script src="js/renderers/griglie.js"></script>
 <script src="js/renderers/intruso.js"></script>
@@ -462,6 +470,8 @@ const EXERCISE_NUMBER = {
 <script src="js/renderers/serie.js"></script>
 <script src="js/renderers/parentele.js"></script>
 <script src="js/renderers/classificazioni.js"></script>
+<script src="js/renderers/intruso-concettuale.js"></script>
+<script src="js/renderers/analogie.js"></script>
 <script src="js/renderers/accesso.js"></script>
 <script src="js/renderers/categorizzazione.js"></script>
 <script src="js/generators/fascicolo.js"></script>
@@ -479,6 +489,8 @@ const EXERCISE_NUMBER = {
 <script src="js/export/serie.js"></script>
 <script src="js/export/parentele.js"></script>
 <script src="js/export/classificazioni.js"></script>
+<script src="js/export/intruso-concettuale.js"></script>
+<script src="js/export/analogie.js"></script>
 <script src="js/export/accesso.js"></script>
 <script src="js/export/categorizzazione.js"></script>
 <script src="js/export/fascicolo.js"></script>
@@ -486,8 +498,8 @@ const EXERCISE_NUMBER = {
 <script>
 // Controllo di caricamento: se un file delle cartelle js/ o css/ manca (caricamento incompleto su GitHub), avvisa invece di lasciare pulsanti muti.
 (function () {
-  var attesi = ['genGriglie', 'genIntruso', 'genInversione', 'genSerie', 'genAccesso', 'genParentele', 'genClassificazioni', 'genCategorizzazioneV2', 'Engine', 'genFascicolo',
-    'renderGriglie', 'renderIntruso', 'renderInversione', 'renderSerie', 'renderAccesso', 'renderParentele', 'exportParentele', 'renderClassificazioni', 'exportClassificazioni', 'renderCategorizzazione', 'renderFascicolo',
+  var attesi = ['genGriglie', 'genIntruso', 'genInversione', 'genSerie', 'genAccesso', 'genParentele', 'genClassificazioni', 'genIntrusoConcettuale', 'genAnalogie', 'genCategorizzazioneV2', 'Engine', 'genFascicolo',
+    'renderGriglie', 'renderIntruso', 'renderInversione', 'renderSerie', 'renderAccesso', 'renderParentele', 'exportParentele', 'renderClassificazioni', 'exportClassificazioni', 'renderIntrusoConcettuale', 'exportIntrusoConcettuale', 'renderAnalogie', 'exportAnalogie', 'renderCategorizzazione', 'renderFascicolo',
     'initSharedHistory', 'loadHistory', 'checkOnlineSaving', 'progressMerge', 'PdmBackup', 'backupRefreshStatus', 'exportCurrent', 'exportFascicolo', 'firebaseConfig'];
   var mancano = attesi.filter(function (n) { try { return typeof eval(n) === 'undefined'; } catch (e) { return true; } });
   // il file CSS è caricato se la variabile di colore --bg (definita in css/style.css) ha un valore
@@ -661,6 +673,14 @@ function levelNote(exId, level){
       if(pc>0) parts.push(pc>=1 ? "maiuscole/minuscole miste" : `maiuscole/minuscole miste nel ${Math.round(pc*100)}% delle stringhe`);
       return `${parts.join(", ")}; ${items} elementi in sessione.`;
     }
+    case "intrusoconc": {
+      const hi = 1+Math.floor((level-1)*5/32);
+      return `Fascia di astrazione fino a ${hi}/5; intruso ` + (level<9 ? "di un campo lontano." : `anche dello stesso campo (circa ${Math.round(0.9*(level-8)/24*100)}% dei quesiti).`);
+    }
+    case "analogie": {
+      const hi = 1+Math.floor((level-1)*5/32);
+      return `Relazioni fino alla fascia ${hi}/5` + (level<=12 ? "; scelta fra 4 opzioni" : "; risposta libera") + (level>=17 ? "; quesiti anche invertiti." : ".");
+    }
     case "classificazioni": {
       const lo = Math.max(1, 1+Math.floor((level-1)*5/32)-1), hi = 1+Math.floor((level-1)*5/32);
       const names = ["", "categorie concrete e frequenti", "categorie concrete meno immediate", "categorie funzionali o di materiali", "categorie astratte o specialistiche", "categorie molto astratte"];
@@ -798,6 +818,8 @@ const RENDERERS = {
   accesso: renderAccesso,
   parentele: renderParentele,
   classificazioni: renderClassificazioni,
+  intrusoconc: renderIntrusoConcettuale,
+  analogie: renderAnalogie,
   categorizzazione: renderCategorizzazione,
   fascicolo: renderFascicolo
 };
@@ -810,6 +832,8 @@ const GENERATORS = {
   accesso: genAccesso,
   parentele: genParentele,
   classificazioni: genClassificazioni,
+  intrusoconc: genIntrusoConcettuale,
+  analogie: genAnalogie,
   categorizzazione: (level)=>genCategorizzazioneV2(level, 9),
   fascicolo: genFascicolo
 };
@@ -820,7 +844,9 @@ const MATERIAL_HISTORY = {
   intruso:    { field:"usedIntruso",    cap:1500 },
   inversione: { field:"usedInversione", cap:900 },
   parentele:  { field:"usedParentele",  cap:600 },
-  classificazioni: { field:"usedClassificazioni", cap:800 }
+  classificazioni: { field:"usedClassificazioni", cap:800 },
+  intrusoconc: { field:"usedIntrusoConc", cap:600 },
+  analogie:    { field:"usedAnalogie", cap:900 }
 };
 
 const MATERIAL_OPTIONS = {
@@ -948,6 +974,24 @@ const EX_CONTROLS = {
     note.textContent = "Dati tre termini, nominare la categoria. Livelli 1-8: scelta fra 4 opzioni; poi risposta libera. Banca di categorie in validazione (voci «proposta»): le risposte accettate compaiono con «Mostra risposta».";
     wrap.appendChild(note);
     wrap.appendChild(numerosityControl("Numero di quesiti per sessione", "classificazioniItemsOverride", 4, 16, 8));
+    return wrap;
+  },
+  intrusoconc: ()=>{
+    const wrap = document.createElement("div");
+    const note = document.createElement("div");
+    note.className = "level-note";
+    note.textContent = "Quattro parole: tre della stessa categoria, una no. Fino al livello 8 l'intruso viene da un campo molto lontano; dal 9 sempre più spesso dallo stesso campo (più difficile). Banca di categorie in validazione.";
+    wrap.appendChild(note);
+    wrap.appendChild(numerosityControl("Numero di quesiti per sessione", "intrusoconcItemsOverride", 4, 16, 8));
+    return wrap;
+  },
+  analogie: ()=>{
+    const wrap = document.createElement("div");
+    const note = document.createElement("div");
+    note.className = "level-note";
+    note.textContent = "A : B = C : ?  Fino al livello 12 la risposta si sceglie fra 4 opzioni; dal 17 anche quesiti invertiti (A : B = ? : D). Banca di coppie in validazione (voci «proposta»).";
+    wrap.appendChild(note);
+    wrap.appendChild(numerosityControl("Numero di quesiti per sessione", "analogieItemsOverride", 4, 16, 8));
     return wrap;
   },
   serie: ()=>{

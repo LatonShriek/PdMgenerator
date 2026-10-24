@@ -17,7 +17,7 @@ const UPDATE = process.argv.includes('--update');
 const sha = (s) => crypto.createHash('sha1').update(String(s)).digest('hex').slice(0, 16);
 
 const CASES = [];
-['griglie', 'intruso', 'inversione', 'serie', 'accesso', 'categorizzazione', 'parentele', 'classificazioni'].forEach((ex) => [3, 12, 24].forEach((l) => CASES.push([`${ex}|L${l}`, ex, l, {}])));
+['griglie', 'intruso', 'inversione', 'serie', 'accesso', 'categorizzazione', 'parentele', 'classificazioni', 'intrusoconc', 'analogie'].forEach((ex) => [3, 12, 24].forEach((l) => CASES.push([`${ex}|L${l}`, ex, l, {}])));
 [1, 7].forEach((w) => CASES.push([`fascicolo|W${w}`, 'fascicolo', w, { fascicoloWeek: w }]));
 
 async function run() {

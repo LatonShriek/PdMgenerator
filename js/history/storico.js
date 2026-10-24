@@ -27,6 +27,8 @@ function summarizeDeck(exId, level, deck){
     case "inversione": return `${deck.blocks.length} blocchi (${deck.blocks.map(b=>b.items.length).reduce((a,b)=>a+b,0)} item totali)`;
     case "serie": return `Sequenza di ${deck.seq.length} stimoli`;
     case "accesso": return deck.words.length>1 ? `${deck.words.length} parole: ${deck.words.join(", ")}` : `Parola: ${deck.word}`;
+    case "intrusoconc": return `${deck.items.length} quesiti (categorie: ${deck.items.map(i=>i.category).join(", ")})`;
+    case "analogie": return `${deck.items.length} analogie (${[...new Set(deck.items.map(i=>i.relationName))].join(", ")})`;
     case "classificazioni": return `${deck.items.length} quesiti (categorie: ${deck.items.map(i=>i.category).join(", ")})`;
     case "parentele": return `${deck.items.length} quesiti (relazioni: ${deck.items.map(i=>i.answerLabel).join(", ")})`;
     case "categorizzazione": return `${deck.slides.length} schermate (es. ${deck.slides[0].label})`;

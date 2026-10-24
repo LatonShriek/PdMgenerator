@@ -11,6 +11,8 @@ const EXPORTERS = {
   accesso: exportAccesso,
   parentele: exportParentele,
   classificazioni: exportClassificazioni,
+  intrusoconc: exportIntrusoConcettuale,
+  analogie: exportAnalogie,
   categorizzazione: exportCategorizzazione,
   fascicolo: (deck)=>exportFascicolo(deck)
 };
