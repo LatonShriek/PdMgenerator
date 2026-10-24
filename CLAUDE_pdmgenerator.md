@@ -16,6 +16,7 @@ Per Rodrigo esiste anche `SPIEGAZIONE_SEMPLICE.md` (perché la struttura è fatt
 così e cosa si può ancora migliorare, in parole semplici).
 
 ## Stato attuale (refactoring: i passi 1-8 del piano sono fatti)
+- **Passo 9** (25 ott 2026): gli ultimi script inline di `index.html` sono in file propri, spostamento identico e stesso ordine di caricamento: `data/base.js` (dati di base), `js/util.js` (casuale, anti-ripetizione), `js/state.js` (stato, elenco esercizi), `js/level-notes.js`, `js/history/fascicolo-history.js`, `js/registry.js` (mappe RENDERERS/GENERATORS/MATERIAL_HISTORY), `js/controls.js` (controlli della sidebar), `js/app.js` (interfaccia e avvio). `index.html` ora ~190 righe (solo struttura HTML e tag `<script>`). Ordine dei tag = ordine di esecuzione: non cambiarlo. 85 test, 249 casi, 29 esportazioni, 22 stati (impronta stile riscritta: solo +6 elementi `<script>`).
 - **Passo 8** (24 ott 2026): fuori da `index.html` il motore del Fascicolo (`js/engine/engine.js`), il costruttore Word (`js/export/docbuilder.js`) e il motore di categorizzazione (`js/generators/categorizzazione.js`), spostamento identico. `index.html` ~1345 righe. `tests/load-engine.js` legge ora il motore dal file. `tests/style-browser.js` ritenta fino a 3 volte (l'impronta del layout ha due esiti, anche su codice invariato).
 - `index.html` ~1345 righe dopo il passo 8 (era ~543 KB / ~15.000 righe). Passo 4: generatori in `js/generators/` (griglie, intruso,
   inversione, serie, accesso, fascicolo) e renderer in `js/renderers/` (gli stessi + categorizzazione),

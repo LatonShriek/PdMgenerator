@@ -29,6 +29,7 @@ Obiettivo: rendere il codice leggibile, correggibile e professionale **senza cam
 | 6 | CSS in file separato; README spezzato per argomento in `docs/` | fatto (`css/style.css`, 16 stati identici; README diviso in `docs/`, la guida resta nella radice) |
 | 7 | Pulsante "Esporta/Importa tutto" per il backup dello stato locale | fatto (Salva / Ripristina copia di sicurezza, con test; la logica sta in `js/backup/backup.js` dal passo 5) |
 | 8 | Motore del Fascicolo, costruttore Word e motore di categorizzazione fuori da `index.html` | fatto (`js/engine/engine.js`, `js/export/docbuilder.js`, `js/generators/categorizzazione.js`; spostamento identico, 79 test + 227 casi + 26 esportazioni + 20 stati; `index.html` da 3247 a 1345 righe) |
+| 9 | Ultimi script inline di `index.html` in file propri | fatto (`data/base.js`, `js/util.js`, `js/state.js`, `js/level-notes.js`, `js/history/fascicolo-history.js`, `js/registry.js`, `js/controls.js`, `js/app.js`; spostamento identico: 85 test, 249 casi, 29 esportazioni, 22 stati; `index.html` da ~1359 a ~190 righe) |
 
 ## Sicurezza, privacy e licenze
 

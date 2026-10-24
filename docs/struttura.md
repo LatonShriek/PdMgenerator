@@ -5,7 +5,7 @@
 ## Struttura del repository e perché è fatta così
 
 ```
-index.html                  l'app: interfaccia, stato, mappe degli esercizi, collegamenti fra i pezzi (dal passo 8 non contiene più i motori)
+index.html                  struttura della pagina e tag <script> in ordine (dal passo 9 non contiene più codice)
 CLAUDE_pdmgenerator.md      regole di lavoro e stato dei passi di refactoring
 README.md                   presentazione e indice della documentazione
 docs/                       la documentazione, un file per argomento (passo 6)
@@ -15,6 +15,7 @@ data/                       dati puri, separati dalla logica
   intruso-concettuale.js      domini delle categorie (distanza dell'intruso)
   analogie.js                 banca di coppie per Analogie (voci «proposta», da validare)
   categorizzazione.js         libreria dei criteri di categorizzazione
+  base.js                     dati di base: alfabeti, parole reali, fasce lessicali, regole delle serie (passo 9)
   openmoji-map.js             mappa termine inglese -> icona OpenMoji
   inv-real-block.js           lessico di controllo per le non-parole dell'Intruso
 css/style.css                l'aspetto dell'app (passo 6)
@@ -24,6 +25,12 @@ js/                         il codice, un file per argomento (passi 4, 5 e 8)
   renderers/                  lo disegna a schermo: i sei sopra + categorizzazione
   export/                     esportazioni PowerPoint (un file per esercizio) e Word (fascicolo, con docbuilder.js); exporters.js sceglie quella giusta
   history/                    cronologia condivisa (localStorage + Firestore), storico delle generazioni e avvisi sul salvataggio online (online-status.js)
+  util.js                     utilità: casuale, pesca senza ripetizioni, livelli (passo 9)
+  state.js                    stato dell'app, elenco degli esercizi, numerazione (passo 9)
+  level-notes.js              note di livello in sidebar (passo 9)
+  registry.js                 mappe degli esercizi: renderer, generatori, cronologia (passo 9)
+  controls.js                 controlli della sidebar specifici di ogni esercizio (passo 9)
+  app.js                      collegamento dell'interfaccia e avvio (passo 9)
   progression.js              progressione del gruppo (mantieni / sali di livello)
   backup/                     copia di sicurezza: backup.js (logica pura) e backup-ui.js (collegamento alla pagina)
   firebase-config.js          configurazione Firebase (l'unico file da toccare per collegare/scollegare la cronologia online)
@@ -57,7 +64,7 @@ tests/                      test automatici (Node, nessuna dipendenza da install
 
 ## Come funziona l'app dentro
 
-`index.html` contiene, in quest'ordine, blocchi `<script>` con responsabilità distinte:
+`index.html` carica, in quest'ordine, script con responsabilità distinte (dal passo 9 tutti in file; i punti 1-9 sotto sono raggruppati per argomento, l'ordine esatto è quello dei tag):
 
 1. **Librerie** (`vendor/`): `pptxgenjs`, `docx`, `FileSaver`, Firebase (`app`, `auth`, `firestore`).
 2. **Motore del Fascicolo** (`js/engine/engine.js`, modulo UMD): logica pura senza DOM, funzione `buildFascicolo(settimana, seme, esclusioni)`. Dato lo stesso seme, la stessa settimana e le stesse esclusioni produce sempre lo stesso fascicolo.
