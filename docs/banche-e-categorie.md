@@ -2,6 +2,8 @@
 
 *Parte della documentazione di PdM CDCD: indice in [README.md](../README.md). Spostato dal README al passo 6 del refactoring, senza cambiare il testo.*
 
+*(Le banche del Fascicolo stanno in `js/engine/engine.js`.)*
+
 ## Accesso lessicale e categorie semantiche — banche verificate
 
 Regola di qualità (settembre 2026): ogni consegna dell'accesso lessicale deve avere **almeno 12 parole italiane reali e utilizzabili**, **non tutte a bassa frequenza d'uso** (almeno 6 frequenti, Zipf ≥ 3.0, cioè più di una occorrenza per milione di parole; le altre possono essere d'uso meno comune ma reali).

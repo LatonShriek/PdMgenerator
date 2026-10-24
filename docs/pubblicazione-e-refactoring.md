@@ -6,13 +6,13 @@
 
 L'app è pubblicata con **GitHub Pages** dal ramo `main`: ogni modifica caricata viene ripubblicata automaticamente in 1–2 minuti (lo stato "pending/in progress" accanto al commit è la pubblicazione in corso). Dopo ogni aggiornamento: ricaricare il sito con Ctrl+Shift+R, generare un'attività e scaricare un PowerPoint e un Word, aprirli.
 
-Quando si carica su GitHub vanno caricate **le cartelle intere** (`css`, `data`, `js`, `tests`, `vendor`; dentro `js` ci sono le sottocartelle `generators`, `renderers`, `export`, `history`, `backup`), non i file che contengono: i file singoli finirebbero nella cartella principale e `index.html` non troverebbe più i suoi script.
+Quando si carica su GitHub vanno caricate **le cartelle intere** (`css`, `data`, `js`, `tests`, `vendor`; dentro `js` ci sono le sottocartelle `engine`, `generators`, `renderers`, `export`, `history`, `backup`), non i file che contengono: i file singoli finirebbero nella cartella principale e `index.html` non troverebbe più i suoi script.
 
 ## Come modificare i dati e le librerie
 
 - **Criteri di categorizzazione** → `data/categorizzazione.js`. Si modifica senza toccare il codice; mantenere la struttura (`label`, lati `a` e `b` con `it` ed `en`). Dopo la modifica lanciare i test.
 - **Icone** → `data/openmoji-map.js`: aggiungere la coppia `"termine inglese": "nome-icona-openmoji"`.
-- **Banche di parole e categorie del Fascicolo** → per ora dentro il motore in `index.html` (`WORD_BANK_EXTRA`, `CATEGORY_LETTER_BANK`, `PHONEMIC_DB`, `CATEGORY_POOL`…). Non alterare le regole di qualità senza una richiesta esplicita; dopo ogni modifica lanciare i test.
+- **Banche di parole e categorie del Fascicolo** → per ora dentro il motore in `js/engine/engine.js` (`WORD_BANK_EXTRA`, `CATEGORY_LETTER_BANK`, `PHONEMIC_DB`, `CATEGORY_POOL`…). Non alterare le regole di qualità senza una richiesta esplicita; dopo ogni modifica lanciare i test.
 - **Librerie** → vedi `vendor/README.md`: per aggiornarne una si scarica la nuova versione in `vendor/`, si cambia il nome del file e la riga `<script>` in `index.html`, poi si prova esportazione in PowerPoint e Word e la cronologia.
 
 ## Stato del refactoring
@@ -28,6 +28,7 @@ Obiettivo: rendere il codice leggibile, correggibile e professionale **senza cam
 | 5 | Esportazioni, cronologia, progressione e copia di sicurezza in file propri | fatto (`js/export/`, `js/history/`, `js/progression.js`, `js/backup/`, `js/firebase-config.js`; provato con 62 test, 183 casi "prima e dopo" e 20 esportazioni identiche) |
 | 6 | CSS in file separato; README spezzato per argomento in `docs/` | fatto (`css/style.css`, 16 stati identici; README diviso in `docs/`, la guida resta nella radice) |
 | 7 | Pulsante "Esporta/Importa tutto" per il backup dello stato locale | fatto (Salva / Ripristina copia di sicurezza, con test; la logica sta in `js/backup/backup.js` dal passo 5) |
+| 8 | Motore del Fascicolo, costruttore Word e motore di categorizzazione fuori da `index.html` | fatto (`js/engine/engine.js`, `js/export/docbuilder.js`, `js/generators/categorizzazione.js`; spostamento identico, 79 test + 227 casi + 26 esportazioni + 20 stati; `index.html` da 3247 a 1345 righe) |
 
 ## Sicurezza, privacy e licenze
 

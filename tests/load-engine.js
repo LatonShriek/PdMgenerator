@@ -20,8 +20,13 @@ function loadBlock(marker, name, htmlPath = path.join(__dirname, '..', 'index.ht
   throw new Error('Blocco ' + name + ' non trovato in index.html');
 }
 
-function loadEngine(htmlPath) {
-  return loadBlock('motore di generazione (engine.js)', 'engine.js', htmlPath);
+// Dal passo 8 il motore sta in js/engine/engine.js (prima era un blocco di index.html).
+function loadEngine() {
+  const file = path.join(__dirname, '..', 'js', 'engine', 'engine.js');
+  const mod = new Module('engine.js');
+  mod.paths = [];
+  mod._compile(fs.readFileSync(file, 'utf8'), file);
+  return mod.exports;
 }
 
 // Copia di sicurezza (passo 7): logica pura Esporta / Importa. Dal passo 5 sta in js/backup/backup.js.

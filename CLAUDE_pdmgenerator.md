@@ -15,8 +15,9 @@ e regole di qualità) sta in `docs/`: **va letta prima di toccare i generatori e
 Per Rodrigo esiste anche `SPIEGAZIONE_SEMPLICE.md` (perché la struttura è fatta
 così e cosa si può ancora migliorare, in parole semplici).
 
-## Stato attuale (refactoring: i passi 1-7 del piano sono fatti)
-- `index.html` ~201 KB (era ~543 KB). Passo 4: generatori in `js/generators/` (griglie, intruso,
+## Stato attuale (refactoring: i passi 1-8 del piano sono fatti)
+- **Passo 8** (24 ott 2026): fuori da `index.html` il motore del Fascicolo (`js/engine/engine.js`), il costruttore Word (`js/export/docbuilder.js`) e il motore di categorizzazione (`js/generators/categorizzazione.js`), spostamento identico. `index.html` ~1345 righe. `tests/load-engine.js` legge ora il motore dal file. `tests/style-browser.js` ritenta fino a 3 volte (l'impronta del layout ha due esiti, anche su codice invariato).
+- `index.html` ~1345 righe dopo il passo 8 (era ~543 KB / ~15.000 righe). Passo 4: generatori in `js/generators/` (griglie, intruso,
   inversione, serie, accesso, fascicolo) e renderer in `js/renderers/` (gli stessi + categorizzazione),
   script classici caricati con `<script src>` PRIMA dello script principale (stesso ordine di prima;
   sono solo dichiarazioni di funzione, nessuna chiamata al caricamento). Una banda rossa avvisa se manca un file.
@@ -63,7 +64,7 @@ così e cosa si può ancora migliorare, in parole semplici).
 ## Nuovi moduli VRT (ottobre 2026)
 - Piano e specifiche condivise: Claude Doc «PdM CDCD — Piano d'azione e specifiche moduli VRT». Ogni modulo = `data/<nome>.js` + `js/generators|renderers|export/<nome>.js` + `tests/<nome>.test.js` + registrazione in `index.html` (EXERCISES, GENERATORS, RENDERERS, EXERCISE_NUMBER, MATERIAL_HISTORY, tag script, banda rossa, levelNote, controlli, storico) + `js/export/exporters.js` + `js/history/storico.js`. I generatori nuovi sono UMD (globale nel browser, `require` in Node) con `buildXxx(level,{rng,used,count})` puro e testabile.
 - **Fatti**: Parentele (n. 7) e Classificazioni (n. 8). Banca Classificazioni = `proposta`, da validare da Rodrigo.
-- **Da fare**, in quest'ordine: Intruso concettuale, Analogie, Assurdità, Differenze e somiglianze, Idiomatiche (banche come documento di bozze `proposta`). Materiale del VRT da non riprodurre: `data/vrt-esclusi.js`.
+- **Da fare**, in quest'ordine: Intruso concettuale, Analogie, Assurdità, Differenze e somiglianze (banche come documento di bozze `proposta`). **Idiomatiche: escluso su richiesta di Rodrigo (24 ott 2026).** Materiale del VRT da non riprodurre: `data/vrt-esclusi.js`.
 - Aggiungere un modulo cambia di proposito le impronte `style-browser` (+ elementi in elenco e tag script) e aggiunge casi a golden/export: si riscrivono con `--update` dopo aver verificato che i casi esistenti non cambino (il solo campo `rule` del fascicolo può variare: è il testo nascosto del riquadro regola rimasto dall'esercizio precedente nel test).
 
 ## Regole di lavoro (sempre)
@@ -166,6 +167,7 @@ docs/                 # README spezzato per argomento
       provato con 62 test, 183 casi "prima e dopo" e 20 esportazioni identiche.
 - [x] 6. CSS in `css/style.css` (16 stati identici) e README diviso per argomento in `docs/` (il README
       resta come indice). La guida `GUIDA_BUONE_PRATICHE.md` resta nella radice.
+- [x] 8. Motore del Fascicolo, costruttore Word e motore di categorizzazione in file propri (vedi sopra).
 - [x] 7. Pulsanti "Salva copia di sicurezza" / "Ripristina" (file JSON) per il
       backup dello stato locale. Il blocco `backup.js` passa in un file proprio
       al passo 5.

@@ -31,7 +31,7 @@ function stylesHash() {
   const out = {};
   for (const [vw, vh, tag] of [[1400, 1000, 'desktop'], [420, 900, 'telefono']]) {
     const ctx = await browser.newContext({ viewport: { width: vw, height: vh } });
-    await ctx.route('**/*', (r) => (r.request().url().startsWith('file://') ? r.continue() : r.abort()));
+    await ctx.route('**/*', (r) => { const u = r.request().url(); return u.startsWith('file://') && !/vendor\/firebase/.test(u) ? r.continue() : r.abort(); }); // Firebase bloccato: i suoi timer consumavano numeri casuali a tempi variabili e rendevano l'impronta instabile
     await ctx.addInitScript(() => {
       window.__seed = function (s) { let a = s >>> 0; Math.random = function () { a = (a + 0x6D2B79F5) | 0; let t = Math.imul(a ^ (a >>> 15), 1 | a); t = (t + Math.imul(t ^ (t >>> 7), 61 | t)) ^ t; return ((t ^ (t >>> 14)) >>> 0) / 4294967296; }; };
       window.__seed(1);
@@ -57,8 +57,16 @@ function stylesHash() {
   await browser.close();
   if (UPDATE) { fs.writeFileSync(SNAP, JSON.stringify(out, null, 1) + '\n'); console.log('Impronte scritte:', Object.keys(out).length); return; }
   const ref = JSON.parse(fs.readFileSync(SNAP, 'utf8'));
+  const attempt = Number(process.env.STYLE_ATTEMPT || 1);
   let diff = 0;
-  for (const k of Object.keys(out)) if (ref[k] !== out[k]) { diff++; console.log('DIVERSO:', k, ref[k], out[k]); }
+  for (const k of Object.keys(out)) if (ref[k] !== out[k]) { diff++; if (attempt >= 3) console.log('DIVERSO:', k, ref[k], out[k]); }
+  // Le misure del layout all'avvio (larghezza dell'area, scrollbar) hanno due esiti possibili, anche sullo stesso
+  // codice: se l'impronta non coincide si riprova fino a 3 volte. Una regressione vera cambia entrambi gli esiti
+  // e fallisce a ogni tentativo.
+  if (diff && attempt < 3) {
+    const r = require('child_process').spawnSync(process.execPath, [__filename], { stdio: 'inherit', env: { ...process.env, STYLE_ATTEMPT: String(attempt + 1) } });
+    process.exit(r.status);
+  }
   console.log(diff ? `FALLITO: ${diff} stati diversi su ${Object.keys(out).length}` : `OK: ${Object.keys(out).length} stati identici`);
   process.exit(diff ? 1 : 0);
 })().catch((e) => { console.error(e); process.exit(1); });

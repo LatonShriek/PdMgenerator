@@ -5,7 +5,7 @@
 ## Struttura del repository e perché è fatta così
 
 ```
-index.html                  l'app: interfaccia, stato, motore del Fascicolo, motore di categorizzazione, collegamenti fra i pezzi
+index.html                  l'app: interfaccia, stato, mappe degli esercizi, collegamenti fra i pezzi (dal passo 8 non contiene più i motori)
 CLAUDE_pdmgenerator.md      regole di lavoro e stato dei passi di refactoring
 README.md                   presentazione e indice della documentazione
 docs/                       la documentazione, un file per argomento (passo 6)
@@ -18,10 +18,11 @@ data/                       dati puri, separati dalla logica
   openmoji-map.js             mappa termine inglese -> icona OpenMoji
   inv-real-block.js           lessico di controllo per le non-parole dell'Intruso
 css/style.css                l'aspetto dell'app (passo 6)
-js/                         il codice, un file per argomento (passi 4 e 5)
-  generators/                 genera il materiale: griglie, intruso, inversione, serie, accesso, fascicolo
+js/                         il codice, un file per argomento (passi 4, 5 e 8)
+  engine/engine.js            motore del Fascicolo (logica pura senza DOM, testato in Node; passo 8)
+  generators/                 genera il materiale: griglie, intruso, inversione, serie, accesso, fascicolo, categorizzazione (motore, passo 8), parentele, classificazioni
   renderers/                  lo disegna a schermo: i sei sopra + categorizzazione
-  export/                     esportazioni PowerPoint (un file per esercizio) e Word (fascicolo); exporters.js sceglie quella giusta
+  export/                     esportazioni PowerPoint (un file per esercizio) e Word (fascicolo, con docbuilder.js); exporters.js sceglie quella giusta
   history/                    cronologia condivisa (localStorage + Firestore), storico delle generazioni e avvisi sul salvataggio online (online-status.js)
   progression.js              progressione del gruppo (mantieni / sali di livello)
   backup/                     copia di sicurezza: backup.js (logica pura) e backup-ui.js (collegamento alla pagina)
@@ -59,10 +60,10 @@ tests/                      test automatici (Node, nessuna dipendenza da install
 `index.html` contiene, in quest'ordine, blocchi `<script>` con responsabilità distinte:
 
 1. **Librerie** (`vendor/`): `pptxgenjs`, `docx`, `FileSaver`, Firebase (`app`, `auth`, `firestore`).
-2. **Motore del Fascicolo** (`engine.js`, modulo UMD): logica pura senza DOM, funzione `buildFascicolo(settimana, seme, esclusioni)`. Dato lo stesso seme, la stessa settimana e le stesse esclusioni produce sempre lo stesso fascicolo.
-3. **Costruttore Word** (`docbuilder`): trasforma il fascicolo in `.docx` (versione esercizi e versione con soluzioni).
+2. **Motore del Fascicolo** (`js/engine/engine.js`, modulo UMD): logica pura senza DOM, funzione `buildFascicolo(settimana, seme, esclusioni)`. Dato lo stesso seme, la stessa settimana e le stesse esclusioni produce sempre lo stesso fascicolo.
+3. **Costruttore Word** (`js/export/docbuilder.js`): trasforma il fascicolo in `.docx` (versione esercizi e versione con soluzioni).
 4. **Dati** (`data/*.js`): criteri di categorizzazione, mappa icone, lessico di controllo, caricati prima degli script che li usano.
-5. **Motore di categorizzazione**: campionamento dei criteri e recupero dei pittogrammi OpenMoji, con fallback testuale.
+5. **Motore di categorizzazione** (`js/generators/categorizzazione.js`): campionamento dei criteri e recupero dei pittogrammi OpenMoji, con fallback testuale.
 6. **Cronologia, progressione, copia di sicurezza, esportazioni** (`js/history/`, `js/progression.js`, `js/backup/`, `js/export/`, `js/firebase-config.js`): dal passo 5 stanno in file propri. `js/backup/backup.js` è un modulo UMD con logica pura (niente pagina, niente localStorage), provato dai test; `js/backup/backup-ui.js` lo collega alla pagina.
 8. **File degli esercizi** (`js/generators/*.js`, `js/renderers/*.js`): script classici caricati con `<script src>` prima dell'app principale; usano le stesse variabili globali (`state`, `rnd`, `pick`…) di prima. Un piccolo controllo subito dopo avvisa con una banda rossa se uno di questi file manca (caricamento incompleto).
 9. **App principale**: stato, mappe `GENERATORS` (un generatore per esercizio) e `RENDERERS` (un renderer per esercizio), `weekParams(week)` per il Fascicolo, pannello di progressione, esportazioni, interfaccia, pulsanti della copia di sicurezza.

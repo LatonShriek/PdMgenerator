@@ -1,4 +1,4 @@
-// Passo 1 — test con seme fisso sul motore del Fascicolo (engine.js, incorporato in index.html).
+// Passo 1 — test con seme fisso sul motore del Fascicolo (js/engine/engine.js, spostato da index.html al passo 8).
 // Esecuzione: node --test tests/
 const test = require('node:test');
 const assert = require('node:assert/strict');
