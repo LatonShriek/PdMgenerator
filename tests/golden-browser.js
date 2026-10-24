@@ -24,7 +24,7 @@ const sha = (s) => crypto.createHash('sha1').update(String(s)).digest('hex').sli
 
 const LEVELS = [1, 2, 3, 5, 8, 12, 16, 20, 24, 28, 32];
 const SEEDS = [11, 22];
-const EX = ['griglie', 'intruso', 'inversione', 'serie', 'accesso', 'categorizzazione'];
+const EX = ['griglie', 'intruso', 'inversione', 'serie', 'accesso', 'categorizzazione', 'parentele'];
 
 // Casi: [nome, esercizio, livello/settimana, seme, impostazioni da applicare a state]
 function buildCases() {

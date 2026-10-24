@@ -27,6 +27,7 @@ function summarizeDeck(exId, level, deck){
     case "inversione": return `${deck.blocks.length} blocchi (${deck.blocks.map(b=>b.items.length).reduce((a,b)=>a+b,0)} item totali)`;
     case "serie": return `Sequenza di ${deck.seq.length} stimoli`;
     case "accesso": return deck.words.length>1 ? `${deck.words.length} parole: ${deck.words.join(", ")}` : `Parola: ${deck.word}`;
+    case "parentele": return `${deck.items.length} quesiti (relazioni: ${deck.items.map(i=>i.answerLabel).join(", ")})`;
     case "categorizzazione": return `${deck.slides.length} schermate (es. ${deck.slides[0].label})`;
     case "fascicolo": return `Fascicolo ${deck.week} — ${deck.week}°settimana`;
     default: return "";
