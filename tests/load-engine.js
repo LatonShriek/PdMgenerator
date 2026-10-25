@@ -23,7 +23,8 @@ function loadBlock(marker, name, htmlPath = path.join(__dirname, '..', 'index.ht
 // Dal passo 8 il motore sta in js/engine/engine.js (prima era un blocco di index.html).
 function loadEngine() {
   const file = path.join(__dirname, '..', 'js', 'engine', 'engine.js');
-  const mod = new Module('engine.js');
+  const mod = new Module(file);
+  mod.filename = file;
   mod.paths = [];
   mod._compile(fs.readFileSync(file, 'utf8'), file);
   return mod.exports;

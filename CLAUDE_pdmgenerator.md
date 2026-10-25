@@ -16,6 +16,7 @@ Per Rodrigo esiste anche `SPIEGAZIONE_SEMPLICE.md` (perché la struttura è fatt
 così e cosa si può ancora migliorare, in parole semplici).
 
 ## Stato attuale (refactoring: i passi 1-8 del piano sono fatti)
+- **Passo 10** (25 ott 2026): la banca di parole del Fascicolo (`WORD_BANK_SCORED`, `WORD_BANK`, ~9 KB) è in `data/fascicolo-parole.js` (modulo UMD, caricato prima di `engine.js`); contenuto identico, impronte del Fascicolo invariate. `tests/load-engine.js` compila il motore con il suo percorso reale (serve al `require`). Restano nel motore le altre banche (`CATEGORY_POOL`, `PHONEMIC_DB`, `CATEGORY_LETTER_BANK`…, ~27 KB).
 - **Passo 9** (25 ott 2026): gli ultimi script inline di `index.html` sono in file propri, spostamento identico e stesso ordine di caricamento: `data/base.js` (dati di base), `js/util.js` (casuale, anti-ripetizione), `js/state.js` (stato, elenco esercizi), `js/level-notes.js`, `js/history/fascicolo-history.js`, `js/registry.js` (mappe RENDERERS/GENERATORS/MATERIAL_HISTORY), `js/controls.js` (controlli della sidebar), `js/app.js` (interfaccia e avvio). `index.html` ora ~190 righe (solo struttura HTML e tag `<script>`). Ordine dei tag = ordine di esecuzione: non cambiarlo. 85 test, 249 casi, 29 esportazioni, 22 stati (impronta stile riscritta: solo +6 elementi `<script>`).
 - **Passo 8** (24 ott 2026): fuori da `index.html` il motore del Fascicolo (`js/engine/engine.js`), il costruttore Word (`js/export/docbuilder.js`) e il motore di categorizzazione (`js/generators/categorizzazione.js`), spostamento identico. `index.html` ~1345 righe. `tests/load-engine.js` legge ora il motore dal file. `tests/style-browser.js` ritenta fino a 3 volte (l'impronta del layout ha due esiti, anche su codice invariato).
 - `index.html` ~1345 righe dopo il passo 8 (era ~543 KB / ~15.000 righe). Passo 4: generatori in `js/generators/` (griglie, intruso,
@@ -34,10 +35,10 @@ così e cosa si può ancora migliorare, in parole semplici).
   il file locale non si carica.
 - Dati in `data/` (3 file `.js`): `categorizzazione.js` (190 voci: 142 reali +
   48 proposte), `openmoji-map.js` (568 voci), `inv-real-block.js`.
-- Test in `tests/`: `node --test tests/*.test.js` → 94 test, tutti passano.
+- Test in `tests/`: `node --test tests/*.test.js` → 85 test, tutti passano.
   Coprono il Fascicolo (seme fisso, snapshot settimane 1-12, regole di qualità,
   anti-ripetizione), i file di dati e la copia di sicurezza (`backup.test.js`).
-- `tests/golden-browser.js` (Playwright, Chromium senza rete, seme fisso): 183 casi, impronte in
+- `tests/golden-browser.js` (Playwright, Chromium senza rete, seme fisso): 249 casi, impronte in
   `golden-browser.json`. **Regola: prima e dopo ogni spostamento di codice deve dare "OK: 183 casi identici"**
   (si lancia in background: ~2 min; NODE_PATH e CHROMIUM_PATH impostati).
 - `tests/export-browser.js`: 32 esportazioni (PowerPoint dei 10 esercizi a 3 livelli + Word del fascicolo, settimane 1 e 7)

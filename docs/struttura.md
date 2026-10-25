@@ -15,6 +15,7 @@ data/                       dati puri, separati dalla logica
   intruso-concettuale.js      domini delle categorie (distanza dell'intruso)
   analogie.js                 banca di coppie per Analogie (voci «proposta», da validare)
   categorizzazione.js         libreria dei criteri di categorizzazione
+  fascicolo-parole.js         banca di parole per anagrammi e crucipuzzle del Fascicolo (passo 10)
   base.js                     dati di base: alfabeti, parole reali, fasce lessicali, regole delle serie (passo 9)
   openmoji-map.js             mappa termine inglese -> icona OpenMoji
   inv-real-block.js           lessico di controllo per le non-parole dell'Intruso
@@ -42,7 +43,7 @@ tests/                      test automatici (Node, nessuna dipendenza da install
   fascicolo.test.js           test con seme fisso, regole di qualità, anti-ripetizione, dati
   backup.test.js              test della copia di sicurezza (salva / ripristina)
   snapshots.json              impronte di riferimento del fascicolo (settimane 1-12, 3 semi)
-  golden-browser.js           controllo "prima e dopo" in un browser vero: tutti gli esercizi (183 casi)
+  golden-browser.js           controllo "prima e dopo" in un browser vero: tutti gli esercizi (249 casi)
   golden-browser.json         le impronte di riferimento di quel controllo
   export-browser.js           controllo "prima e dopo" delle esportazioni: scarica i file PowerPoint e Word e ne confronta l'interno
   export-browser.json         le impronte di riferimento di quel controllo

@@ -44,7 +44,7 @@ Una web app è come una cucina professionale. Le buone pratiche servono a tre co
 - **Perché:** riordinare è facile, accorgersi di aver rotto qualcosa è difficile. Con una prova automatica basta un minuto.
 - **Nel progetto:** tre livelli di controllo.
   1. **Test sul motore** (`node --test`): 62 prove, senza browser.
-  2. **Controllo "prima e dopo" dell'output** (`golden-browser`): 183 casi, tutti gli esercizi a più livelli, con i "dadi truccati" (generatore casuale con un seme fisso). Si confronta l'impronta del materiale e di ciò che viene disegnato.
+  2. **Controllo "prima e dopo" dell'output** (`golden-browser`): 249 casi, tutti gli esercizi a più livelli, con i "dadi truccati" (generatore casuale con un seme fisso). Si confronta l'impronta del materiale e di ciò che viene disegnato.
   3. **Controllo "prima e dopo" delle esportazioni** (`export-browser`): scarica i file PowerPoint e Word e confronta l'impronta di ogni parte interna.
   4. **Controllo "prima e dopo" dell'aspetto** (`style-browser`): gli stili che il browser applica davvero a ogni elemento, in 16 stati (computer e telefono). *Lezione:* le schermate a pixel sembravano la scelta ovvia ma cambiano a caso di qualche pixel; un controllo instabile non serve a niente, quindi si è passati agli stili calcolati, che sono identici a ogni lancio.
 - **Attenzione:** questo tipo di controllo dimostra "non è cambiato niente", non "è giusto". Le regole di qualità vanno provate a parte.
