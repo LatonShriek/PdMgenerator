@@ -10,7 +10,7 @@ I test verificano che l'app produca **sempre lo stesso materiale a parità di se
 node --test tests/*.test.js
 ```
 
-Serve solo Node (versione 20 o successiva); non c'è niente da installare. Il risultato atteso è `fail 0` (85 test alla data di questo aggiornamento).
+Serve solo Node (versione 20 o successiva); non c'è niente da installare. Il risultato atteso è `fail 0` (90 test alla data di questo aggiornamento).
 
 Cosa controllano:
 - **Determinismo**: stesso seme e settimana → fascicolo identico; semi diversi → fascicoli diversi.
@@ -19,6 +19,7 @@ Cosa controllano:
 - **Anti-ripetizione**: parole, categorie e chiavi lessicali già usate non riappaiono; se il materiale finisce l'app lo segnala in `notices`, non ripesca in silenzio.
 - **Banche e dati**: struttura delle banche di parole e categorie, validità e conteggi dei file in `data/`.
 - **Moduli di ragionamento verbale** (`classificazioni.test.js`, `intruso-concettuale.test.js`, `analogie.test.js`): risposta ricalcolata in modo indipendente dal generatore (albero completo / banca), cancelli di livello, scelta multipla, anti-ripetizione, determinismo, integrità delle banche.
+- **4 cicli senza ripetizioni** (`tests/cicli.test.js`): simula 4 cicli (32 livelli × 8 quesiti) con le cronologie e i tetti veri di `js/registry.js`, su 3 semi, per Classificazioni, Analogie e Intruso concettuale (0 quesiti identici, 0 sedute incomplete), controlla che i tetti bastino e stiano sotto le 5000 voci della copia di sicurezza, e che il Fascicolo settimana 1 non finisca le consegne in 4 cicli. Gli altri esercizi (Accesso, Categorizzazione, Griglie, Intruso, Inversione, Serie) si verificano in browser con `tools/audit-browser.js` (`ACCESSO_WORDS=10` per le sedute da 10 parole).
 - **Copia di sicurezza** (`tests/backup.test.js`): andata e ritorno (salva, svuota, ripristina = stessi dati), unione senza doppioni e senza cancellare, ripristino ripetuto che non cambia più nulla, unione reale delle progressioni (usa il vero `progressMerge` estratto da `index.html`), nome gruppo non sovrascritto, file sbagliato o ostile rifiutato o ignorato.
 
 **Controllo "prima e dopo" in browser** (`tests/golden-browser.js`): apre `index.html` in Chromium senza rete, fissa il generatore casuale con un seme, genera ogni esercizio a 11 livelli e 2 semi (più le opzioni dei controlli e le 12 settimane del fascicolo, 249 casi) e confronta le impronte del materiale e di ciò che l'app disegna con `tests/golden-browser.json`. Serve a dimostrare che spostare il codice non cambia l'output. Richiede Playwright con Chromium (lo lancia Claude; non serve per usare l'app): `node tests/golden-browser.js` confronta, con `--update` riscrive le impronte (solo se il cambiamento è voluto). Nella categorizzazione le immagini arrivano in ritardo, quindi si confronta solo ciò che viene disegnato.

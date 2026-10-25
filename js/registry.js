@@ -28,10 +28,10 @@ const GENERATORS = {
 
 // Campo di cronologia (per gruppo) e capienza massima, per gli esercizi con materiale ruotato.
 const MATERIAL_HISTORY = {
-  griglie:    { field:"usedGriglie",    cap:80 },
-  intruso:    { field:"usedIntruso",    cap:1500 },
-  inversione: { field:"usedInversione", cap:900 },
-  classificazioni: { field:"usedClassificazioni", cap:800 },
-  intrusoconc: { field:"usedIntrusoConc", cap:600 },
-  analogie:    { field:"usedAnalogie", cap:900 }
+  griglie:    { field:"usedGriglie",    cap:600 },
+  intruso:    { field:"usedIntruso",    cap:4000 },
+  inversione: { field:"usedInversione", cap:4000 },
+  classificazioni: { field:"usedClassificazioni", cap:4000 },
+  intrusoconc: { field:"usedIntrusoConc", cap:4000 },
+  analogie:    { field:"usedAnalogie", cap:5000 }
 };

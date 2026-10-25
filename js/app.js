@@ -38,12 +38,12 @@ async function generate(){
     const excludeLabels = await fetchRecentUsed("catHistory", "usedLabels");
     if(gen !== state._generationToken) return;
     state.deck = genCategorizzazioneV2(state.level, state.categorizzazioneTrialsOverride || 9, excludeLabels);
-    appendUsed("catHistory", "usedLabels", state.deck.slides.map(s=>s.rawLabel), 60);
+    appendUsed("catHistory", "usedLabels", state.deck.slides.flatMap(s=>[s.rawLabel, s.trialKey]), 3000);
   } else if(state.exercise==="accesso"){
     const excludeWords = await fetchRecentUsed("accessoHistory", "usedWords");
     if(gen !== state._generationToken) return;
     state.deck = genAccesso(state.level, excludeWords);
-    appendUsed("accessoHistory", "usedWords", state.deck.words, 80);
+    appendUsed("accessoHistory", "usedWords", state.deck.words, 1500);
   } else if(state.exercise==="fascicolo"){
     // Stessa logica anti-ripetizione già usata per Categorizzazione e Accesso lessicale,
     // estesa alle parti del fascicolo con un pool finito: anagrammi, categorie

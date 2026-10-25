@@ -122,7 +122,7 @@ async function run() {
   for (const k of new Set([...Object.keys(ref), ...Object.keys(out)])) {
     if (JSON.stringify(ref[k]) !== JSON.stringify(out[k])) {
       diff++;
-      if (diff <= 25) console.log('DIVERSO:', k, 'atteso', JSON.stringify(ref[k]), 'ottenuto', JSON.stringify(out[k]));
+      if ((diff <= 25 || process.env.GOLDEN_ALL)) console.log('DIVERSO:', k, 'atteso', JSON.stringify(ref[k]), 'ottenuto', JSON.stringify(out[k]));
     }
   }
   console.log(diff ? `FALLITO: ${diff} casi diversi su ${Object.keys(out).length}` : `OK: ${Object.keys(out).length} casi identici`);

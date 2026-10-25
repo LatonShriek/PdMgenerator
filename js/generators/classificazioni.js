@@ -51,10 +51,13 @@
     var target=CLASSIFICAZIONI_TARGET_D(level), chosen=[], sessionCats=new Set(), keys=[];
     for(var n=0;n<count;n++){
       var cands=[];
-      for(var t=0;t<300 && cands.length<30;t++){ var c=candidate(level,rng); if(c && !sessionCats.has(c.key)) cands.push(c); }
+      for(var t=0;t<600 && cands.length<40;t++){ var c=candidate(level,rng); if(c && !sessionCats.has(c.key)) cands.push(c); }
       if(!cands.length) break;
       // categoria mai proposta > categoria proposta meno di recente; a parità, stessa terna mai vista; poi vicinanza al punteggio-obiettivo
       cands.sort(function(a,b){
+        // prima di tutto: mai riproporre la stessa terna identica finché ne esiste una nuova (garanzia «4 cicli senza ripetizioni»)
+        var ia=lastIdx.has(a.setKey)?1:0, ib=lastIdx.has(b.setKey)?1:0;
+        if(ia!==ib) return ia-ib;
         var la=lastIdx.has(a.key)?lastIdx.get(a.key):-1, lb=lastIdx.has(b.key)?lastIdx.get(b.key):-1;
         if((la<0)!==(lb<0)) return la<0?-1:1;
         if(la>=0 && lb>=0 && la!==lb) return la-lb;

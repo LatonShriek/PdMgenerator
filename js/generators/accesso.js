@@ -13,8 +13,13 @@ function genAccesso(level, excludeWords){
   const count = Math.min(state.accessoWordsOverride || 1, 30);
   const words = [];
   for(let i=0; i<count; i++){
-    const pool = LEXICAL_TIERS[blendedIndex(level, LEXICAL_TIERS.length)].words;
+    const ti = blendedIndex(level, LEXICAL_TIERS.length);
+    const pool = LEXICAL_TIERS[ti].words;
     let cand = pool.filter(w=>!excl.has(w) && !words.includes(w));   // mai proposte a questo gruppo, non già in sessione
+    // fascia esaurita per questo gruppo: si prova la fascia più vicina che abbia ancora parole nuove (prima che ripetere)
+    for(let d=1; !cand.length && d<LEXICAL_TIERS.length; d++){
+      [ti-d, ti+d].forEach(j=>{ if(!cand.length && j>=0 && j<LEXICAL_TIERS.length) cand = LEXICAL_TIERS[j].words.filter(w=>!excl.has(w) && !words.includes(w)); });
+    }
     if(!cand.length) cand = pool.filter(w=>!words.includes(w));
     if(!cand.length) cand = pool;
     words.push(pick(cand));

@@ -130,15 +130,24 @@ function genCategorizzazioneV2(level, nTrials, excludeLabels) {
     usedNow.add(entry.label);
     chosenEntries.push(entry);
   }
+  // Una prova identica (stesso criterio e stessi 3+3 item) non va mai riproposta allo stesso gruppo: la sua chiave "T:..."
+  // sta nella stessa cronologia dei criteri (excludeLabels); si ripesca la combinazione finché ne esiste una nuova.
+  const trialKey = (entry, A, B) => "T:" + entry.label + "|" + A.map(i=>i.en).sort().join(",") + "|" + B.map(i=>i.en).sort().join(",");
   const trials = chosenEntries.map(entry => {
-    const chosenA = sampleN(entry.a, Math.min(3, entry.a.length));
-    const chosenB = sampleN(entry.b, Math.min(3, entry.b.length));
+    let chosenA, chosenB, tk;
+    for(let t=0; t<80; t++){
+      chosenA = sampleN(entry.a, Math.min(3, entry.a.length));
+      chosenB = sampleN(entry.b, Math.min(3, entry.b.length));
+      tk = trialKey(entry, chosenA, chosenB);
+      if(!excl.has(tk)) break;
+    }
+    excl.add(tk);
     const tagged = shuffleArr([
       ...chosenA.map(it => ({ ...it, group: "A" })),
       ...chosenB.map(it => ({ ...it, group: "B" })),
     ]);
     const label = entry.proposal ? `${entry.label}  (proposta — da verificare)` : entry.label;
-    return { label, rawLabel: entry.label, items: tagged, proposal: !!entry.proposal };
+    return { label, rawLabel: entry.label, trialKey: tk, items: tagged, proposal: !!entry.proposal };
   });
   return { type: "categorizzazione", level, slides: trials, rule: "Dividi le 6 immagini in due gruppi da 3, in base a un criterio comune." };
 }

@@ -16,6 +16,7 @@ data/                       dati puri, separati dalla logica
   analogie.js                 banca di coppie per Analogie (voci «proposta», da validare)
   categorizzazione.js         libreria dei criteri di categorizzazione
   fascicolo-parole.js         banca di parole per anagrammi e crucipuzzle del Fascicolo (passo 10)
+  accesso-extra.js            parole aggiuntive per Accesso lessicale, 4 fasce (passo 11)
   base.js                     dati di base: alfabeti, parole reali, fasce lessicali, regole delle serie (passo 9)
   openmoji-map.js             mappa termine inglese -> icona OpenMoji
   inv-real-block.js           lessico di controllo per le non-parole dell'Intruso
@@ -38,6 +39,7 @@ js/                         il codice, un file per argomento (passi 4, 5 e 8)
 vendor/                     librerie esterne, versione fissata, servite in locale
   README.md                   tabella versioni/licenze e come aggiornarle
   licenses/                   testi delle licenze
+tools/                      strumenti di controllo non automatici: audit-verbale.js (4 cicli sui moduli verbali), audit-browser.js (4 cicli in browser)
 tests/                      test automatici (Node, nessuna dipendenza da installare)
   load-engine.js              carica da index.html il motore del Fascicolo e da js/backup/ il modulo di backup
   fascicolo.test.js           test con seme fisso, regole di qualità, anti-ripetizione, dati

@@ -43,7 +43,7 @@
     var item={ relation:rel.id, relationName:rel.nome, relationText:rel.testo, tier:rel.t, pair1:{a:p1.a,b:p1.b}, pair2:{a:p2.a,b:p2.b},
       reversed:reversed, prompt:prompt, answerWord:answer, accepted:accepted, difficulty:D,
       answer:(reversed?p2.a:p2.b)+" ("+p1.a+" "+rel.testo+" "+p1.b+(reversed?"":"")+")",
-      key:"rel:"+rel.id, pairKeys:[pk(rel,p1),pk(rel,p2)] };
+      key:"rel:"+rel.id, pairKeys:[pk(rel,p1),pk(rel,p2)], itemKey:"q:"+rel.id+":"+p1.a+">"+p1.b+"|"+p2.a+">"+p2.b+(reversed?":r":"") };
     if(mc){
       var banned=new Set([p1.a,p1.b,p2.a,p2.b].concat(accepted).map(norm)); var pick=reversed?"a":"b";
       var same=rel.coppie.filter(function(p){return p!==p1&&p!==p2;}).map(function(p){return p[pick];}).filter(function(w){return !banned.has(norm(w));});
@@ -65,13 +65,13 @@
     var target=TARGET_D(level), chosen=[], sessionPairs=new Set(), keys=[];
     for(var n=0;n<count;n++){
       var cands=[];
-      for(var t=0;t<600 && cands.length<30;t++){ var c=candidate(level,rng,sessionPairs); if(c) cands.push(c); }
+      for(var t=0;t<900 && cands.length<40;t++){ var c=candidate(level,rng,sessionPairs); if(c) cands.push(c); }
       if(!cands.length) break;
       // coppie mai proposte prima; poi la meno recente; poi vicinanza al punteggio-obiettivo
       function stale(c){ return Math.max.apply(null, c.pairKeys.map(function(k){ return lastIdx.has(k)?lastIdx.get(k):-1; })); }
-      cands.sort(function(a,b){ var sa=stale(a), sb=stale(b); if((sa<0)!==(sb<0)) return sa<0?-1:1; if(sa>=0&&sb>=0&&sa!==sb) return sa-sb; return Math.abs(a.difficulty-target)-Math.abs(b.difficulty-target); });
+      cands.sort(function(a,b){ var ia=lastIdx.has(a.itemKey)?1:0, ib=lastIdx.has(b.itemKey)?1:0; if(ia!==ib) return ia-ib; var sa=stale(a), sb=stale(b); if((sa<0)!==(sb<0)) return sa<0?-1:1; if(sa>=0&&sb>=0&&sa!==sb) return sa-sb; return Math.abs(a.difficulty-target)-Math.abs(b.difficulty-target); });
       var best=cands[0]; best.id="q"+(n+1); chosen.push(best);
-      best.pairKeys.forEach(function(k){ sessionPairs.add(k); keys.push(k); });
+      best.pairKeys.forEach(function(k){ sessionPairs.add(k); keys.push(k); }); keys.push(best.itemKey);
     }
     return { type:"analogie", level:level, items:chosen, historyKeys:keys,
       rule:"Completare l'analogia: la seconda coppia ha la stessa relazione della prima." + (level<=MC_MAX_LEVEL?" Fino al livello "+MC_MAX_LEVEL+" la risposta si sceglie fra 4 opzioni.":""),

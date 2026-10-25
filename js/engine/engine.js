@@ -962,7 +962,7 @@ const LETTER_POOL_RARE = ['Z']; // lettera iniziale meno comune: usata solo quan
 // Lettere iniziali VERIFICATE per lunghezza della parola (n = 5..9): per ciascuna almeno 12 parole italiane
 // reali (dizionario Hunspell it_IT + frequenze d'uso), di cui almeno 6 frequenti (Zipf >= 3.0).
 // Esito: tutte le lettere di LETTER_POOL passano a ogni lunghezza; la «Z» solo con 5, 7 e 8 lettere.
-const INITIAL_LETTERS_BY_LENGTH = { 5: 'ABCDEFGILMNOPRSTUVZ', 6: 'ABCDEFGILMNOPRSTUV', 7: 'ABCDEFGILMNOPRSTUVZ', 8: 'ABCDEFGILMNOPRSTUVZ', 9: 'ABCDEFGILMNOPRSTUV' };
+const INITIAL_LETTERS_BY_LENGTH = { 4: 'ABCDEFGILMNOPRSTUV', 5: 'ABCDEFGILMNOPRSTUVZ', 6: 'ABCDEFGILMNOPRSTUV', 7: 'ABCDEFGILMNOPRSTUVZ', 8: 'ABCDEFGILMNOPRSTUVZ', 9: 'ABCDEFGILMNOPRSTUV' };
 const LETTER_POOL = 'A B C D E F G I L M N O P R S T U V'.split(' '); // usata per l'iniziale libera: già esclude lettere rare come inizio (H,Q,X,Y,W,J,K,Z)
 
 // ---------------------------------------------------------------------------
@@ -1342,16 +1342,28 @@ function buildFascicolo(week, seed, exclusions) {
   if (categories.length < p.categoryCount) notices.push(`Categorie: solo ${categories.length} categorie mai proposte a questo gruppo a questo livello (ne servivano ${p.categoryCount}).`);
 
   let lexicalPrompts, lexicalHistoryKeys;
+  let initialLen = p.lexicalInitialLength;
   if (p.lexicalKind === 'initial') {
-    const excludeLetters = new Set(excl.lexicalKeys ? excl.lexicalKeys.filter(k => k.startsWith('initial:')).map(k => k.split(':')[1]) : []);
+    // Chiavi di cronologia "initial:LETTERA:LUNGHEZZA" (le vecchie "initial:LETTERA" valgono per le parole di 5 lettere).
+    // La pagina ha UNA lunghezza: si tiene quella prevista dalla settimana finché restano abbastanza lettere nuove,
+    // altrimenti si passa a una lunghezza vicina (4, 5, 6, 7) — così la settimana 1 regge più cicli senza ripetere.
+    const usedInitial = new Set((excl.lexicalKeys || []).filter(k => k.startsWith('initial:')).map(k => { const q = k.split(':'); return q[1] + ':' + (q[2] || '5'); }));
     // prima le lettere "comode" (LETTER_POOL), poi, solo se servono, le altre lettere italiane; sempre e solo
     // lettere VERIFICATE per la lunghezza richiesta (INITIAL_LETTERS_BY_LENGTH: >= 12 parole reali)
-    const validInitials = INITIAL_LETTERS_BY_LENGTH[p.lexicalInitialLength] || INITIAL_LETTERS_BY_LENGTH[5];
-    const freshMain = LETTER_POOL.filter(l => validInitials.includes(l) && !excludeLetters.has(l));
-    const freshRare = LETTER_POOL_RARE.filter(l => validInitials.includes(l) && !excludeLetters.has(l));
+    const freshFor = (len, pool) => pool.filter(l => (INITIAL_LETTERS_BY_LENGTH[len] || '').includes(l) && !usedInitial.has(l + ':' + len));
+    const lens = [p.lexicalInitialLength].concat([5, 6, 4, 7].filter(n => n !== p.lexicalInitialLength));
+    let bestLen = lens[0], bestN = -1;
+    for (const n of lens) {
+      const c = freshFor(n, LETTER_POOL).length + freshFor(n, LETTER_POOL_RARE).length;
+      if (c >= 8) { bestLen = n; bestN = c; break; }
+      if (c > bestN) { bestN = c; bestLen = n; }
+    }
+    initialLen = bestLen;
+    const freshMain = freshFor(initialLen, LETTER_POOL);
+    const freshRare = freshFor(initialLen, LETTER_POOL_RARE);
     const main = pickN(rnd, freshMain, Math.min(8, freshMain.length));
     lexicalPrompts = main.concat(pickN(rnd, freshRare, Math.max(0, 8 - main.length)));
-    lexicalHistoryKeys = lexicalPrompts.map(l => `initial:${l}`);
+    lexicalHistoryKeys = lexicalPrompts.map(l => `initial:${l}:${initialLen}`);
     lexicalPrompts.shortfall = 8 - lexicalPrompts.length;
   } else if (p.lexicalKind === 'firstPenultimate' || p.lexicalKind === 'secondPenultimate' || p.lexicalKind === 'thirdPenultimate' || p.lexicalKind === 'joined' || p.lexicalKind === 'disjoint') {
     const excludeKeys = excl.lexicalKeys ? excl.lexicalKeys.filter(k=>k.startsWith(p.lexicalKind+':')).map(k=>k.split(':')[1]) : [];
@@ -1365,7 +1377,7 @@ function buildFascicolo(week, seed, exclusions) {
   if (lexicalPrompts.shortfall > 0) notices.push(`Accesso lessicale: solo ${lexicalPrompts.length} consegne mai proposte a questo gruppo per questo schema (ne servivano ${lexicalPrompts.length + lexicalPrompts.shortfall}).`);
   const lexicalBlock = {
     kind: p.lexicalKind,
-    label: p.lexicalKind === 'initial' ? LEXICAL_LABELS.initial(p.lexicalInitialLength) : LEXICAL_LABELS[p.lexicalKind](),
+    label: p.lexicalKind === 'initial' ? LEXICAL_LABELS.initial(initialLen) : LEXICAL_LABELS[p.lexicalKind](),
     prompts: lexicalPrompts,
     historyKeys: lexicalHistoryKeys,
     // categorie larghe usate dalle consegne "lettera + categoria": entrano nella cronologia delle categorie
