@@ -6,7 +6,7 @@
 
 ```
 index.html                  struttura della pagina e tag <script> in ordine (dal passo 9 non contiene più codice)
-CLAUDE_pdmgenerator.md      regole di lavoro e stato dei passi di refactoring
+REGOLE_DI_LAVORO.md      regole di lavoro e stato dei passi di refactoring
 README.md                   presentazione e indice della documentazione
 docs/                       la documentazione, un file per argomento (passo 6)
 GUIDA_BUONE_PRATICHE.md     guida di buone pratiche per costruire web app (documento vivo)

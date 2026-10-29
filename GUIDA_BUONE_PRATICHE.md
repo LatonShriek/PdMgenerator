@@ -101,7 +101,7 @@ Attendere 1–2 minuti, ricaricare con Ctrl+Maiusc+R, generare un'attività per 
 ## Parte D — Come si lavora e si consegna
 
 ### D1. Una "memoria di lavoro" scritta
-Un file (`CLAUDE_pdmgenerator.md`) dice a chi lavora al progetto — persona o assistente — come si lavora, a che punto si è e cosa non va toccato. Ogni sessione parte da lì invece che da zero. Il README spiega **cosa** fa l'app e **perché** è fatta così: va tenuto aggiornato, non è un optional.
+Un file (`REGOLE_DI_LAVORO.md`) dice a chi lavora al progetto — persona o assistente — come si lavora, a che punto si è e cosa non va toccato. Ogni sessione parte da lì invece che da zero. Il README spiega **cosa** fa l'app e **perché** è fatta così: va tenuto aggiornato, non è un optional.
 
 ### D1b. La documentazione si divide per argomento, con un indice
 Un README di 300 righe non lo legge nessuno. Un README breve (scopo, cosa fa, indice) più un file per argomento in `docs/` (struttura, attività, esportazioni, test, pubblicazione…) si consulta a colpo d'occhio e si aggiorna senza toccare il resto. *Nel progetto: passo 6.*
@@ -115,7 +115,7 @@ Modifiche mirate, una per volta, dicendo quali righe cambiano e perché. Un file
 - *Errore reale accaduto:* la cartella `js` è finita dentro un'altra `js`. L'app avrebbe mostrato la banda rossa (vedi C1) e per questo il sito vecchio, intatto, ha continuato a funzionare finché non è stato caricato anche `index.html`. **Regola: `index.html` si carica per ultimo.**
 
 ### D4. Mai consegnare segreti nelle copie di lavoro
-Le copie del codice condivise in un progetto Claude hanno la configurazione Firebase tolta; quella vera sta solo nel repository. Ora è confinata in `js/firebase-config.js`, quindi basta non copiare quel file.
+Le copie del codice caricate nel progetto condiviso hanno la configurazione Firebase tolta; quella vera sta solo nel repository. Ora è confinata in `js/firebase-config.js`, quindi basta non copiare quel file.
 
 ### D5. Provare le modifiche prima di pubblicarle *(non ancora attivo)*
 Lavorare su una copia di prova (ramo separato) e pubblicare solo dopo il controllo.

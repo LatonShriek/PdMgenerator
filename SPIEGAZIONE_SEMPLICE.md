@@ -25,7 +25,7 @@ Adesso la cucina ha **degli scaffali con l'etichetta**:
 | `vendor/` | **La dispensa** | Gli "ingredienti" fatti da altri (le librerie che creano PowerPoint e Word, quella per la cronologia condivisa). Li teniamo in casa, con la versione segnata |
 | `tests/` | **L'assaggio di controllo** | Prove automatiche: dopo ogni riordino verificano che il piatto esca identico a prima |
 | `README.md` | **Il libretto di istruzioni** | Spiega a chiunque erediti l'app cosa fa e perché |
-| `CLAUDE_pdmgenerator.md` | **Il quaderno delle regole di lavoro** | Ricorda a me, a ogni sessione, come lavoriamo insieme e a che punto siamo |
+| `REGOLE_DI_LAVORO.md` | **Il quaderno delle regole di lavoro** | Ricorda a me, a ogni sessione, come lavoriamo insieme e a che punto siamo |
 
 ### Perché ogni scelta
 

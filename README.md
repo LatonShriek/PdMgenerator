@@ -4,7 +4,7 @@ Web app per generare materiale di stimolazione cognitiva per gruppi MCI/DNMi/DCL
 
 Non c'è backend: l'app gira interamente nel browser (JavaScript vanilla, nessun framework, nessuna build). Le librerie per le esportazioni e per la cronologia condivisa opzionale sono **incluse nel repository** (`vendor/`), quindi l'app non dipende da CDN esterni (resta solo una rete di sicurezza per la libreria `docx`, vedi [docs/esportazione-e-backup.md](docs/esportazione-e-backup.md)).
 
-> **Per chi mantiene il progetto:** leggere la documentazione in `docs/` (almeno `struttura.md`, `attivita.md` e `banche-e-categorie.md`) prima di toccare i generatori, le banche di parole o le regole di qualità. Le regole di lavoro e lo stato dei passi di refactoring sono in `CLAUDE_pdmgenerator.md`.
+> **Per chi mantiene il progetto:** leggere la documentazione in `docs/` (almeno `struttura.md`, `attivita.md` e `banche-e-categorie.md`) prima di toccare i generatori, le banche di parole o le regole di qualità. Le regole di lavoro e lo stato dei passi di refactoring sono in `REGOLE_DI_LAVORO.md`.
 
 ## Dove trovare cosa
 
@@ -22,7 +22,7 @@ La documentazione è divisa per argomento nella cartella `docs/`:
 | Come si pubblica, come si modificano dati e librerie, a che punto è il riordino, sicurezza e privacy | [docs/pubblicazione-e-refactoring.md](docs/pubblicazione-e-refactoring.md) |
 | Le buone pratiche per costruire un'app web, emerse da questo progetto | [GUIDA_BUONE_PRATICHE.md](GUIDA_BUONE_PRATICHE.md) |
 | In parole semplici: perché è fatta così | [SPIEGAZIONE_SEMPLICE.md](SPIEGAZIONE_SEMPLICE.md) |
-| Le regole di lavoro e lo stato dei passi | [CLAUDE_pdmgenerator.md](CLAUDE_pdmgenerator.md) |
+| Le regole di lavoro e lo stato dei passi | [REGOLE_DI_LAVORO.md](REGOLE_DI_LAVORO.md) |
 
 ## Scopo
 

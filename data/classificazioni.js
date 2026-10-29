@@ -3,7 +3,7 @@
 // Ogni categoria: n = nome, s = sinonimi accettati, p = categorie più ampie accettate come risposta,
 // t = fascia di astrazione (1 concreta e immediata … 5 astratta), w = termini dal più tipico/frequente
 // al meno tipico (l'ordine conta: il generatore lo usa per graduare la difficoltà).
-// stato = "proposta": banca scritta da Claude, DA VALIDARE da Rodrigo prima dell'uso clinico
+// stato = "proposta": banca in bozza, DA VALIDARE da Rodrigo prima dell'uso clinico
 // (non è materiale originale del VRT né dei fascicoli). Le voci validate si marcano "verificata".
 // Doppio uso: script classico nel browser (variabile globale) e modulo in Node (test).
 (function(root){

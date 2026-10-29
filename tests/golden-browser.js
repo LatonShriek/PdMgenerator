@@ -9,7 +9,7 @@
 //   node tests/golden-browser.js --update   riscrive le impronte (solo se il cambiamento è voluto)
 //
 // Richiede Playwright con Chromium (non incluso nel repository, niente da installare per usare l'app):
-// lo lancia Claude durante i refactoring. Variabili utili: CHROMIUM_PATH, NODE_PATH.
+// si lancia a mano durante i refactoring. Variabili utili: CHROMIUM_PATH, NODE_PATH.
 const fs = require('fs');
 const path = require('path');
 const crypto = require('crypto');

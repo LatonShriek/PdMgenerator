@@ -1,4 +1,4 @@
-# CLAUDE.md — Generatore attività PdM CDCD
+# Regole di lavoro — Generatore attività PdM CDCD
 
 Leggi questo file all'inizio di ogni sessione. Aggiornalo quando cambia qualcosa
 (spunta i passi fatti, aggiorna "Stato attuale").
@@ -65,7 +65,7 @@ così e cosa si può ancora migliorare, in parole semplici).
 - Pittogrammi OpenMoji (CC BY-SA 4.0) con fallback testuale.
 
 ## Nuovi moduli VRT (ottobre 2026)
-- Piano e specifiche condivise: Claude Doc «PdM CDCD — Piano d'azione e specifiche moduli VRT». Ogni modulo = `data/<nome>.js` + `js/generators|renderers|export/<nome>.js` + `tests/<nome>.test.js` + registrazione in `index.html` (EXERCISES, GENERATORS, RENDERERS, EXERCISE_NUMBER, MATERIAL_HISTORY, tag script, banda rossa, levelNote, controlli, storico) + `js/export/exporters.js` + `js/history/storico.js`. I generatori nuovi sono UMD (globale nel browser, `require` in Node) con `buildXxx(level,{rng,used,count})` puro e testabile.
+- Piano e specifiche condivise: Documento di progetto «PdM CDCD — Piano d'azione e specifiche moduli VRT». Ogni modulo = `data/<nome>.js` + `js/generators|renderers|export/<nome>.js` + `tests/<nome>.test.js` + registrazione in `index.html` (EXERCISES, GENERATORS, RENDERERS, EXERCISE_NUMBER, MATERIAL_HISTORY, tag script, banda rossa, levelNote, controlli, storico) + `js/export/exporters.js` + `js/history/storico.js`. I generatori nuovi sono UMD (globale nel browser, `require` in Node) con `buildXxx(level,{rng,used,count})` puro e testabile.
 - **Fatti**: Classificazioni (n. 7), Intruso concettuale (n. 8), Analogie (n. 9). **Parentele: rimosso su richiesta di Rodrigo (25 ott 2026)** insieme a `data/vrt-esclusi.js`. Banche Classificazioni e Analogie = `proposta`, da validare da Rodrigo.
 - **Da fare**, in quest'ordine: Assurdità, Differenze e somiglianze (banche come documento di bozze `proposta`). Variante di flessibilità dell'Intruso (6 termini, 2 raggruppamenti): non fatta. **Idiomatiche: escluso su richiesta di Rodrigo (24 ott 2026).** Il materiale del VRT non va riprodotto (frasi, coppie, parole): i protocolli sono nel Progetto/scratchpad della sessione originale.
 - Aggiungere un modulo cambia di proposito le impronte `style-browser` (+ elementi in elenco e tag script) e aggiunge casi a golden/export: si riscrivono con `--update` dopo aver verificato che i casi esistenti non cambino (il solo campo `rule` del fascicolo può variare: è il testo nascosto del riquadro regola rimasto dall'esercizio precedente nel test).
@@ -91,19 +91,19 @@ così e cosa si può ancora migliorare, in parole semplici).
    un `.json` richiede una richiesta di rete che il browser blocca aprendo
    `index.html` con doppio clic.
 
-## Come lavorare su questo progetto (per Claude)
+## Come lavorare su questo progetto (per chi collabora)
 - L'area di lavoro parte vuota e da lì GitHub non è raggiungibile. La versione vera
   è su GitHub: chiedere a Rodrigo lo ZIP (Code → Download ZIP) e scompattarlo in
   una cartella nuova.
-- La copia di `index.html` nel Progetto Claude non è completa (mancano `js/`, `data/`, `vendor/`) e non va mai
+- La copia di `index.html` nel Progetto condiviso non è completa (mancano `js/`, `data/`, `vendor/`) e non va mai
   consegnata a Rodrigo. Si parte sempre dallo ZIP del repository.
-- Nel Progetto Claude stanno solo `index.html`, README e questo file; `data/`,
+- Nel Progetto condiviso stanno solo `index.html`, README e questo file; `data/`,
   `tests/` e `vendor/` stanno solo su GitHub.
 
 ## Come si consegna il lavoro a Rodrigo
 Rodrigo carica su GitHub dal sito (Add file → Upload files), non da terminale.
 - Mandare solo ciò che è cambiato: **una zip per cartella** (es. `tests.zip`) più
-  i file singoli della radice (`index.html`, `CLAUDE_pdmgenerator.md`, `README.md`).
+  i file singoli della radice (`index.html`, `REGOLE_DI_LAVORO.md`, `README.md`).
 - Si trascinano le **cartelle intere**, mai i file contenuti: i file singoli
   finirebbero nella radice e `index.html` non troverebbe più i suoi script.
 - Prima del Commit, nell'elenco di GitHub i nomi devono avere il prefisso della
@@ -112,7 +112,7 @@ Rodrigo carica su GitHub dal sito (Add file → Upload files), non da terminale.
   `js/generators/griglie.js` ecc., UNA sola volta `js/`. Le zip si fanno con il contenuto della cartella al
   livello più alto (non una cartella `js` dentro `js.zip`), così "Estrai tutto" dà `js/generators/...`.
   Se manca un file, l'app mostra la banda rossa. `index.html` si carica PER ULTIMO.
-  Con la config Firebase ora in `js/firebase-config.js`, la copia nel Progetto Claude di `index.html` non la contiene
+  Con la config Firebase ora in `js/firebase-config.js`, la copia nel Progetto condiviso di `index.html` non la contiene
   più: non scrivere nel Progetto i file `js/`.
 - Se compaiono nella radice i doppioni `categorizzazione.js` e
   `fascicolo.test.js` (restano da un invio precedente), vanno eliminati.
@@ -124,7 +124,7 @@ Rodrigo carica su GitHub dal sito (Add file → Upload files), non da terminale.
 ## Struttura attuale
 ```
 index.html            app: interfaccia, stato, motori (Fascicolo, categorizzazione), collegamenti
-CLAUDE_pdmgenerator.md  questo file
+REGOLE_DI_LAVORO.md  questo file
 README.md             presentazione e indice
 docs/                 documentazione per argomento (struttura, attivita, esportazione-e-backup, fascicolo,
                       banche-e-categorie, interfaccia, test, pubblicazione-e-refactoring)

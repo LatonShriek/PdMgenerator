@@ -1,7 +1,7 @@
 // Banca per «Analogie» (ispirato al subtest Relazioni del VRT): A : B = C : ?
 // Coppie raggruppate per tipo di relazione; t = fascia di astrazione 1-5; le coppie sono ordinate dalla più
 // immediata alla meno immediata. «A:B/alt1/alt2» = risposte alternative accettate per B.
-// stato = "proposta": scritta da Claude, DA VALIDARE da Rodrigo (non è materiale del VRT).
+// stato = "proposta": in bozza, DA VALIDARE da Rodrigo (non è materiale del VRT).
 // Doppio uso: script classico nel browser e modulo in Node (test).
 (function(root){
   function R(id, nome, t, testo, coppie){
