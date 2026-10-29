@@ -17,7 +17,7 @@ Quando si carica su GitHub vanno caricate **le cartelle intere** (`css`, `data`,
 
 ## Stato del refactoring
 
-Obiettivo: rendere il codice leggibile, correggibile e professionale **senza cambiare ciò che l'app produce**. Si procede a passi piccoli, ognuno con test e app funzionante alla fine (dettagli e regole di lavoro in `CLAUDE_pdmgenerator.md`).
+Obiettivo: rendere il codice leggibile, correggibile e professionale **senza cambiare ciò che l'app produce**. Si procede a passi piccoli, ognuno con test e app funzionante alla fine (dettagli e regole di lavoro in `REGOLE_DI_LAVORO.md`).
 
 | Passo | Cosa | Stato |
 |---|---|---|

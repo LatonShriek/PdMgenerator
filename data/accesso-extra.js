@@ -1,7 +1,7 @@
 // Parole aggiuntive per «Accesso lessicale online» (passo 11): servono a non riproporre mai la stessa parola allo stesso gruppo
 // per almeno 4 cicli (32 livelli x 4), anche con 8-10 parole per seduta. Stesse 4 fasce di LEXICAL_TIERS (data/base.js):
 //   1 concreto frequente · 2 concreto specifico · 3 astratto / semi-tecnico · 4 astratto-tecnico raro.
-// Voci «proposta»: scritte da Claude, da validare da Rodrigo. Si caricano DOPO data/base.js e si fondono in LEXICAL_TIERS
+// Voci «proposta»: in bozza, da validare da Rodrigo. Si caricano DOPO data/base.js e si fondono in LEXICAL_TIERS
 // (senza doppioni, solo lettere italiane).
 (function(){
   var EXTRA = [
