@@ -1,0 +1,203 @@
+// Banca delle voci «ad alta difficoltà» (livelli 17-32) per i tre moduli di ragionamento verbale:
+// Classificazioni, Intruso concettuale, Analogie. 16 livelli x 3 varianti (A, B, C) per modulo = 48 voci ciascuno.
+// Le tre varianti di un livello hanno lo stesso punteggio D ma profilo diverso (A astrazione, B trappola, C eterogeneità/lessico),
+// così lo stesso livello non carica sempre la stessa risorsa.
+// D = somma delle coordinate annotate a mano (+2 per Classificazioni se i termini dati sono 2).
+//   Classificazioni:     A astrazione 1-3, C trappola 0-3, E eterogeneità 0-3, L lessico 0-3
+//   Intruso concettuale: A astrazione 1-3, V vicinanza dell'intruso 0-3, S attributo saliente condiviso 0-3, M criteri alternativi 0-3, L lessico 0-3
+//   Analogie:            R relazione 1-3, Dm distanza fra i domini 0-3, Lu forza del lure 0-3, L lessico 0-3, Q 1 se invertita (A : B = ? : D)
+// Rampa-obiettivo di D per livello: vedi TARGET_D in fondo al file (verificata da tests/verbale-alto.test.js).
+// stato = "proposta": voci in bozza, DA VALIDARE da Rodrigo prima dell'uso clinico.
+// Il file NON è ancora collegato ai generatori: è solo la banca.
+// Doppio uso: script classico nel browser (variabile globale VERBALE_ALTO) e modulo in Node (test).
+(function(root){
+  function u(s){ return s.replace(/_/g," "); }
+  function coord(s, keys){ var p=s.split("."), o={}; keys.forEach(function(k,i){ o[k]=+p[i]; }); return o; }
+  function somma(o){ return Object.keys(o).reduce(function(a,k){ return a+o[k]; },0); }
+  var K_CL=["A","C","E","L"], K_IC=["A","V","S","M","L"], K_AN=["R","Dm","Lu","L","Q"];
+
+  // Classificazioni: termini dati -> categoria. «accettate»: la prima è la risposta attesa, le altre sono formulazioni equivalenti.
+  function CL(liv, v, termini, accettate, trappola, c, due){
+    var o=coord(c,K_CL);
+    return { id:"cl-"+liv+v, liv:liv, v:v, termini:termini.split(" ").map(u), accettate:accettate.split("|"), trappola:trappola,
+      coord:o, due:!!due, D:somma(o)+(due?2:0), stato:"proposta" };
+  }
+  // Intruso concettuale: quattro parole, una non appartiene alla categoria.
+  function IC(liv, v, parole, intruso, categoria, alt, c){
+    var o=coord(c,K_IC), w=parole.split(" ").map(u), odd=u(intruso);
+    return { id:"ic-"+liv+v, liv:liv, v:v, parole:w, intruso:odd, oddIndex:w.indexOf(odd), categoria:categoria, alternativo:alt,
+      coord:o, D:somma(o), stato:"proposta" };
+  }
+  // Analogie: A : B = C : ?  (inv=0)  oppure  A : B = ? : D  (inv=1). «extra»: altre risposte accettate.
+  function AN(liv, v, a, b, c, d, inv, extra, lure, cd){
+    var o=coord(cd,K_AN), risposta=inv?c:d;
+    return { id:"an-"+liv+v, liv:liv, v:v, a:a, b:b, c:c, d:d, invertita:!!inv,
+      quesito: inv ? a+" : "+b+" = ? : "+d : a+" : "+b+" = "+c+" : ?",
+      risposta:risposta, accettate:[risposta].concat(extra?extra.split("|"):[]), lure:lure,
+      coord:o, D:somma(o), stato:"proposta" };
+  }
+
+  var CLASSIFICAZIONI_ALTO = [
+    CL(17,"A","palloncino canotto pneumatico","cose che si gonfiano|gonfiabili|oggetti gonfiabili","oggetti di gomma","2.1.1.1"),
+    CL(17,"B","pipistrello balena delfino","mammiferi","animali marini","1.2.2.0"),
+    CL(17,"C","cielo mare mirtillo","cose blu|cose azzurre|blu|azzurro","—","2.0.3.0"),
+    CL(18,"A","ombrellone tettoia parasole","cose che fanno ombra|ripari dal sole|cose che riparano","arredi da esterno","2.1.1.1"),
+    CL(18,"B","ragno scorpione zecca","aracnidi|aracnide","insetti","1.2.0.2"),
+    CL(18,"C","tinca luccio carpa","pesci d'acqua dolce|pesci di fiume|pesci di lago","pesci","1.3.0.1"),
+    CL(19,"A","bandiera inno stemma","simboli della nazione|simboli nazionali|simboli","cose patriottiche","3.1.1.1"),
+    CL(19,"B","criceto cane pesce_rosso","animali domestici|animali da compagnia","mammiferi","2.2.2.0"),
+    CL(19,"C","sole lampadina candela","fonti di luce|cose che fanno luce|cose luminose","cose calde","2.1.3.0"),
+    CL(20,"A","clessidra meridiana calendario","strumenti per misurare il tempo|misuratori del tempo","oggetti antichi","2.1.1.2"),
+    CL(20,"B","limone aceto pompelmo","cose acide|cose aspre|acido","alimenti","2.3.1.0"),
+    CL(20,"C","mulino frantoio caseificio","luoghi di trasformazione dei prodotti agricoli|laboratori agroalimentari","edifici rurali","2.2.0.2"),
+    CL(21,"A","peso lunghezza temperatura","grandezze misurabili|grandezze fisiche|grandezze","misure","3.1.1.2"),
+    CL(21,"B","pinguino struzzo kiwi","uccelli che non volano|uccelli inetti al volo","uccelli","2.3.1.1"),
+    CL(21,"C","croco giacinto narciso","fiori bulbosi|piante bulbose","fiori primaverili","2.2.0.3"),
+    CL(22,"A","impronta prova testimonianza","ciò che serve a dimostrare un fatto|indizi|elementi di prova|prove","cose di un processo","3.1.1.2"),
+    CL(22,"B","ombra fotocopia riflesso","copie di qualcosa|riproduzioni|copie","fenomeni naturali","3.1.3.0"),
+    CL(22,"C","alambicco crogiolo pestello","strumenti da laboratorio|attrezzi da laboratorio","utensili da cucina","2.2.1.2"),
+    CL(23,"A","multa rimprovero bocciatura","sanzioni|punizioni","cose spiacevoli","3.3.2.0"),
+    CL(23,"B","squalo orca murena","predatori marini|predatori del mare","pesci|animali marini","2.3.1.2"),
+    CL(23,"C","timone sestante astrolabio","strumenti di navigazione|strumenti per navigare","parti di una nave","2.2.1.3"),
+    CL(24,"A","chiave password firma","mezzi per identificarsi|mezzi per accedere|cose che danno accesso","cose segrete","3.2.3.0"),
+    CL(24,"B","elefante tricheco cinghiale","animali con le zanne|animali con zanne","mammiferi","2.3.2.1"),
+    CL(24,"C","stetoscopio pluviometro anemometro","strumenti di rilevamento|strumenti di misura","apparecchi scientifici","2.1.2.3"),
+    CL(25,"A","promessa cambiale giuramento","impegni|obbligazioni|vincoli","documenti","3.2.2.2"),
+    CL(25,"B","vena grondaia acquedotto","condotti per liquidi|canali|condotti","tubi","2.3.3.1"),
+    CL(25,"C","ruggine muffa ragnatela","segni di trascuratezza|segni di abbandono|degrado","sporcizia","3.2.3.1"),
+    CL(26,"A","tempo fiducia credibilità","cose che si guadagnano e si perdono|beni immateriali","valori","3.3.2.1"),
+    CL(26,"B","ago aculeo pungiglione","cose che pungono","oggetti appuntiti","2.3.2.2"),
+    CL(26,"C","specchio lente prisma","cose che deviano la luce|cose che modificano la luce|oggetti ottici","oggetti di vetro","2.3.2.2"),
+    CL(27,"A","assonanza ritornello eco","ripetizioni di suoni|ripetizioni","cose musicali","3.2.3.2"),
+    CL(27,"B","ape formica castoro","animali costruttori che vivono in comunità|animali che costruiscono|animali sociali costruttori","insetti, animali","3.3.3.1"),
+    CL(27,"C","ponte interprete adattatore","cose che collegano|cose che mediano|mediatori","strumenti, mestieri","3.2.3.2"),
+    CL(28,"A","sipario velo foschia","cose che nascondono alla vista|cose che impediscono di vedere|cose che coprono","tessuti","3.2.3.2"),
+    CL(28,"B","scacchi scherma dibattito","sfide tra due avversari|duelli|sfide","giochi, sport","3.3.3.1"),
+    CL(28,"C","crocevia dilemma biforcazione","punti di scelta|bivi","incroci stradali","3.2.3.2"),
+    CL(29,"A","reperto rovine ricordo","tracce del passato|testimonianze del passato","cose vecchie","3.3.3.2"),
+    CL(29,"B","seme progetto","punto di partenza|inizio di qualcosa che si svilupperà|origini|potenzialità","cose che crescono","3.3.3.0",true),
+    CL(29,"C","fotografia memoria","fissano un'immagine del passato|conservano il passato|conservano immagini","oggetti per vedere","3.2.3.1",true),
+    CL(30,"A","paracadute vaccino parafulmine","protezioni che prevengono un danno|protezioni|difese","oggetti di sicurezza","3.3.3.2"),
+    CL(30,"B","confine gradino","segnano un passaggio tra due parti|separano due livelli|soglie","cose che dividono","3.3.3.0",true),
+    CL(30,"C","bussola coscienza","guidano|orientano|ci orientano","strumenti","3.2.3.1",true),
+    CL(31,"A","fondamenta infanzia","basi su cui si costruisce il resto|basi|fondamenta di ciò che viene dopo","cose all'inizio","3.3.3.1",true),
+    CL(31,"B","tarlo dubbio","rodono da dentro|consumano lentamente|corrodono","piccoli fastidi","3.2.3.2",true),
+    CL(31,"C","mappa proverbio","orientano il cammino|guidano|danno indicazioni","cose scritte","3.3.3.1",true),
+    CL(32,"A","cicatrice reliquia","conservano la traccia di un evento passato|ricordano un evento|memorie","segni sul corpo, cose sacre","3.3.3.2",true),
+    CL(32,"B","diga pazienza","contengono ciò che altrimenti straripa|contengono|trattengono","cose che proteggono","3.3.3.2",true),
+    CL(32,"C","radice consuetudine","ci tengono fermi|stabilizzano|radicano|ancorano","cose antiche","3.3.3.2",true)
+  ];
+
+  var INTRUSO_ALTO = [
+    IC(17,"A","falcetto forbici rasoio cucchiaio","cucchiaio","strumenti che tagliano","utensili da cucina","2.1.1.0.1"),
+    IC(17,"B","leone tigre ghepardo lupo","lupo","felini","carnivori","1.2.2.0.0"),
+    IC(17,"C","abete larice pino quercia","quercia","conifere","—","1.1.1.0.2"),
+    IC(18,"A","coraggio lealtà onestà pigrizia","pigrizia","virtù","—","3.2.1.0.0"),
+    IC(18,"B","gabbiano aquila passero pipistrello","pipistrello","uccelli","animali che volano","1.3.2.0.0"),
+    IC(18,"C","clarinetto flauto oboe violino","violino","strumenti a fiato","strumenti di legno (farebbe uscire il flauto)","2.1.1.1.1"),
+    IC(19,"A","sveglia orologio cronometro bussola","bussola","strumenti che misurano il tempo","—","2.2.2.0.0"),
+    IC(19,"B","lenticchie ceci fagioli riso","riso","legumi","cibi secchi","1.2.2.0.1"),
+    IC(19,"C","trota salmone luccio anatra","anatra","pesci","animali d'acqua dolce","1.2.2.0.1"),
+    IC(20,"A","ragione logica deduzione istinto","istinto","processi razionali","—","3.2.1.0.1"),
+    IC(20,"B","tonno salmone merluzzo delfino","delfino","pesci","animali marini","1.3.3.0.0"),
+    IC(20,"C","tromba trombone corno flauto","flauto","ottoni","strumenti a fiato","2.2.2.0.1"),
+    IC(21,"A","alba tramonto crepuscolo mezzogiorno","mezzogiorno","momenti di passaggio tra luce e buio","—","3.2.1.0.1"),
+    IC(21,"B","arancia mandarino limone mela","mela","agrumi","colore arancio (farebbe uscire il limone)","1.2.3.1.0"),
+    IC(21,"C","violino chitarra arpa tamburo","tamburo","strumenti a corde","—","2.2.2.0.1"),
+    IC(22,"A","tristezza rabbia gioia riso","riso","emozioni","il riso è un'espressione, non uno stato","3.3.2.0.0"),
+    IC(22,"B","orata spigola sogliola gambero","gambero","pesci","cibi di mare","1.3.3.0.1"),
+    IC(22,"C","tenore soprano basso violoncello","violoncello","voci","registro grave (basso e violoncello)","2.2.2.1.1"),
+    IC(23,"A","sentenza verdetto condanna indagine","indagine","decisioni del giudice","atti giudiziari","3.2.2.1.1"),
+    IC(23,"B","leopardo giaguaro ghepardo iena","iena","felini","animali macchiati","1.3.3.0.2"),
+    IC(23,"C","aceto limone vino miele","miele","cose acide","liquidi (farebbe uscire il limone)","2.2.2.2.1"),
+    IC(24,"A","tolleranza rispetto accoglienza orgoglio","orgoglio","atteggiamenti di apertura verso gli altri","virtù","3.2.2.1.1"),
+    IC(24,"B","scrittore poeta romanziere editore","editore","chi scrive","mestieri del libro","2.3.3.0.1"),
+    IC(24,"C","paesaggio ritratto natura_morta scultura","scultura","generi pittorici","arti figurative","2.3.2.1.1"),
+    IC(25,"A","pensiero ragionamento riflessione emozione","emozione","attività cognitive razionali","vita interiore","3.3.2.1.1"),
+    IC(25,"B","bue vacca toro cavallo","cavallo","bovini","animali da lavoro, maschi (farebbe uscire la vacca)","1.3.3.2.1"),
+    IC(25,"C","sardina acciuga aringa trota","trota","pesci marini azzurri","pesci piccoli (farebbe uscire l'aringa)","2.2.3.2.1"),
+    IC(26,"A","ambizione determinazione tenacia fortuna","fortuna","qualità personali","cose che aiutano a riuscire","3.3.2.1.1"),
+    IC(26,"B","prugna ciliegia pesca fragola","fragola","drupe","frutti rossi (farebbe uscire la pesca)","2.3.3.1.1"),
+    IC(26,"C","staffa incudine martello timpano","timpano","ossicini dell'orecchio","attrezzi e strumenti musicali","2.2.2.2.2"),
+    IC(27,"A","speranza fiducia ottimismo certezza","certezza","atteggiamenti verso un futuro incerto","emozioni positive","3.3.3.1.1"),
+    IC(27,"B","cetriolo zucchina zucca melanzana","melanzana","cucurbitacee","ortaggi verdi (farebbe uscire la zucca)","2.3.3.2.1"),
+    IC(27,"C","sonetto ode elegia novella","novella","componimenti in versi","generi letterari","2.3.2.2.2"),
+    IC(28,"A","perdono pietà clemenza giustizia","giustizia","ciò che attenua il rigore","virtù morali","3.3.3.1.1"),
+    IC(28,"B","mandorla nocciola noce castagna","castagna","frutta oleosa","frutti con guscio","2.3.3.2.1"),
+    IC(28,"C","violino viola violoncello arpa","arpa","strumenti ad arco","strumenti a corde","2.3.3.1.2"),
+    IC(29,"A","rimpianto nostalgia ricordo speranza","speranza","rivolti al passato","emozioni (farebbe uscire il ricordo)","3.3.3.2.1"),
+    IC(29,"B","squalo razza torpedine tonno","tonno","pesci cartilaginei","predatori marini","2.3.3.2.2"),
+    IC(29,"C","mitocondrio ribosoma nucleo neurone","neurone","organelli cellulari","strutture del sistema nervoso","2.3.3.2.2"),
+    IC(30,"A","parsimonia risparmio sobrietà avarizia","avarizia","moderazione virtuosa","soldi (farebbe uscire la sobrietà)","3.3.3.2.2"),
+    IC(30,"B","sequoia cedro tasso faggio","faggio","conifere","alberi alti o longevi","2.3.3.3.2"),
+    IC(30,"C","epopea saga ballata trattato","trattato","narrazioni","componimenti in versi (farebbe uscire la saga)","3.3.2.3.2"),
+    IC(31,"A","cortesia galateo etichetta spontaneità","spontaneità","norme del comportamento sociale","qualità della persona","3.3.3.2.2"),
+    IC(31,"B","neve grandine brina rugiada","rugiada","acqua allo stato solido","precipitazioni (farebbe uscire brina e rugiada)","2.3.3.3.2"),
+    IC(31,"C","dilemma paradosso aporia soluzione","soluzione","difficoltà logiche","termini filosofici","3.3.3.2.2"),
+    IC(32,"A","tradizione consuetudine rito moda","moda","pratiche che durano nel tempo","pratiche religiose (farebbe uscire il rito)","3.3.3.3.2"),
+    IC(32,"B","stambecco camoscio muflone capriolo","capriolo","bovidi","animali di montagna","2.3.3.3.3"),
+    IC(32,"C","ironia sarcasmo satira retorica","retorica","forme di critica con umorismo","figure del discorso (nessun intruso)","3.3.3.3.2")
+  ];
+
+  var ANALOGIE_ALTO = [
+    AN(17,"A","seme","pianta","uovo","pulcino",0,"uccello|piccolo","gallina","2.2.1.0.0"),
+    AN(17,"B","pittore","pennello","scrittore","penna",0,"","libro","1.1.3.0.0"),
+    AN(17,"C","pecora","belare","asino","ragliare",0,"","rumore","1.0.2.2.0"),
+    AN(18,"A","bruco","farfalla","girino","rana",1,"","piccolo","2.1.1.0.1"),
+    AN(18,"B","ruota","bicicletta","ala","aereo",1,"","motore","1.1.2.0.1"),
+    AN(18,"C","bussola","direzione","barometro","pressione",0,"pressione atmosferica","tempo","1.1.1.2.0"),
+    AN(19,"A","caldo","sudore","freddo","brividi",0,"tremore|pelle d'oca","neve","2.1.2.1.0"),
+    AN(19,"B","cuoco","ricetta","musicista","spartito",0,"partitura","strumento","1.2.2.1.0"),
+    AN(19,"C","cacciavite","vite","chiave inglese","bullone",1,"chiave","martello","1.0.2.2.1"),
+    AN(20,"A","avarizia","generosità","viltà","coraggio",1,"codardia","paura","3.0.1.1.1"),
+    AN(20,"B","pioggia","nuvola","lacrima","occhio",0,"","tristezza","2.2.2.0.0"),
+    AN(20,"C","tuono","fulmine","eco","voce",0,"suono|grido","montagna","2.2.1.1.0"),
+    AN(21,"A","ipotesi","verifica","domanda","risposta",0,"","punto interrogativo","3.2.1.1.0"),
+    AN(21,"B","direttore","orchestra","allenatore","squadra",1,"","capitano","2.1.3.0.1"),
+    AN(21,"C","scalpello","scultore","martello","fabbro",1,"","incudine","1.1.2.2.1"),
+    AN(22,"A","rima","poesia","ritmo","musica",1,"","nota","2.1.2.1.1"),
+    AN(22,"B","arteria","sangue","grondaia","acqua",0,"pioggia","tetto","2.3.1.1.0"),
+    AN(22,"C","grano","mietitura","uva","vendemmia",1,"","vino","2.1.1.2.1"),
+    AN(23,"A","legge","infrazione","promessa","tradimento",0,"violazione|rottura|inadempienza","mantenuta","3.1.3.1.0"),
+    AN(23,"B","gregge","pastore","flotta","ammiraglio",0,"comandante","marinaio","2.1.3.2.0"),
+    AN(23,"C","metronomo","ritmo","igrometro","umidità",0,"","pioggia","1.3.1.3.0"),
+    AN(24,"A","causa","effetto","premessa","conclusione",1,"","ragionamento","3.1.2.1.1"),
+    AN(24,"B","rubinetto","acqua","semaforo","traffico",0,"circolazione","rosso","2.2.3.1.0"),
+    AN(24,"C","lente","miopia","apparecchio acustico","sordità",0,"ipoacusia","orecchio","2.2.2.2.0"),
+    AN(25,"A","formica","cicala","prudenza","imprevidenza",0,"spensieratezza|incuranza","pigrizia","3.3.2.1.0"),
+    AN(25,"B","farmaco","malattia","ombrello","pioggia",1,"","nuvola","2.3.3.0.1"),
+    AN(25,"C","mappa","territorio","spartito","musica",0,"brano|esecuzione","strumento","3.2.2.2.0"),
+    AN(26,"A","coraggio","temerarietà","prudenza","pavidità",0,"eccesso di cautela|timidezza|diffidenza","imprudenza","3.1.3.2.0"),
+    AN(26,"B","traccia","cacciatore","indizio","detective",1,"","prova","2.2.3.1.1"),
+    AN(26,"C","scheletro","corpo","trama","racconto",0,"romanzo|storia|opera","libro","3.2.2.2.0"),
+    AN(27,"A","bilancia","giustizia","ancora","speranza",0,"fiducia","nave","3.3.3.1.0"),
+    AN(27,"B","recinto","bestiame","regola","comportamento",0,"condotta|libertà","legge","3.3.3.1.0"),
+    AN(27,"C","bocciolo","fiore","embrione","feto",1,"","gravidanza","2.2.2.3.1"),
+    AN(28,"A","sintomo","patologia","indizio","reato",1,"","prova","2.2.3.2.1"),
+    AN(28,"B","callo","fatica","ricordo","esperienza",0,"vissuto|evento","dolore","3.3.3.1.0"),
+    AN(28,"C","fonema","parola","mattone","muro",0,"parete","casa","2.3.2.3.0"),
+    AN(29,"A","timone","rotta","principio","condotta",0,"comportamento","regola","3.3.3.2.0"),
+    AN(29,"B","freno","velocità","diplomazia","conflitto",1,"","pace","3.3.3.1.1"),
+    AN(29,"C","inflazione","potere d'acquisto","erosione","suolo",1,"","frana","2.3.2.3.1"),
+    AN(30,"A","argine","piena","paracadute","caduta",1,"","rete","2.3.3.2.1"),
+    AN(30,"B","ormeggio","nave","abitudine","persona",0,"","tempo","3.3.3.2.0"),
+    AN(30,"C","genoma","organismo","costituzione","stato",1,"","legge","2.3.2.3.1"),
+    AN(31,"A","scintilla","incendio","pretesto","conflitto",1,"","causa","3.3.3.2.1"),
+    AN(31,"B","anticorpi","virus","alibi","accusa",1,"","difesa","3.3.3.2.1"),
+    AN(31,"C","sismografo","sisma","sondaggio","opinione",1,"","giornale","2.3.3.3.1"),
+    AN(32,"A","paradosso","logica","illusione ottica","percezione",1,"","vista","3.3.3.3.1"),
+    AN(32,"B","capro espiatorio","colpa","parafulmine","fulmine",1,"","tuono","3.3.3.3.1"),
+    AN(32,"C","viscosità","flusso","burocrazia","efficienza",1,"","lentezza","3.3.3.3.1")
+  ];
+
+  // Rampa-obiettivo di D per livello (lineare: da 5 a 13 per Classificazioni e Analogie, da 5 a 14 per l'Intruso concettuale).
+  var TARGET_D = {
+    classificazioni: {17:5,18:5,19:6,20:6,21:7,22:7,23:8,24:8,25:9,26:9,27:10,28:10,29:11,30:11,31:12,32:13},
+    intrusoconc:     {17:5,18:6,19:6,20:7,21:7,22:8,23:9,24:9,25:10,26:10,27:11,28:11,29:12,30:13,31:13,32:14},
+    analogie:        {17:5,18:5,19:6,20:6,21:7,22:7,23:8,24:8,25:9,26:9,27:10,28:10,29:11,30:11,31:12,32:13}
+  };
+
+  var VERBALE_ALTO = { classificazioni:CLASSIFICAZIONI_ALTO, intrusoconc:INTRUSO_ALTO, analogie:ANALOGIE_ALTO, TARGET_D:TARGET_D };
+  if(typeof module!=="undefined" && module.exports){ module.exports=VERBALE_ALTO; }
+  else { root.VERBALE_ALTO=VERBALE_ALTO; }
+})(typeof window!=="undefined"?window:globalThis);
