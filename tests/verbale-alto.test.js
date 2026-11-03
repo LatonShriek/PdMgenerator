@@ -12,14 +12,14 @@ const RANGE = {
 };
 const norm = s => s.toLowerCase();
 
-test('96 voci per modulo: livelli 17-32, sei varianti A-F ciascuno, id unici', () => {
+test('144 voci per modulo: livelli 17-32, nove varianti A-I ciascuno, id unici', () => {
   for (const m of MODULI) {
     const bank = V[m];
-    assert.strictEqual(bank.length, 96, m);
-    assert.strictEqual(new Set(bank.map(x => x.id)).size, 96, 'id doppi in ' + m);
+    assert.strictEqual(bank.length, 144, m);
+    assert.strictEqual(new Set(bank.map(x => x.id)).size, 144, 'id doppi in ' + m);
     for (let liv = 17; liv <= 32; liv++) {
       const vs = bank.filter(x => x.liv === liv).map(x => x.v).sort().join('');
-      assert.strictEqual(vs, 'ABCDEF', m + ' livello ' + liv);
+      assert.strictEqual(vs, 'ABCDEFGHI', m + ' livello ' + liv);
     }
     bank.forEach(x => assert.strictEqual(x.stato, 'proposta'));
   }
@@ -40,7 +40,7 @@ test('coordinate nei limiti e D = somma delle coordinate (+2 se i termini dati s
   }
 });
 
-test('le sei varianti di un livello hanno lo stesso D, uguale alla rampa-obiettivo', () => {
+test('le nove varianti di un livello hanno lo stesso D, uguale alla rampa-obiettivo', () => {
   for (const m of MODULI) {
     for (let liv = 17; liv <= 32; liv++) {
       V[m].filter(x => x.liv === liv).forEach(x => assert.strictEqual(x.D, V.TARGET_D[m][liv], x.id + ' D=' + x.D));
@@ -83,8 +83,8 @@ test('Analogie: quattro termini, risposta = C (invertita) o D, Q coerente, lure 
   }
   for (let liv = 17; liv <= 32; liv++) {
     const inv = V.analogie.filter(x => x.liv === liv && x.invertita).length;
-    // al livello 32 D=13 si raggiunge solo con la forma invertita (R3+Dm3+Lu3+L3 = 12), quindi lì tutte e 6 lo sono per costruzione
-    if (liv < 32) assert.ok(inv <= 5, 'livello ' + liv + ': invertite ' + inv + ' su 6');
+    // al livello 32 D=13 si raggiunge solo con la forma invertita (R3+Dm3+Lu3+L3 = 12), quindi lì tutte lo sono per costruzione
+    if (liv < 32) assert.ok(inv <= 8, 'livello ' + liv + ': invertite ' + inv + ' su 9');
   }
 });
 
@@ -104,7 +104,7 @@ test('esposizione dei termini: nessun termine compare più di 3 volte nello stes
   }
 });
 
-test('lessico raro: al massimo 17 voci con L = 3 nell\'intera banca (oggi sono 17)', () => {
+test('lessico raro: al massimo 20 voci con L = 3 nell\'intera banca (oggi sono 20)', () => {
   const n = MODULI.reduce((s, m) => s + V[m].filter(x => x.coord.L === 3).length, 0);
-  assert.ok(n <= 17, 'voci con L=3: ' + n);
+  assert.ok(n <= 20, 'voci con L=3: ' + n);
 });
