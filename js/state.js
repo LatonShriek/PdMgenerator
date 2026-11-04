@@ -19,6 +19,8 @@ const state = {
   inversioneForceAlnum:false,
   intrusoScreensOverride:null,
   serieItemsOverride:null,
+  serieAnimate:true,   // animazione di scorrimento tra uno stimolo e l'altro (Serie alternate)
+  serieAnimDir:null,   // "next" | "prev" solo per il ridisegno subito dopo un cambio di stimolo
   classificazioniItemsOverride:null,
   intrusoconcItemsOverride:null,
   analogieItemsOverride:null,

@@ -10,6 +10,11 @@ function renderSerie(deck){
   div.className = "single-item";
   div.style.color = s.color==="red" ? "#B23A2C" : "#1E2A26";
   div.textContent = s.char;
+  // Animazione di scorrimento: solo quando si passa a un altro stimolo (frecce ◀ ▶), non nei ridisegni
+  // dovuti ad altro. Serve a far vedere che lo stimolo è cambiato anche quando due stimoli di fila sono uguali.
+  const dir = state.serieAnimDir;
+  state.serieAnimDir = null;
+  if(dir && state.serieAnimate) div.className += dir === "prev" ? " serie-in-prev" : " serie-in-next";
   const label = document.createElement("div");
   label.className = "sub-label";
   label.textContent = `Stimolo ${s.index+1} / ${deck.slides.length}`;
@@ -20,6 +25,7 @@ function renderSerie(deck){
   holder.style.display="flex";
   holder.style.alignItems="center";
   holder.style.justifyContent="center";
+  holder.style.overflow="hidden";
   holder.appendChild(label);
   holder.appendChild(div);
   return holder;
