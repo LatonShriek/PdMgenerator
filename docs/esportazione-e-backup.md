@@ -6,6 +6,7 @@
 
 - **Tutti gli esercizi a schermo** → **PowerPoint** (`pptxgenjs`, generato lato client, nessun server): riproduce fedelmente ciò che è a video, con nome file basato sul numero fisso dell'esercizio, livello e numero gruppo (es. `3 - Griglie-Conteggio.1(5).pptx`).
 - **Fascicolo esercizi a casa** → **Word (.docx)** (libreria `docx`; se per qualche motivo non si carica da `vendor/`, un piccolo script di sicurezza in `index.html` prova a scaricarla da unpkg.com), fedele al formato originale dei fascicoli cartacei usati finora. Il documento viene generato sia in versione "esercizi" che in versione "con soluzioni".
+- **Serie attentive alternate**: ogni slide-stimolo ha una transizione "Push" (la slide nuova spinge via la precedente), così in proiezione si vede il cambio anche quando due stimoli di fila sono identici. PptxGenJS non gestisce le transizioni: `js/export/serie.js` le aggiunge nel file già generato (con JSZip, già incluso nella libreria). Se l'aggiunta fallisce, si scarica comunque il file senza transizioni.
 - Esportazione interamente client-side, senza inviare dati a un server.
 
 ## Copia di sicurezza (salva e ripristina i dati)
