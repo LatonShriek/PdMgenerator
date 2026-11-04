@@ -172,10 +172,10 @@ document.getElementById("btnClearHistory").addEventListener("click", ()=>{
   }
 });
 document.getElementById("prevSlide").addEventListener("click", ()=>{
-  if(state.slideIndex>0){ state.slideIndex--; render(); }
+  if(state.slideIndex>0){ state.slideIndex--; state.serieAnimDir = "prev"; render(); }
 });
 document.getElementById("nextSlide").addEventListener("click", ()=>{
-  if(state.slideIndex < state.deck.slides.length-1){ state.slideIndex++; render(); }
+  if(state.slideIndex < state.deck.slides.length-1){ state.slideIndex++; state.serieAnimDir = "next"; render(); }
 });
 
 const groupInput = document.getElementById("groupNameInput");

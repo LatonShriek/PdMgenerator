@@ -155,6 +155,19 @@ const EX_CONTROLS = {
     nextNote.className = "level-note";
     nextNote.textContent = "Controlla solo il pannello a schermo qui in sidebar (utile mentre generi il materiale). Nel file PowerPoint esportato, regola in vigore e regola successiva vanno sempre entrambe nelle note del relatore — mai come testo sulla slide, quindi mai visibili al paziente durante la proiezione o la stampa normale.";
     wrap.appendChild(nextNote);
+    const animRow = document.createElement("label");
+    animRow.style.cssText = "display:flex; align-items:center; gap:8px; margin-top:14px; font-weight:600;";
+    const animCheck = document.createElement("input");
+    animCheck.type = "checkbox";
+    animCheck.checked = state.serieAnimate;
+    animCheck.addEventListener("change", e=>{ state.serieAnimate = e.target.checked; });
+    animRow.appendChild(animCheck);
+    animRow.appendChild(document.createTextNode("Anima il cambio di stimolo (scorre da destra)"));
+    wrap.appendChild(animRow);
+    const animNote = document.createElement("div");
+    animNote.className = "level-note";
+    animNote.textContent = "Solo a schermo: quando due stimoli di fila sono uguali, lo scorrimento fa vedere che si è passati al successivo. Non cambia il materiale né il file PowerPoint.";
+    wrap.appendChild(animNote);
     wrap.appendChild(numerosityControl("Numero di stimoli nella serie", "serieItemsOverride", 20, 300, 154));
     return wrap;
   },
