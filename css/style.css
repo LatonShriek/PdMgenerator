@@ -208,6 +208,11 @@
     letter-spacing:2px;
     text-align:center;
   }
+  /* Serie alternate: lo stimolo entra scorrendo, così il cambio si vede anche quando due stimoli di fila sono uguali */
+  .single-item.serie-in-next{ animation: serieInNext 320ms ease-out; }
+  .single-item.serie-in-prev{ animation: serieInPrev 320ms ease-out; }
+  @keyframes serieInNext{ from{ transform:translateX(70%); opacity:0; } to{ transform:translateX(0); opacity:1; } }
+  @keyframes serieInPrev{ from{ transform:translateX(-70%); opacity:0; } to{ transform:translateX(0); opacity:1; } }
   .single-word{
     font-size:min(11vw, 130px);
     font-weight:700;
