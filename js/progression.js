@@ -58,12 +58,21 @@ function progressMerge(a, b){
   return out;
 }
 
-let _progressSyncing = false;
+let _progressSyncing = new Set(); // gruppi con sincronizzazione in corso
+const _progressSynced = new Set(); // gruppi la cui copia online è già stata letta (o ha dato errore) in questa pagina
+
+// Finché la copia online di un gruppo non è arrivata, non si salvano livelli: su un computer "vergine"
+// lo schermo è a livello 1 e, salvato adesso, risulterebbe più recente di quello online e lo sovrascriverebbe.
+// Se Firebase non è configurato o l'accesso è fallito, non si aspetta nulla (come prima).
+function progressWaitingForSync(group){
+  return !!(firebaseConfig.apiKey && !lastSharedHistoryError && !_progressSynced.has(group));
+}
 
 async function progressSyncRemote(){
   const group = currentGroupKey();
-  if(!group || !sharedHistoryReady || _progressSyncing) return;
-  _progressSyncing = true;
+  if(!group || !sharedHistoryReady || _progressSyncing.has(group)) return;
+  _progressSyncing.add(group);
+  let applied = false;
   try{
     const doc = await firestoreDb.collection("groupProgress").doc(group).get();
     remoteWriteOk("groupProgress");
@@ -72,9 +81,19 @@ async function progressSyncRemote(){
       const merged = progressMerge(progressLoad(group), remote);
       localStorage.setItem(PROGRESS_PREFIX + group, JSON.stringify(merged));
       progressPushRemote(group, merged);
+      applied = true;
+    } else {
+      // Niente online per questo gruppo: se in locale c'è già qualcosa, lo si pubblica.
+      const local = progressLoad(group);
+      if(Object.keys(local.levels).length || Object.keys(local.ex).length) progressPushRemote(group, local);
     }
   } catch(e){ remoteWriteFailed("groupProgress", e); /* si resta con i dati locali, ma si avvisa */ }
-  _progressSyncing = false;
+  _progressSyncing.delete(group);
+  _progressSynced.add(group); // da qui in poi i livelli si possono di nuovo salvare
+  if(currentGroupKey() === group){
+    if(applied) recallGroupLevel(); // i livelli arrivati online vanno applicati all'app, non solo salvati
+    rememberGroupLevel();           // salva il livello a schermo se è cambiato mentre si aspettava
+  }
   renderProgressPanel();
 }
 
@@ -102,6 +121,7 @@ function progressState(exData, stateLevel, s){
 function rememberGroupLevel(){
   const group = currentGroupKey();
   if(!group) return;
+  if(progressWaitingForSync(group)) return; // si salva appena arriva la copia online (vedi progressSyncRemote)
   const key = state.exercise === "fascicolo" ? "fascicolo" : state.exercise;
   const lvl = state.exercise === "fascicolo" ? state.fascicoloWeek : state.level;
   const d = progressLoad(group);
