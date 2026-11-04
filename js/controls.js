@@ -166,7 +166,7 @@ const EX_CONTROLS = {
     wrap.appendChild(animRow);
     const animNote = document.createElement("div");
     animNote.className = "level-note";
-    animNote.textContent = "Solo a schermo: quando due stimoli di fila sono uguali, lo scorrimento fa vedere che si è passati al successivo. Non cambia il materiale né il file PowerPoint.";
+    animNote.textContent = "Solo per l'anteprima a schermo: quando due stimoli di fila sono uguali, lo scorrimento fa vedere che si è passati al successivo. Non cambia il materiale. Il file PowerPoint ha già una sua transizione tra le slide.";
     wrap.appendChild(animNote);
     wrap.appendChild(numerosityControl("Numero di stimoli nella serie", "serieItemsOverride", 20, 300, 154));
     return wrap;

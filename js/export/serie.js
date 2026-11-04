@@ -3,7 +3,28 @@
 // Script classico: si carica da index.html e usa le stesse variabili globali di prima.
 // Provato con tests/golden-browser.js (materiale e schermata prima e dopo identici) e con la prova in browser della copia di sicurezza.
 
-function exportSerie(deck, level){
+// PptxGenJS non sa impostare le transizioni tra slide: si aggiunge a mano nel file già generato.
+// Su ogni slide-stimolo (non sul titolo) c'è un "Push": la slide nuova spinge via la precedente da destra,
+// così il cambio si vede anche quando due stimoli di fila sono identici. Parte al clic/freccia come le altre slide.
+const SERIE_TRANSITION_XML = '<p:transition spd="fast"><p:push dir="l"/></p:transition>';
+
+async function addSerieTransitions(arrayBuffer, slideCount){
+  const zip = await JSZip.loadAsync(arrayBuffer);
+  for(let n=2; n<=slideCount; n++){ // la slide 1 è il titolo
+    const name = `ppt/slides/slide${n}.xml`;
+    const f = zip.file(name);
+    if(!f) throw new Error("slide mancante nel file: " + name);
+    const xml = await f.async("string");
+    if(xml.includes("<p:transition")) continue;
+    // l'ordine nello schema è: cSld, clrMapOvr, transition, timing, extLst
+    const at = xml.search(/<p:timing[\s>]|<p:extLst[\s>]|<\/p:sld>/);
+    if(at < 0) throw new Error("struttura inattesa in " + name);
+    zip.file(name, xml.slice(0, at) + SERIE_TRANSITION_XML + xml.slice(at));
+  }
+  return zip.generateAsync({ type:"blob", mimeType:"application/vnd.openxmlformats-officedocument.presentationml.presentation" });
+}
+
+async function exportSerie(deck, level){
   const p = new PptxGenJS();
   p.layout = "LAYOUT_WIDE";
   // La regola in vigore e quella del livello successivo vanno SOLO nelle note
@@ -26,5 +47,14 @@ function exportSerie(deck, level){
       color: st.color==="black" ? "000000":"FF0000", isTextBox:true});
     s.addNotes(notesText);
   });
-  return p.writeFile({fileName:exportFileName("serie", level, "pptx")});
+  const fileName = exportFileName("serie", level, "pptx");
+  const buf = await p.write({ outputType:"arraybuffer" });
+  let blob;
+  try{ blob = await addSerieTransitions(buf, deck.seq.length + 1); }
+  catch(e){
+    // Se per qualunque motivo la transizione non si può aggiungere, si scarica comunque il file senza.
+    console.error("Serie: transizione non aggiunta:", e);
+    return p.writeFile({ fileName });
+  }
+  saveAs(blob, fileName);
 }
