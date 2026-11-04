@@ -463,157 +463,157 @@
  },
  "serie|L1|s11": {
   "deck": "d6f20720c838a992",
-  "stage": "fee3b49bdbcc2099",
+  "stage": "2c53ee5f79009c14",
   "rule": "289d554f7011a01c",
   "n": 10495,
-  "h": 253
+  "h": 235
  },
  "serie|L1|s22": {
   "deck": "9d6a597a9542c936",
-  "stage": "fee3b49bdbcc2099",
+  "stage": "2c53ee5f79009c14",
   "rule": "289d554f7011a01c",
   "n": 10491,
-  "h": 253
+  "h": 235
  },
  "serie|L2|s11": {
   "deck": "7000a4f8a0f302f0",
-  "stage": "fee3b49bdbcc2099",
+  "stage": "2c53ee5f79009c14",
   "rule": "74cd912e1882eeab",
   "n": 10517,
-  "h": 253
+  "h": 235
  },
  "serie|L2|s22": {
   "deck": "46a1e3765fb87ca0",
-  "stage": "fee3b49bdbcc2099",
+  "stage": "2c53ee5f79009c14",
   "rule": "74cd912e1882eeab",
   "n": 10513,
-  "h": 253
+  "h": 235
  },
  "serie|L3|s11": {
   "deck": "db80f5ad5496d8c8",
-  "stage": "fee3b49bdbcc2099",
+  "stage": "2c53ee5f79009c14",
   "rule": "598cfebea5f3f176",
   "n": 10557,
-  "h": 253
+  "h": 235
  },
  "serie|L3|s22": {
   "deck": "dcf1c1b4cd4539b7",
-  "stage": "fee3b49bdbcc2099",
+  "stage": "2c53ee5f79009c14",
   "rule": "598cfebea5f3f176",
   "n": 10553,
-  "h": 253
+  "h": 235
  },
  "serie|L5|s11": {
   "deck": "f9c41bd66bc9b325",
-  "stage": "fee3b49bdbcc2099",
+  "stage": "2c53ee5f79009c14",
   "rule": "60cfa00e896f2135",
   "n": 10557,
-  "h": 253
+  "h": 235
  },
  "serie|L5|s22": {
   "deck": "b3f88b7a84982541",
-  "stage": "fee3b49bdbcc2099",
+  "stage": "2c53ee5f79009c14",
   "rule": "60cfa00e896f2135",
   "n": 10553,
-  "h": 253
+  "h": 235
  },
  "serie|L8|s11": {
   "deck": "e9d2c0702f6779a3",
-  "stage": "fee3b49bdbcc2099",
+  "stage": "2c53ee5f79009c14",
   "rule": "565a453a6a60c454",
   "n": 10521,
-  "h": 253
+  "h": 235
  },
  "serie|L8|s22": {
   "deck": "85d4104799630b4b",
-  "stage": "fee3b49bdbcc2099",
+  "stage": "2c53ee5f79009c14",
   "rule": "565a453a6a60c454",
   "n": 10517,
-  "h": 253
+  "h": 235
  },
  "serie|L12|s11": {
   "deck": "7f3030d5ae90081a",
-  "stage": "fee3b49bdbcc2099",
+  "stage": "2c53ee5f79009c14",
   "rule": "b9d40421fbdd9399",
   "n": 10543,
-  "h": 253
+  "h": 235
  },
  "serie|L12|s22": {
   "deck": "64537768006bfed5",
-  "stage": "fee3b49bdbcc2099",
+  "stage": "2c53ee5f79009c14",
   "rule": "b9d40421fbdd9399",
   "n": 10539,
-  "h": 253
+  "h": 235
  },
  "serie|L16|s11": {
   "deck": "246a8ec36324649d",
-  "stage": "fee3b49bdbcc2099",
+  "stage": "2c53ee5f79009c14",
   "rule": "100babba06b1de59",
   "n": 10573,
-  "h": 253
+  "h": 235
  },
  "serie|L16|s22": {
   "deck": "6ad3a391d8097c14",
-  "stage": "fee3b49bdbcc2099",
+  "stage": "2c53ee5f79009c14",
   "rule": "100babba06b1de59",
   "n": 10569,
-  "h": 253
+  "h": 235
  },
  "serie|L20|s11": {
   "deck": "81385c3e9a680df3",
-  "stage": "fee3b49bdbcc2099",
+  "stage": "2c53ee5f79009c14",
   "rule": "7e01277d87b6c91e",
   "n": 10599,
-  "h": 253
+  "h": 235
  },
  "serie|L20|s22": {
   "deck": "4ceed40af4eed033",
-  "stage": "fee3b49bdbcc2099",
+  "stage": "2c53ee5f79009c14",
   "rule": "7e01277d87b6c91e",
   "n": 10595,
-  "h": 253
+  "h": 235
  },
  "serie|L24|s11": {
   "deck": "4b950e9b06a0e11d",
-  "stage": "fee3b49bdbcc2099",
+  "stage": "2c53ee5f79009c14",
   "rule": "2f1dc482c1a05ce4",
   "n": 10637,
-  "h": 253
+  "h": 235
  },
  "serie|L24|s22": {
   "deck": "0549ac8ec7c38b23",
-  "stage": "fee3b49bdbcc2099",
+  "stage": "2c53ee5f79009c14",
   "rule": "2f1dc482c1a05ce4",
   "n": 10633,
-  "h": 253
+  "h": 235
  },
  "serie|L28|s11": {
   "deck": "1d648cf48b6cf5ab",
-  "stage": "fee3b49bdbcc2099",
+  "stage": "2c53ee5f79009c14",
   "rule": "ea2360ec0b0a6fbb",
   "n": 10647,
-  "h": 253
+  "h": 235
  },
  "serie|L28|s22": {
   "deck": "8a50ac71702d63d2",
-  "stage": "fee3b49bdbcc2099",
+  "stage": "2c53ee5f79009c14",
   "rule": "ea2360ec0b0a6fbb",
   "n": 10643,
-  "h": 253
+  "h": 235
  },
  "serie|L32|s11": {
   "deck": "ec8f7319b3847f61",
-  "stage": "fee3b49bdbcc2099",
+  "stage": "2c53ee5f79009c14",
   "rule": "9d35fc5cfd27b63c",
   "n": 10537,
-  "h": 253
+  "h": 235
  },
  "serie|L32|s22": {
   "deck": "5ebe3477a68b44e8",
-  "stage": "fee3b49bdbcc2099",
+  "stage": "2c53ee5f79009c14",
   "rule": "9d35fc5cfd27b63c",
   "n": 10533,
-  "h": 253
+  "h": 235
  },
  "accesso|L1|s11": {
   "deck": "fff9108b16401088",
@@ -1723,10 +1723,10 @@
  },
  "serie|items20|L10": {
   "deck": "0ad63e973db62fc3",
-  "stage": "6e695289eb5e950e",
+  "stage": "fedebec58807eb34",
   "rule": "eba8ed4d5c92611f",
   "n": 1507,
-  "h": 252
+  "h": 234
  },
  "accesso|words5|L12": {
   "deck": "6b7619c22276616d",
