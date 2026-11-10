@@ -60,7 +60,7 @@
 
   function buildAnalogie(level, opts){
     opts=opts||{};
-    var rng=opts.rng||Math.random, count=Math.max(1,Math.min(16,opts.count||ITEMS_DEFAULT));
+    var rng=opts.rng||Math.random, count=Math.max(1,Math.min(40,opts.count||ITEMS_DEFAULT));
     var lastIdx=new Map(); (opts.used||[]).forEach(function(k,i){ lastIdx.set(k,i); });
     var target=TARGET_D(level), chosen=[], sessionPairs=new Set(), keys=[];
     for(var n=0;n<count;n++){

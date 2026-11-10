@@ -55,6 +55,26 @@ const GRID_CATEGORY_POOLS = {
                                        {base:0x1208,count:5}, {base:0x1240,count:5}, {base:0x1260,count:5}, {base:0x1270,count:5},
                                        {base:0x1290,count:5}, {base:0x12A8,count:5}, {base:0x12E8,count:5}, {base:0x12F0,count:5}, {base:0x1308,count:5}] }
 };
+// Forme geometriche disegnate davvero (non come caratteri di testo): il carattere ◆ è un quadrato ruotato e si
+// confonde con ■; qui il rombo è un vero rombo, più alto che largo (richiesta di Rodrigo). Le forme "vuote" hanno
+// il contorno spesso, così il loro colore si vede bene. Il carattere resta l'identificativo della cella (c.sym):
+// cambia solo il modo in cui viene disegnato (renderer a schermo e esportazione PowerPoint).
+const GRID_SHAPES = {
+  "●": { name:"cerchio pieno",                        geo:"circle",  filled:true  },
+  "○": { name:"cerchio vuoto",                        geo:"circle",  filled:false },
+  "■": { name:"quadrato pieno",                       geo:"square",  filled:true  },
+  "□": { name:"quadrato vuoto",                       geo:"square",  filled:false },
+  "▲": { name:"triangolo pieno con la punta in su",   geo:"triUp",   filled:true  },
+  "△": { name:"triangolo vuoto con la punta in su",   geo:"triUp",   filled:false },
+  "▼": { name:"triangolo pieno con la punta in giù",  geo:"triDown", filled:true  },
+  "▽": { name:"triangolo vuoto con la punta in giù",  geo:"triDown", filled:false },
+  "◆": { name:"rombo pieno",                          geo:"rhombus", filled:true  },
+  "◇": { name:"rombo vuoto",                          geo:"rhombus", filled:false },
+  "★": { name:"stella piena",                         geo:"star",    filled:true  },
+  "☆": { name:"stella vuota",                         geo:"star",    filled:false }
+};
+// Nel testo delle regole le forme si nominano a parole (il carattere ◆ non è più il disegno che si vede).
+function gridSymLabel(sym){ return GRID_SHAPES[sym] ? GRID_SHAPES[sym].name : sym; }
 function gridVariantId(v){
   if(Array.isArray(v)) return v.join("");
   if(v.pool) return v.pool.join("");
@@ -74,12 +94,12 @@ function familyForLevel(level, ctx){
 
 // Tre assi di colore indipendenti — sfondo, bordo, e colore del simbolo stesso.
 // REGOLA: in una stessa griglia non compaiono mai lo stesso colore in versione chiara e scura
-// (azzurro+blu, verde chiaro+verde scuro, rosa+rosso, arancio+marrone): troppo facili da
+// (azzurro+blu, verde chiaro+verde, rosa+rosso, arancio chiaro+arancione): troppo facili da
 // confondere. Ogni colore ha una famiglia di tinta (`hue`) e una griglia usa famiglie di tinta
 // DIVERSE per gli sfondi e per gli inchiostri (bordo e simbolo).
 // SFONDI: cinque tinte chiare, distanza cromatica minima ΔE≈41 (CIELAB) tra loro; l'inchiostro
-// scuro resta leggibile su tutti (contrasto ≥ 4.5:1 con tutti gli inchiostri).
-// INCHIOSTRI (bordo e colore del simbolo): sei tinte scure. Coppie troppo vicine (rosso/marrone
+// scuro resta leggibile su tutti.
+// INCHIOSTRI (bordo e colore del simbolo): sei tinte scure. Coppie troppo vicine (rosso/arancione
 // ΔE≈36, blu/viola ΔE≈40) non compaiono mai insieme nella stessa griglia.
 const FILL_POOL = [
   { name:"giallo", css:"#FFE45C", hue:"giallo" },
@@ -88,15 +108,18 @@ const FILL_POOL = [
   { name:"rosa", css:"#FFB3D1", hue:"rosso" },
   { name:"arancio chiaro", css:"#FFB685", hue:"arancio" }
 ];
+// Inchiostri più vivaci di prima (richiesta di Rodrigo: il verde scuro si confondeva col nero e i colori dei
+// simboli "vuoti" si vedevano male): ognuno è lontano dal nero (ΔE ≥ 70) e mantiene un contrasto di almeno ~2,7:1
+// sugli sfondi, che per simboli grandi e in grassetto resta ben leggibile. Il marrone è diventato un arancione scuro.
 const INK_POOL = [
-  { name:"rosso", css:"#A80018", hue:"rosso" },
-  { name:"blu", css:"#0B3D91", hue:"blu" },
-  { name:"verde scuro", css:"#0A5A24", hue:"verde" },
+  { name:"rosso", css:"#D8001C", hue:"rosso" },
+  { name:"blu", css:"#0A47E8", hue:"blu" },
+  { name:"verde", css:"#00823A", hue:"verde" },
   { name:"nero", css:"#000000", hue:"nero" },
-  { name:"marrone", css:"#7A3E0C", hue:"arancio" },
-  { name:"viola", css:"#6A1FAE", hue:"viola" }
+  { name:"arancione", css:"#B84800", hue:"arancio" },
+  { name:"viola", css:"#8222C8", hue:"viola" }
 ];
-const INK_CONFLICTS = [["rosso","marrone"], ["blu","viola"], ["marrone","nero"]];
+const INK_CONFLICTS = [["rosso","arancione"], ["blu","viola"]];
 // Sfondi troppo simili tra loro anche se di famiglie di tinta diverse (segnalato da Rodrigo:
 // "giallino" e "arancione chiaro" si confondono) — stessa logica di INK_CONFLICTS, ma per gli sfondi.
 const FILL_CONFLICTS = [["giallo","arancio chiaro"]];
@@ -352,7 +375,7 @@ function specToRule(sp){
   let text;
   if(clauses===0 && sp.pred) text = sp.pred.plain;
   else {
-    text = "Conta " + (sp.pred ? sp.pred.np : "gli elementi " + sp.syms.map(s=>`«${s}»`).join(" o "));
+    text = "Conta " + (sp.pred ? sp.pred.np : "gli elementi " + sp.syms.map(s=>`«${gridSymLabel(s)}»`).join(" o "));
     if(sp.ink) text += ` di colore ${or(sp.ink)}`;
     const withs = [];
     if(sp.fill) withs.push(`sfondo ${or(sp.fill)}`);
@@ -506,7 +529,7 @@ const GRID_VAR_MIN_LEVEL = { skip:8, rows:10, either:12, exclude:14, whichrow:16
 function gridVarRules(cells, rows, cols, symbols, F, B, I, feat, effLevel){
   const attr = () => {
     const opts = [
-      () => { const x = pick(symbols); return { axis:"sym", key:"s"+x, np:`«${x}»`, f:c=>c.sym===x }; },
+      () => { const x = pick(symbols); return { axis:"sym", key:"s"+x, np:`«${gridSymLabel(x)}»`, f:c=>c.sym===x }; },
       () => { const x = pick(F).name; return { axis:"fill", key:"f"+x, np:`con sfondo ${x}`, f:c=>c.fill===x }; },
       () => { const x = pick(B).name; return { axis:"border", key:"b"+x, np:`con bordo ${x}`, f:c=>c.border===x }; },
       () => { const x = pick(I).name; return { axis:"ink", key:"i"+x, np:`di colore ${x}`, f:c=>c.symColor===x }; }
@@ -789,7 +812,8 @@ function genGriglie(level, excludeKeys){
   } else {
     symbols = fam.pool;
   }
-  const rows = gridRowsForLevel(level), cols = gridColsForLevel(level);
+  // Righe e colonne: di norma decise dal livello, ma si possono fissare a mano dal controllo in barra laterale.
+  const rows = state.griglieRowsOverride || gridRowsForLevel(level), cols = state.griglieColsOverride || gridColsForLevel(level);
 
   // Una sola griglia per sessione, con tutte le regole valide (fino a 10) selezionabili
   // una alla volta — come nei materiali originali: non più griglie diverse, ma varianti
