@@ -8,7 +8,7 @@
    Logica pura: niente DOM, niente accesso diretto a localStorage (le funzioni ricevono le letture
    e restituiscono cosa scrivere), così si può provare con i test (tests/backup.test.js).
    Cosa entra nella copia: nome e numero gruppo, memoria del materiale già proposto (pdm_hist::),
-   progressione e livelli (pdm_progress::), storico generazioni. Nient'altro viene letto o scritto.
+   progressione e livelli (pdm_progress::), impostazioni (pdm_settings::), storico generazioni. Nient'altro viene letto o scritto.
    Il file importato è trattato come dato non fidato: solo chiavi note, contenuti controllati,
    nessuna esecuzione. Ripristinare AGGIUNGE e unisce: non cancella mai niente di ciò che c'è già.
    ========================================================= */
@@ -28,6 +28,7 @@
   const KEY_NUMBER = "pdm_group_number";
   const P_HIST = "pdm_hist::";
   const P_PROG = "pdm_progress::";
+  const P_SET = "pdm_settings::";
   const WORD = /^[A-Za-z][A-Za-z0-9]*$/;
 
   function isPlainObject(x) { return x !== null && typeof x === "object" && !Array.isArray(x); }
@@ -50,6 +51,10 @@
       const group = key.slice(P_PROG.length);
       return group ? { type: "progress", group: group } : null;
     }
+    if (key.startsWith(P_SET)) {
+      const group = key.slice(P_SET.length);
+      return group ? { type: "settings", group: group } : null;
+    }
     return null;
   }
 
@@ -67,6 +72,7 @@
       return ok ? JSON.stringify(v) : null;
     }
     if (c.type === "progress") return isPlainObject(v) && isPlainObject(v.ex) ? JSON.stringify(v) : null;
+    if (c.type === "settings") return isPlainObject(v) ? JSON.stringify(v) : null;
     if (c.type === "storico") {
       if (!Array.isArray(v)) return null;
       return JSON.stringify(v.filter(function (e) { return isPlainObject(e) && typeof e.when === "number"; }).slice(0, STORICO_CAP * 2));
@@ -148,6 +154,9 @@
           const baseline = JSON.stringify(mergeProgress(loc, loc));
           if (merged !== baseline) next = merged;
         }
+      } else if (c.type === "settings") {
+        // impostazioni del gruppo: si scrivono solo se in questo browser non ce ne sono (non si sovrascrive mai)
+        if (typeof local !== "string" || !isPlainObject(safeParse(local))) next = e.value;
       } else if (c.type === "storico") {
         const loc = parseArray(local);
         const seen = new Set(loc.map(function (x) { return JSON.stringify(x); }));

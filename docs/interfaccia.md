@@ -21,4 +21,4 @@
 
 ## Impostazioni per profilo (gruppo)
 
-Numero di elementi, righe e colonne, tipo di materiale e opzioni della Serie (presentazione automatica, secondi, Google) si salvano **per nome gruppo** in questo browser (`pdm_settings::<gruppo>`, codice in `js/progression.js`) e si richiamano quando quel gruppo viene scelto. Un gruppo mai usato parte dai valori automatici; senza nome gruppo non si salva nulla. Provato da `tests/profili-browser.js`. Non è ancora nella copia di sicurezza né online (solo locale al browser).
+Numero di elementi, righe e colonne, tipo di materiale e opzioni della Serie (presentazione automatica, secondi, Google) si salvano **per nome gruppo** in questo browser (`pdm_settings::<gruppo>`, codice in `js/progression.js`) e si richiamano quando quel gruppo viene scelto. Un gruppo mai usato parte dai valori automatici; senza nome gruppo non si salva nulla. Provato da `tests/profili-browser.js`. Fanno parte della copia di sicurezza (il ripristino le scrive solo per i gruppi che qui non hanno impostazioni, senza sovrascrivere); non sono condivise online tra dispositivi.

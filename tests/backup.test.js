@@ -144,3 +144,18 @@ test('BOM all\'inizio del file e nome file con la data', () => {
   assert.ok(B.parseText('﻿' + JSON.stringify({ format: 'pdm-cdcd-backup', version: 1, entries: {} })).ok);
   assert.strictEqual(B.fileName(new Date(2026, 9, 6)), 'PdM-copia-di-sicurezza-2026-10-06.json');
 });
+
+test('impostazioni del gruppo (pdm_settings::): salvate, ripristinate senza sovrascrivere', () => {
+  const K = 'pdm_settings::IS';
+  const orig = store({ [K]: JSON.stringify({ analogieItemsOverride: 12 }) });
+  const bk = B.buildBackup(orig.keys(), orig.get, '2026-11-10T00:00:00Z');
+  assert.ok(K in bk.entries);
+  const v = B.validate(JSON.parse(JSON.stringify(bk)));
+  const empty = store({});
+  applyPlan(empty, B.planImport(v, empty.get, { mergeProgress: progressMerge }));
+  assert.strictEqual(empty.get(K), JSON.stringify({ analogieItemsOverride: 12 }));
+  const other = store({ [K]: JSON.stringify({ analogieItemsOverride: 6 }) });
+  applyPlan(other, B.planImport(v, other.get, { mergeProgress: progressMerge }));
+  assert.strictEqual(other.get(K), JSON.stringify({ analogieItemsOverride: 6 }));
+  assert.strictEqual(B.validate({ format: bk.format, version: 1, entries: { [K]: '[1]' } }).skipped.length, 1);
+});
