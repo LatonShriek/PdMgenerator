@@ -141,22 +141,28 @@ function serieBuildPlayerHtml(deck, level, seconds){
 html,body{margin:0;height:100%;background:#fff;overflow:hidden;font-family:sans-serif;user-select:none;-webkit-user-select:none;touch-action:manipulation}
 #s{position:fixed;inset:0;display:flex;align-items:center;justify-content:center;font-size:min(46vw,60vh);font-weight:bold;line-height:1}
 #m{position:fixed;left:0;right:0;bottom:3vh;text-align:center;font-size:max(14px,2vh);color:#8a948f}
+#b{position:fixed;right:1.5vh;top:1.5vh;display:flex;gap:1vh;z-index:5}
+#b button{font-size:max(18px,3vh);padding:.8vh 1.6vh;border:1px solid #c9d1cd;background:#f4f6f5;color:#5c6b65;border-radius:8px;opacity:.55;cursor:pointer}
+#b button:hover{opacity:1}
 #t{position:fixed;inset:0;display:flex;align-items:center;justify-content:center;font-size:5vh;color:#5c6b65;text-align:center;padding:0 5vw}
 </style></head><body>
 <div id="s"></div><div id="t"></div><div id="m"></div>
+<div id="b"><button id="bp" type="button" title="Pausa / riprendi">⏯</button><button id="bf" type="button" title="Schermo intero">⛶ Schermo intero</button></div>
 <script>
 var SEQ=${data}, MS=${Math.round(seconds*1000)}, i=-1, timer=null, paused=false, started=false;
 var s=document.getElementById("s"), m=document.getElementById("m"), t=document.getElementById("t");
 function show(){ if(i>=SEQ.length){ s.textContent=""; t.textContent="Fine della serie — tocca per ricominciare"; clearTimeout(timer); return; } t.textContent=""; s.textContent=SEQ[i][0]; s.style.color=SEQ[i][1]; }
 function tick(){ i++; show(); if(i<SEQ.length) timer=setTimeout(tick,MS); else timer=null; }
-function setPause(p){ paused=p; m.textContent=p?"in pausa — tocca per riprendere · F schermo intero":""; }
+function setPause(p){ paused=p; m.textContent=p?"in pausa — tocca per riprendere":""; }
 function toggle(){
   if(!started) return;
   if(i>=SEQ.length){ i=-1; setPause(false); tick(); return; }
   if(!paused){ clearTimeout(timer); timer=null; setPause(true); }
   else { setPause(false); timer=setTimeout(tick,MS); }   // riprende dallo stimolo successivo
 }
-function fs(){ var e=document.documentElement; if(document.fullscreenElement){document.exitFullscreen();} else if(e.requestFullscreen){e.requestFullscreen();} }
+function fs(){ var d=document, e=d.documentElement; if(d.fullscreenElement||d.webkitFullscreenElement){ (d.exitFullscreen||d.webkitExitFullscreen).call(d); } else { var r=e.requestFullscreen||e.webkitRequestFullscreen; if(r){ try{ var p=r.call(e); if(p&&p.catch){ p.catch(function(){}); } }catch(x){} } } }
+document.getElementById("bf").addEventListener("click",function(ev){ ev.stopPropagation(); fs(); });
+document.getElementById("bp").addEventListener("click",function(ev){ ev.stopPropagation(); toggle(); });
 document.addEventListener("click",toggle);
 document.addEventListener("keydown",function(e){ if(e.key==="f"||e.key==="F"){fs();} else if(e.key===" "||e.key==="Enter"){e.preventDefault();toggle();} });
 var n=3; t.textContent="La serie parte tra "+n+"…";

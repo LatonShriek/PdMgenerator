@@ -236,7 +236,7 @@ const EX_CONTROLS = {
     wrap.appendChild(playRow);
     const playNote = document.createElement("div");
     playNote.className = "level-note";
-    playNote.textContent = "Si apre in una nuova scheda: dopo 3 secondi la serie parte da sola, ogni stimolo resta per i «Secondi per stimolo» scelti sopra. Un tocco (o la barra spaziatrice) ferma, un altro riprende dallo stimolo successivo; F = schermo intero. Funziona in qualsiasi browser, anche su tablet, e il file scaricato si apre senza rete.";
+    playNote.textContent = "Si apre in una nuova scheda: dopo 3 secondi la serie parte da sola, ogni stimolo resta per i «Secondi per stimolo» scelti sopra. Un tocco (o la barra spaziatrice) ferma, un altro riprende dallo stimolo successivo; il pulsante «⛶ Schermo intero» in alto a destra (o il tasto F) attiva lo schermo intero. Funziona in qualsiasi browser, anche su tablet, e il file scaricato si apre senza rete.";
     wrap.appendChild(playNote);
     const autoNote = document.createElement("div");
     autoNote.className = "level-note";
