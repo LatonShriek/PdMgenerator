@@ -157,6 +157,17 @@ document.getElementById("btnReveal").addEventListener("click", ()=>{
   state.reveal = !state.reveal;
   render();
 });
+/* ---- Menu a pulsante (tablet in verticale e telefono: la barra laterale è un cassetto, vedi css/style.css) ---- */
+function setMenuOpen(open){
+  document.body.classList.toggle("menu-open", open);
+  document.getElementById("btnMenu").setAttribute("aria-expanded", open ? "true" : "false");
+}
+document.getElementById("btnMenu").addEventListener("click", ()=>setMenuOpen(!document.body.classList.contains("menu-open")));
+document.getElementById("menuBackdrop").addEventListener("click", ()=>setMenuOpen(false));
+document.addEventListener("keydown", e=>{ if(e.key==="Escape") setMenuOpen(false); });
+// scegliendo un esercizio o premendo Genera / Mostra risposta / Storico il menu si chiude, così si vede subito il risultato
+["btnGenerate","btnReveal","btnHistory"].forEach(id=>document.getElementById(id).addEventListener("click", ()=>setMenuOpen(false)));
+document.getElementById("exList").addEventListener("click", e=>{ if(e.target.closest("button")) setMenuOpen(false); });
 document.getElementById("btnPrint").addEventListener("click", ()=>window.print());
 document.getElementById("btnExport").addEventListener("click", exportCurrent);
 document.getElementById("btnHistory").addEventListener("click", ()=>{

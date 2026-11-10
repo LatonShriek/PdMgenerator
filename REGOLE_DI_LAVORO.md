@@ -15,7 +15,8 @@ e regole di qualità) sta in `docs/`: **va letta prima di toccare i generatori e
 Per Rodrigo esiste anche `SPIEGAZIONE_SEMPLICE.md` (perché la struttura è fatta
 così e cosa si può ancora migliorare, in parole semplici).
 
-## Stato attuale (refactoring: i passi 1-8 del piano sono fatti)
+## Stato attuale (refactoring: tutti i passi del piano sono fatti, fino al 13)
+- **Passo 13** (10 nov 2026, richiesta di Rodrigo): app responsiva per tablet e telefono, versione 16. Sopra i 900px (computer, tablet in orizzontale) non cambia niente (stili di ogni elemento identici: provato a 1400 e 1024px); sotto i 900px la barra laterale diventa un cassetto che si apre con il pulsante «☰ Menu» (`#topbar`, `#btnMenu`, `#menuBackdrop` in `index.html`; logica `setMenuOpen` in `js/app.js`; si chiude con tocco sullo sfondo, Esc, scelta di un esercizio, Genera, Mostra risposta, Storico). Tutto il resto è CSS in coda a `css/style.css` (regole solo `screen`, mai in stampa): bersagli da 40-52px per le dita (anche sugli schermi a tocco larghi), su telefono Intruso a larghezza minima con scorrimento laterale, parola dell'Accesso ridotta, Categorizzazione a 2 colonne. Nuovo `tests/menu-browser.js` (4 larghezze: pulsante, cassetto, nessuno scorrimento laterale in ogni esercizio); impronte `style-browser.json` riscritte (+3 elementi nuovi in ogni stato, telefono cambiato apposta). Golden 249 e export 29 invariati. **Non provato su dispositivi veri** (solo Chromium a 820×1180 e 390×844): da guardare su iPad/telefono.
 - **Passo 12** (10 nov 2026, richieste di Rodrigo): Griglie con rombo vero, forme vuote ben visibili e colori brillanti (`js/renderers/griglie.js`, `js/export/griglie.js`, test in `tests/griglie-forme.test.js`); numerosità manuale in tutti gli esercizi (`numerosityControl` in `js/controls.js`; righe/colonne Griglie); Serie alternate con presentazione automatica opzionale nel PowerPoint (avanzamento a intervallo scelto, tocco = pausa/ripresa; da provare su PowerPoint reale). Intruso percettivo usa ancora i glifi ◆◇.
 - **Passo 11** (25 ott 2026, contenuti, non refactoring): garanzia «4 cicli senza materiale identico» per tutti gli esercizi (ciclo = 32 livelli × 1 seduta; Fascicolo = 12 settimane). Misura con `tools/audit-verbale.js` / `tools/audit-browser.js` (ATTENZIONE: l'audit deve impostare `localStorage.pdm_group_name`, senza gruppo non c'è cronologia e i numeri sono falsi). Banche ampliate con voci `proposta` più astratte: Classificazioni 67→119 categorie (+ termini in coda alle esistenti, `EXTRA`), Analogie 14→40 relazioni e 148→538 coppie, domini per l'Intruso concettuale; Accesso 182→~1.400 parole (`data/accesso-extra.js`), con ripiego sulla fascia vicina prima di ripetere; Categorizzazione ricorda anche la singola prova (`trialKey` in `usedLabels`); Fascicolo settimana 1 varia la lunghezza (chiavi `initial:L:N`). Generatori verbali: prima la terna/quesito mai visto, poi la categoria meno recente. Tetti cronologie alzati (max 5000 per il backup). Test nuovo `tests/cicli.test.js`; baseline golden/export/stile riscritte (cambia solo materiale di accesso e moduli verbali). Da validare da Rodrigo tutte le nuove voci.
 - **Passo 10** (25 ott 2026): la banca di parole del Fascicolo (`WORD_BANK_SCORED`, `WORD_BANK`, ~9 KB) è in `data/fascicolo-parole.js` (modulo UMD, caricato prima di `engine.js`); contenuto identico, impronte del Fascicolo invariate. `tests/load-engine.js` compila il motore con il suo percorso reale (serve al `require`). Restano nel motore le altre banche (`CATEGORY_POOL`, `PHONEMIC_DB`, `CATEGORY_LETTER_BANK`…, ~27 KB).
@@ -37,15 +38,16 @@ così e cosa si può ancora migliorare, in parole semplici).
   il file locale non si carica.
 - Dati in `data/` (3 file `.js`): `categorizzazione.js` (190 voci: 142 reali +
   48 proposte), `openmoji-map.js` (568 voci), `inv-real-block.js`.
-- Test in `tests/`: `node --test tests/*.test.js` → 90 test, tutti passano.
+- Test in `tests/`: `node --test tests/*.test.js` → 110 test, tutti passano (10 nov 2026).
   Coprono il Fascicolo (seme fisso, snapshot settimane 1-12, regole di qualità,
   anti-ripetizione), i file di dati e la copia di sicurezza (`backup.test.js`).
 - `tests/golden-browser.js` (Playwright, Chromium senza rete, seme fisso): 249 casi, impronte in
-  `golden-browser.json`. **Regola: prima e dopo ogni spostamento di codice deve dare "OK: 183 casi identici"**
+  `golden-browser.json`. **Regola: prima e dopo ogni spostamento di codice deve dare "OK: 249 casi identici"**
   (si lancia in background: ~2 min; NODE_PATH e CHROMIUM_PATH impostati).
-- `tests/export-browser.js`: 32 esportazioni (PowerPoint dei 10 esercizi a 3 livelli + Word del fascicolo, settimane 1 e 7)
+- `tests/export-browser.js`: 29 esportazioni (PowerPoint degli esercizi a 3 livelli + Word del fascicolo, settimane 1 e 7)
   confrontate per contenuto interno; **va lanciato prima e dopo ogni modifica alle esportazioni**.
-- `tests/style-browser.js`: stili calcolati di ogni elemento in 16 stati; da lanciare prima e dopo ogni modifica al CSS.
+- `tests/style-browser.js`: stili calcolati di ogni elemento in 22 stati (computer 1400px e telefono 420px); da lanciare prima e dopo ogni modifica al CSS. Ha due esiti possibili anche sullo stesso codice (scrollbar): se dopo `--update` non passa 3 volte di fila, riscrivere ancora.
+- `tests/menu-browser.js`: pulsante Menu, cassetto e assenza di scorrimento laterale a 1400, 1024, 820 e 390px.
 - `tests/online-browser.js`: avviso sul salvataggio online con Firestore finto.
 - Dopo il passo 5: `js/history/online-status.js` mostra un avviso rosso se un salvataggio online è rifiutato
   e ha il pulsante "Verifica il salvataggio online" (prova scrittura/lettura/cancellazione nelle 5 raccolte).
@@ -124,7 +126,7 @@ Rodrigo carica su GitHub dal sito (Add file → Upload files), non da terminale.
 
 ## Struttura attuale
 ```
-index.html            app: interfaccia, stato, motori (Fascicolo, categorizzazione), collegamenti
+index.html            struttura della pagina e tag <script> (dal passo 9 senza codice); css/ aspetto; js/ e data/ il resto
 REGOLE_DI_LAVORO.md  questo file
 README.md             presentazione e indice
 docs/                 documentazione per argomento (struttura, attivita, esportazione-e-backup, fascicolo,
@@ -138,7 +140,7 @@ js/export/            esportazioni pptx/docx (passo 5 fatto)
 js/history/           cronologia condivisa e storico (passo 5 fatto)
 js/progression.js, js/backup/, js/firebase-config.js   (passo 5 fatto)
 GUIDA_BUONE_PRATICHE.md  guida di buone pratiche (documento vivo)
-tests/                load-engine.js, fascicolo.test.js, backup.test.js, snapshots.json, golden-browser.js/.json
+tests/                test Node (*.test.js) e controlli in browser (golden, export, style, menu, online) con le loro impronte .json
 ```
 
 ## Struttura obiettivo

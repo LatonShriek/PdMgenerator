@@ -80,6 +80,12 @@ Una web app è come una cucina professionale. Le buone pratiche servono a tre co
 ### B8. La configurazione sta in un posto solo
 - **Nel progetto (passo 5):** `js/firebase-config.js` contiene solo la configurazione di Firebase. Per collegare o scollegare la cronologia online si tocca solo quel file; il resto del codice non va aperto.
 
+### B9. Adattare lo schermo (tablet e telefono) senza toccare il resto
+- **Cosa fare:** mettere le regole per gli schermi stretti in coda al file dell'aspetto, dentro condizioni sulla larghezza (`@media`), e limitarle allo schermo (mai alla stampa). Aggiungere al massimo qualche elemento nuovo (qui il pulsante «Menu») e poche righe di codice.
+- **Perché:** sopra la soglia il file si comporta come prima; la dimostrazione è un confronto degli stili calcolati di ogni elemento a schermo grande, prima e dopo (identici).
+- **Nel progetto:** passo 13. Il controllo ha mostrato che a 1024px la versione originale ha già due esiti possibili per la scrollbar: un confronto che a volte cambia da solo va letto con cautela (vedi B7).
+- **Come si controlla:** prova a 4 larghezze (computer, tablet in orizzontale e verticale, telefono) con `tests/menu-browser.js`, più uno sguardo alle schermate di ogni esercizio. Resta da fare la prova su dispositivi veri.
+
 ---
 
 ## Parte C — Accorgersi subito quando qualcosa non va

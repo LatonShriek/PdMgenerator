@@ -31,6 +31,9 @@ Obiettivo: rendere il codice leggibile, correggibile e professionale **senza cam
 | 8 | Motore del Fascicolo, costruttore Word e motore di categorizzazione fuori da `index.html` | fatto (`js/engine/engine.js`, `js/export/docbuilder.js`, `js/generators/categorizzazione.js`; spostamento identico, 79 test + 227 casi + 26 esportazioni + 20 stati; `index.html` da 3247 a 1345 righe) |
 | 9 | Ultimi script inline di `index.html` in file propri | fatto (`data/base.js`, `js/util.js`, `js/state.js`, `js/level-notes.js`, `js/history/fascicolo-history.js`, `js/registry.js`, `js/controls.js`, `js/app.js`; spostamento identico: 85 test, 249 casi, 29 esportazioni, 22 stati; `index.html` da ~1359 a ~190 righe) |
 | 10 | Banca di parole del Fascicolo in `data/` | fatto (`data/fascicolo-parole.js`; 85 test, 249 casi, 29 esportazioni, 22 stati identici; le altre banche del motore restano da spostare) |
+| 11 | Garanzia «4 cicli senza materiale identico»; banche verbali e Accesso ampliate | fatto (25 ott 2026; `tests/cicli.test.js`, `tools/audit-*.js`; voci `proposta` da validare da Rodrigo) |
+| 12 | Griglie con forme migliori, numerosità manuale ovunque, Serie con presentazione automatica | fatto (10 nov 2026) |
+| 13 | App responsiva: tablet e telefono, pulsante «Menu» | fatto (10 nov 2026, versione 16; computer invariato; `tests/menu-browser.js`; da provare su dispositivi veri) |
 
 ## Sicurezza, privacy e licenze
 

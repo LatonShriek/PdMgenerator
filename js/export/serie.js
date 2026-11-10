@@ -52,7 +52,10 @@ function serieAutoSecondsValue(){
 async function exportSerie(deck, level){
   const p = new PptxGenJS();
   p.layout = "LAYOUT_WIDE";
-  const auto = !!state.serieAutoPlay;
+  // Per Google Presentazioni: Google ignora i timer del PowerPoint e il blocco del clic, quindi il file è «normale»
+  // (clic/frecce funzionano) e lo scorrimento automatico si imposta da «Pubblica sul web» con lo stesso intervallo.
+  const google = !!state.serieAutoPlay && !!state.serieGoogle;
+  const auto = !!state.serieAutoPlay && !google;
   const seconds = serieAutoSecondsValue();
   // La regola in vigore e quella del livello successivo vanno SOLO nelle note
   // del relatore (visibili in PowerPoint solo a chi presenta, in Visualizzazione
@@ -62,6 +65,7 @@ async function exportSerie(deck, level){
   // restano a portata mentre si avanza stimolo per stimolo durante la seduta.
   const nextText = deck.nextRule ? `Al livello successivo: ${deck.nextRule}` : "Ultimo livello disponibile.";
   const notesText = `Regola (livello ${level}): ${deck.rule}\n${nextText}` +
+    (google ? `\nGoogle Presentazioni: File › Condividi › Pubblica sul web › Presentazione automatica, intervallo ${seconds} s (le scelte di Google sono 1, 2, 3, 5, 10, 15, 30 s). In presentazione normale si avanza con la freccia.` : "") +
     (auto ? `\nPresentazione automatica: un nuovo stimolo ogni ${seconds} s. Un tocco sullo schermo ferma, un altro tocco riprende dallo stimolo successivo.` : "");
 
   const addStimulus = (st, pauseCue) => {
@@ -79,6 +83,8 @@ async function exportSerie(deck, level){
   title.addText(`Serie attentive alternate — Livello ${level}`, {x:0.5,y:2.5,w:12.3,h:1.2,align:"center",fontSize:32,bold:true,color:"1E2A26",isTextBox:true});
   if(auto) title.addText(`Si avvia con un clic, poi scorre da sola ogni ${seconds} s. Un tocco ferma, un altro riprende.`, {x:0.5,y:3.8,w:12.3,h:0.6,align:"center",fontSize:18,color:"5C6B65",isTextBox:true});
   title.addNotes(notesText);
+
+  if(google) title.addText(`Per Google Presentazioni: Condividi › Pubblica sul web › avanza ogni ${seconds} s.`, {x:0.5,y:3.8,w:12.3,h:0.6,align:"center",fontSize:18,color:"5C6B65",isTextBox:true});
 
   const N = deck.seq.length;
   const plan = [];
@@ -110,6 +116,7 @@ async function exportSerie(deck, level){
 
   let fileName = exportFileName("serie", level, "pptx");
   if(auto) fileName = fileName.replace(/\.pptx$/, ` automatica ${seconds}s.pptx`);
+  if(google) fileName = fileName.replace(/\.pptx$/, ` per Google ${seconds}s.pptx`);
   const buf = await p.write({ outputType:"arraybuffer" });
   let blob;
   try{ blob = await addSerieTransitions(buf, plan); }

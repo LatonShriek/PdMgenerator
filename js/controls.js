@@ -211,11 +211,18 @@ const EX_CONTROLS = {
       state.serieAutoSeconds = v; secInput.value = String(v);
     });
     secRow.appendChild(secLabel); secRow.appendChild(secInput);
+    const gLabel = document.createElement("label");
+    gLabel.style.cssText = "display:flex; align-items:center; gap:6px; margin-left:14px; font-weight:600;";
+    const gCheck = document.createElement("input");
+    gCheck.type = "checkbox"; gCheck.checked = state.serieGoogle;
+    gCheck.addEventListener("change", e=>{ state.serieGoogle = e.target.checked; });
+    gLabel.appendChild(gCheck); gLabel.appendChild(document.createTextNode("Per Google Presentazioni"));
+    secRow.appendChild(gLabel);
     wrap.appendChild(secRow);
     autoCheck.addEventListener("change", e=>{ state.serieAutoPlay = e.target.checked; secRow.style.display = e.target.checked ? "flex" : "none"; });
     const autoNote = document.createElement("div");
     autoNote.className = "level-note";
-    autoNote.textContent = "Vale solo per il file PowerPoint (non per l'anteprima a schermo). Dalla prima slide si avvia con un clic; poi gli stimoli scorrono da soli all'intervallo scelto. Un tocco sullo schermo ferma lo stimolo (compare «in pausa»), un altro tocco riprende dallo stimolo successivo. Il file prodotto ha il doppio delle slide: le copie «in pausa» stanno in fondo.";
+    autoNote.textContent = "Vale solo per il file PowerPoint (non per l'anteprima a schermo). Dalla prima slide si avvia con un clic; poi gli stimoli scorrono da soli all'intervallo scelto. Un tocco sullo schermo ferma lo stimolo (compare «in pausa»), un altro tocco riprende dallo stimolo successivo. Il file prodotto ha il doppio delle slide: le copie «in pausa» stanno in fondo. Google Presentazioni ignora i timer del PowerPoint: spunta «Per Google Presentazioni» (file senza timer, si scorre con la freccia) e poi in Google usa Condividi › Pubblica sul web › avanza automaticamente.";
     wrap.appendChild(autoNote);
     return wrap;
   },

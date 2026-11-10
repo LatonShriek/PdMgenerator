@@ -13,7 +13,7 @@ La documentazione è divisa per argomento nella cartella `docs/`:
 | Se vuoi sapere… | Leggi |
 |---|---|
 | Com'è fatto il codice, cosa sta in quale cartella e perché | [docs/struttura.md](docs/struttura.md) |
-| I 7 tipi di attività, i livelli, l'anti-ripetizione, la progressione di gruppo | [docs/attivita.md](docs/attivita.md) |
+| I 10 tipi di attività, i livelli, l'anti-ripetizione, la progressione di gruppo | [docs/attivita.md](docs/attivita.md) |
 | Come funzionano le esportazioni PowerPoint/Word e la copia di sicurezza | [docs/esportazione-e-backup.md](docs/esportazione-e-backup.md) |
 | Il Fascicolo esercizi a casa | [docs/fascicolo.md](docs/fascicolo.md) |
 | Le banche di parole, le categorie semantiche, la libreria dei criteri | [docs/banche-e-categorie.md](docs/banche-e-categorie.md) |

@@ -445,3 +445,71 @@
   .prog-suggest{font-size:12px;color:var(--ink-soft);margin-top:7px;line-height:1.45;}
   .prog-log{font-size:11.5px;color:var(--ink-soft);margin:8px 0 0;padding-left:16px;line-height:1.5;}
   .prog-undo{background:none;border:none;color:var(--warn);font-size:11.5px;cursor:pointer;padding:0;margin-top:6px;text-decoration:underline;}
+
+  /* ---- Tablet e telefono (responsive) ----
+     Aggiunto il 10 nov 2026. Sopra i 900px di larghezza (computer, tablet in orizzontale) non cambia nulla.
+     Sotto i 900px (tablet in verticale, telefono) la barra laterale diventa un cassetto che si apre con il
+     pulsante "Menu" (#btnMenu, in index.html; la logica è in js/app.js). Le regole valgono solo a schermo
+     ("screen"), mai in stampa. */
+  #topbar, #menuBackdrop{display:none;}
+
+  @media screen and (max-width:900px){
+    body{display:block;}
+    #topbar{
+      display:flex; align-items:center; gap:12px;
+      position:sticky; top:0; z-index:30;
+      background:var(--panel); border-bottom:1px solid var(--line);
+      padding:8px 14px;
+    }
+    #btnMenu{
+      min-height:44px; padding:8px 18px;
+      border:1px solid var(--line); border-radius:9px;
+      background:#fff; color:var(--ink);
+      font-size:15px; font-weight:600; cursor:pointer;
+    }
+    #sidebar{
+      position:fixed; top:0; left:0; bottom:0;
+      height:auto; width:min(88vw,340px); min-width:0;
+      z-index:40;
+      transform:translateX(-100%); visibility:hidden;
+      transition:transform .25s ease, visibility 0s linear .25s;
+      box-shadow:0 0 30px rgba(0,0,0,0.25);
+    }
+    body.menu-open{overflow:hidden;}
+    body.menu-open #sidebar{transform:none; visibility:visible; transition:transform .25s ease, visibility 0s;}
+    body.menu-open #menuBackdrop{display:block; position:fixed; inset:0; z-index:35; background:rgba(30,42,38,0.45);}
+    #main{padding:16px 18px;}
+    #stage{padding:18px; min-height:340px;}
+    #stage.stage-fascicolo{padding:18px 14px;}
+    #historyInner{width:min(560px,94vw);}
+  }
+
+  /* bersagli più grandi per le dita: telefono, tablet in verticale e qualunque schermo a tocco */
+  @media screen and (max-width:900px), screen and (pointer:coarse){
+    .action{min-height:46px;}
+    .chip{min-height:40px; padding:8px 14px;}
+    .exlist button{min-height:52px;}
+    .level-row input[type=range]{min-height:32px;}
+    select, input[type=number]{min-height:42px;}
+    #stageFoot button{min-height:44px; padding:8px 20px;}
+    .prog-switch button{min-height:44px;}
+  }
+
+  @media screen and (max-width:600px){
+    #main{padding:12px 10px;}
+    #stage{padding:12px; border-radius:12px; min-height:280px;}
+    #stageHead h2{font-size:19px;}
+    #ruleBox{font-size:14px; padding:10px 12px;}
+    .cat-grid{grid-template-columns:repeat(2,1fr); gap:10px;}
+    .cat-tile{font-size:44px; min-height:120px;}
+    .word-items span{font-size:18px; padding:6px 10px;}
+    /* Intruso: fino a 30 elementi per schermata. Su telefono la schermata mantiene una larghezza minima leggibile
+       e si fa scorrere di lato (meglio ancora girando il telefono in orizzontale), invece di rimpicciolire i simboli */
+    #stage > *{min-width:0; max-width:100%;}
+    .multi-block{overflow-x:auto;}
+    .multi-block > .strip{min-width:560px;}
+    /* la parola dell'Accesso lessicale ha la misura scritta dal programma (fino a 150px, pensata per la proiezione):
+       sul telefono va ridotta, altrimenti esce dal riquadro (per questo !important) */
+    .single-word{font-size:9vw !important; letter-spacing:1px; max-width:100%; text-align:center; overflow-wrap:anywhere;}
+    .fasc-title-row{flex-wrap:wrap;}
+  }

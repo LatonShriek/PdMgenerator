@@ -10,7 +10,7 @@ I test verificano che l'app produca **sempre lo stesso materiale a parità di se
 node --test tests/*.test.js
 ```
 
-Serve solo Node (versione 20 o successiva); non c'è niente da installare. Il risultato atteso è `fail 0` (90 test alla data di questo aggiornamento).
+Serve solo Node (versione 20 o successiva); non c'è niente da installare. Il risultato atteso è `fail 0` (110 test alla data di questo aggiornamento).
 
 Cosa controllano:
 - **Determinismo**: stesso seme e settimana → fascicolo identico; semi diversi → fascicoli diversi.
@@ -24,7 +24,9 @@ Cosa controllano:
 
 **Controllo "prima e dopo" in browser** (`tests/golden-browser.js`): apre `index.html` in Chromium senza rete, fissa il generatore casuale con un seme, genera ogni esercizio a 11 livelli e 2 semi (più le opzioni dei controlli e le 12 settimane del fascicolo, 249 casi) e confronta le impronte del materiale e di ciò che l'app disegna con `tests/golden-browser.json`. Serve a dimostrare che spostare il codice non cambia l'output. Richiede Playwright con Chromium (si lancia a mano; non serve per usare l'app): `node tests/golden-browser.js` confronta, con `--update` riscrive le impronte (solo se il cambiamento è voluto). Nella categorizzazione le immagini arrivano in ritardo, quindi si confronta solo ciò che viene disegnato.
 
-**Controllo dell'aspetto** (`tests/style-browser.js`): per ogni elemento della pagina calcola gli stili che il browser applica davvero e confronta l'impronta con `tests/style-browser.json` (avvio e 7 esercizi, schermo da computer e da telefono). Si è scelto questo invece delle schermate a pixel perché queste ultime cambiano a caso di qualche pixel per il disegno dei caratteri. Non copre le regole di stampa.
+**Controllo dell'aspetto** (`tests/style-browser.js`): per ogni elemento della pagina calcola gli stili che il browser applica davvero e confronta l'impronta con `tests/style-browser.json` (avvio e 10 esercizi, schermo da computer e da telefono: 22 stati). Si è scelto questo invece delle schermate a pixel perché queste ultime cambiano a caso di qualche pixel per il disegno dei caratteri. Non copre le regole di stampa.
+
+**Controllo del layout tablet/telefono** (`tests/menu-browser.js`): a 1400, 1024, 820 e 390px verifica che il pulsante Menu compaia solo sugli schermi stretti, che il cassetto si apra e si chiuda (pulsante, sfondo, Esc, scelta di un esercizio) e che nessun esercizio faccia scorrere la pagina di lato.
 
 **Avviso sul salvataggio online** (`tests/online-browser.js`): con un Firestore finto che rifiuta una raccolta, verifica che il pulsante "Verifica il salvataggio online" e l'avviso rosso lo dicano, e che spariscano quando le regole sono a posto.
 

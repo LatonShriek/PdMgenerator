@@ -23,6 +23,7 @@ const state = {
   serieItemsOverride:null,
   serieAutoPlay:false,
   serieAutoSeconds:2,
+  serieGoogle:false,
   classificazioniItemsOverride:null,
   intrusoconcItemsOverride:null,
   analogieItemsOverride:null,
