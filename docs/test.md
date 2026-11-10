@@ -10,7 +10,7 @@ I test verificano che l'app produca **sempre lo stesso materiale a parità di se
 node --test tests/*.test.js
 ```
 
-Serve solo Node (versione 20 o successiva); non c'è niente da installare. Il risultato atteso è `fail 0` (110 test alla data di questo aggiornamento).
+Serve solo Node (versione 20 o successiva); non c'è niente da installare. Il risultato atteso è `fail 0` (111 test alla data di questo aggiornamento).
 
 Cosa controllano:
 - **Determinismo**: stesso seme e settimana → fascicolo identico; semi diversi → fascicoli diversi.
