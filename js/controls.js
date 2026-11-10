@@ -196,7 +196,7 @@ const EX_CONTROLS = {
     const secRow = document.createElement("div");
     secRow.className = "level-row";
     secRow.style.marginTop = "8px";
-    secRow.style.display = state.serieAutoPlay ? "flex" : "none";
+    secRow.style.display = "flex";
     const secLabel = document.createElement("span");
     secLabel.className = "level-note";
     secLabel.style.margin = "0";
@@ -219,7 +219,25 @@ const EX_CONTROLS = {
     gLabel.appendChild(gCheck); gLabel.appendChild(document.createTextNode("Per Google Presentazioni"));
     secRow.appendChild(gLabel);
     wrap.appendChild(secRow);
-    autoCheck.addEventListener("change", e=>{ state.serieAutoPlay = e.target.checked; secRow.style.display = e.target.checked ? "flex" : "none"; });
+    autoCheck.addEventListener("change", e=>{ state.serieAutoPlay = e.target.checked; gLabel.style.display = e.target.checked ? "flex" : "none"; });
+    gLabel.style.display = state.serieAutoPlay ? "flex" : "none";
+    // Lettore autonomo: parte da solo, un tocco ferma e un altro riprende (non dipende da PowerPoint/Google).
+    const playRow = document.createElement("div");
+    playRow.style.cssText = "display:flex; gap:8px; flex-wrap:wrap; margin-top:12px;";
+    const playBtn = document.createElement("button");
+    playBtn.className = "action primary"; playBtn.style.cssText = "width:auto; margin:0;";
+    playBtn.textContent = "▶ Avvia la serie a schermo intero";
+    playBtn.addEventListener("click", ()=>serieOpenPlayer());
+    const dlBtn = document.createElement("button");
+    dlBtn.className = "action ghost"; dlBtn.style.cssText = "width:auto; margin:0;";
+    dlBtn.textContent = "Scarica come pagina";
+    dlBtn.addEventListener("click", ()=>serieDownloadPlayer());
+    playRow.appendChild(playBtn); playRow.appendChild(dlBtn);
+    wrap.appendChild(playRow);
+    const playNote = document.createElement("div");
+    playNote.className = "level-note";
+    playNote.textContent = "Si apre in una nuova scheda: dopo 3 secondi la serie parte da sola, ogni stimolo resta per i «Secondi per stimolo» scelti sopra. Un tocco (o la barra spaziatrice) ferma, un altro riprende dallo stimolo successivo; F = schermo intero. Funziona in qualsiasi browser, anche su tablet, e il file scaricato si apre senza rete.";
+    wrap.appendChild(playNote);
     const autoNote = document.createElement("div");
     autoNote.className = "level-note";
     autoNote.textContent = "Vale solo per il file PowerPoint (non per l'anteprima a schermo). Dalla prima slide si avvia con un clic; poi gli stimoli scorrono da soli all'intervallo scelto. Un tocco sullo schermo ferma lo stimolo (compare «in pausa»), un altro tocco riprende dallo stimolo successivo. Il file prodotto ha il doppio delle slide: le copie «in pausa» stanno in fondo. Google Presentazioni ignora i timer del PowerPoint: spunta «Per Google Presentazioni» (file senza timer, si scorre con la freccia) e poi in Google usa Condividi › Pubblica sul web › avanza automaticamente.";
