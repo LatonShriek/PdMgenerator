@@ -17,3 +17,8 @@
 - **Telefono (fino a 600px)**: margini più piccoli; l'*Intruso percettivo* mantiene una larghezza minima leggibile e si fa scorrere di lato (meglio girando il telefono in orizzontale); la parola dell'*Accesso lessicale* si riduce per non uscire dal riquadro; la *Categorizzazione* passa a 2 colonne.
 - Le regole stanno in fondo a `css/style.css`, valgono solo a schermo e **mai in stampa**. Il pulsante e lo sfondo del cassetto sono in `index.html` (`#topbar`, `#menuBackdrop`); la logica (poche righe, `setMenuOpen`) in `js/app.js`.
 - Controllo automatico: `tests/menu-browser.js`. Limite noto: provato solo con Chromium alle misure 820×1180 e 390×844, non su iPad o telefoni veri.
+
+
+## Impostazioni per profilo (gruppo)
+
+Numero di elementi, righe e colonne, tipo di materiale e opzioni della Serie (presentazione automatica, secondi, Google) si salvano **per nome gruppo** in questo browser (`pdm_settings::<gruppo>`, codice in `js/progression.js`) e si richiamano quando quel gruppo viene scelto. Un gruppo mai usato parte dai valori automatici; senza nome gruppo non si salva nulla. Provato da `tests/profili-browser.js`. Non è ancora nella copia di sicurezza né online (solo locale al browser).
