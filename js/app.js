@@ -27,6 +27,7 @@ function buildExList(){
 
 async function generate(){
   state.slideIndex = 0;
+  groupSettingsSave();
   // Tutti gli esercizi a livelli vanno da 1 a MAX_LEVEL (32): si limita comunque PRIMA di generare,
   // per non chiamare mai un generatore con un livello fuori dai suoi limiti.
   const maxLevelNow = MAX_LEVEL;

@@ -36,3 +36,5 @@ Limiti noti (da dichiarare con onestà):
 - I test Node coprono il Fascicolo, i dati e la copia di sicurezza. Gli altri esercizi sono coperti dal controllo "prima e dopo" in browser (`tests/golden-browser.js`, vedi sotto): confronta le impronte, non verifica le regole cliniche di ciascuno.
 - La regola "12 parole valide, ≥ 6 frequenti (Zipf ≥ 3.0)" richiede il lessico `wordfreq`/Hunspell, che non è nel repository: non è verificata dai test.
 - Il crucipuzzle può piazzare meno parole di quelle scelte (piazzamento greedy); il test fissa il comportamento attuale (minimo 8) senza modificarlo.
+
+- `tests/profili-browser.js`: le impostazioni di un gruppo non passano a un altro gruppo (`CHROMIUM_PATH=/usr/bin/google-chrome node tests/profili-browser.js`).

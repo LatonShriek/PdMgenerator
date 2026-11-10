@@ -142,9 +142,47 @@ function rememberGroupLevel(){
 // Richiamata quando si (ri)inserisce il nome o il numero del gruppo: applica in silenzio i
 // livelli ricordati a tutti gli esercizi (e la settimana al fascicolo), poi rigenera solo se
 // quello attivo in questo momento è effettivamente cambiato.
+// Impostazioni di lavoro PER PROFILO (gruppo): numero di elementi, righe/colonne, tipo di materiale, opzioni della Serie ecc.
+// Si salvano con il nome del gruppo e si richiamano quando quel gruppo viene scelto; un gruppo mai usato parte dai valori
+// di base, quindi una modifica fatta per un profilo non passa mai a un altro.
+const GROUP_SETTINGS_PREFIX = "pdm_settings::";
+const GROUP_SETTING_KEYS = ["digitRule","catMode","materialOverride","inversioneItemsOverride","griglieRowsOverride","griglieColsOverride",
+  "inversioneForceAlnum","intrusoScreensOverride","serieItemsOverride","serieAutoPlay","serieAutoSeconds","serieGoogle",
+  "classificazioniItemsOverride","intrusoconcItemsOverride","analogieItemsOverride","serieShowNextCriterion",
+  "categorizzazioneTrialsOverride","accessoWordsOverride"];
+const GROUP_SETTING_DEFAULTS = JSON.parse(JSON.stringify(GROUP_SETTING_KEYS.reduce((o,k)=>{ o[k] = state[k]; return o; }, {})));
+let groupSettingsKey = null;   // gruppo a cui appartengono le impostazioni ora a video
+
+function groupSettingsSave(){
+  if(!groupSettingsKey) return;
+  const out = {};
+  GROUP_SETTING_KEYS.forEach(k=>{ out[k] = state[k]; });
+  try{ localStorage.setItem(GROUP_SETTINGS_PREFIX + groupSettingsKey, JSON.stringify(out)); }catch(e){}
+}
+
+// Rimette a video le impostazioni del gruppo indicato (o i valori di base). Restituisce true se qualcosa è cambiato.
+function groupSettingsRecall(group){
+  groupSettingsKey = group;
+  let stored = null;
+  if(group) try{ stored = JSON.parse(localStorage.getItem(GROUP_SETTINGS_PREFIX + group) || "null"); }catch(e){}
+  const before = JSON.stringify(GROUP_SETTING_KEYS.map(k=>state[k]));
+  GROUP_SETTING_KEYS.forEach(k=>{
+    const base = JSON.parse(JSON.stringify(GROUP_SETTING_DEFAULTS[k] === undefined ? null : GROUP_SETTING_DEFAULTS[k]));
+    state[k] = (stored && stored[k] !== undefined) ? stored[k] : base;
+  });
+  return before !== JSON.stringify(GROUP_SETTING_KEYS.map(k=>state[k]));
+}
+
 function recallGroupLevel(){
   const group = currentGroupKey();
-  if(!group) return;
+  if(!group){
+    // nessun profilo: valori di base, e niente viene salvato (non si scrive su un gruppo lasciato)
+    const resetChanged = groupSettingsRecall(null);
+    if(resetChanged){ renderExControls(); generate(); }
+    return;
+  }
+  let changed = groupSettingsRecall(group);
+  if(changed) renderExControls();
   const stored = progressLoad(group);
   const levels = stored.levels || {};
   const parts = stored.fascicoloParts || {};
@@ -152,7 +190,6 @@ function recallGroupLevel(){
   // con quanto effettivamente registrato per QUESTO gruppo: così un gruppo mai usato prima
   // non eredita per errore il livello (o le parti del fascicolo) lasciati a video da un
   // altro gruppo appena lasciato.
-  let changed = false;
   Object.keys(state.levels).forEach(exId=>{
     const lvl = levels[exId] != null ? levels[exId] : 1;
     if(lvl !== state.levels[exId]){
