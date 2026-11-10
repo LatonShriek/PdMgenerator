@@ -127,3 +127,53 @@ async function exportSerie(deck, level){
   }
   saveAs(blob, fileName);
 }
+
+
+// Lettore autonomo (pagina HTML): le serie partono da sole, un tocco ferma e un altro fa ripartire.
+// Non dipende da PowerPoint né da Google Presentazioni: si apre in qualunque browser (anche su tablet) e funziona senza rete.
+function serieBuildPlayerHtml(deck, level, seconds){
+  const seq = deck.seq.map(st => [st.char, st.color === "black" ? "#000" : "#e00000"]);
+  const data = JSON.stringify(seq).replace(/</g, "\\u003c");
+  return `<!DOCTYPE html>
+<html lang="it"><head><meta charset="UTF-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Serie attentive alternate — livello ${level}</title>
+<style>
+html,body{margin:0;height:100%;background:#fff;overflow:hidden;font-family:sans-serif;user-select:none;-webkit-user-select:none;touch-action:manipulation}
+#s{position:fixed;inset:0;display:flex;align-items:center;justify-content:center;font-size:min(46vw,60vh);font-weight:bold;line-height:1}
+#m{position:fixed;left:0;right:0;bottom:3vh;text-align:center;font-size:max(14px,2vh);color:#8a948f}
+#t{position:fixed;inset:0;display:flex;align-items:center;justify-content:center;font-size:5vh;color:#5c6b65;text-align:center;padding:0 5vw}
+</style></head><body>
+<div id="s"></div><div id="t"></div><div id="m"></div>
+<script>
+var SEQ=${data}, MS=${Math.round(seconds*1000)}, i=-1, timer=null, paused=false, started=false;
+var s=document.getElementById("s"), m=document.getElementById("m"), t=document.getElementById("t");
+function show(){ if(i>=SEQ.length){ s.textContent=""; t.textContent="Fine della serie — tocca per ricominciare"; clearTimeout(timer); return; } t.textContent=""; s.textContent=SEQ[i][0]; s.style.color=SEQ[i][1]; }
+function tick(){ i++; show(); if(i<SEQ.length) timer=setTimeout(tick,MS); else timer=null; }
+function setPause(p){ paused=p; m.textContent=p?"in pausa — tocca per riprendere · F schermo intero":""; }
+function toggle(){
+  if(!started) return;
+  if(i>=SEQ.length){ i=-1; setPause(false); tick(); return; }
+  if(!paused){ clearTimeout(timer); timer=null; setPause(true); }
+  else { setPause(false); timer=setTimeout(tick,MS); }   // riprende dallo stimolo successivo
+}
+function fs(){ var e=document.documentElement; if(document.fullscreenElement){document.exitFullscreen();} else if(e.requestFullscreen){e.requestFullscreen();} }
+document.addEventListener("click",toggle);
+document.addEventListener("keydown",function(e){ if(e.key==="f"||e.key==="F"){fs();} else if(e.key===" "||e.key==="Enter"){e.preventDefault();toggle();} });
+var n=3; t.textContent="La serie parte tra "+n+"…";
+var c=setInterval(function(){ n--; if(n>0){ t.textContent="La serie parte tra "+n+"…"; } else { clearInterval(c); started=true; tick(); } },1000);
+</script></body></html>`;
+}
+
+function serieOpenPlayer(){
+  if(!state.deck || !state.deck.seq) return;
+  const html = serieBuildPlayerHtml(state.deck, state.level, serieAutoSecondsValue());
+  const url = URL.createObjectURL(new Blob([html], {type:"text/html"}));
+  window.open(url, "_blank");
+}
+
+function serieDownloadPlayer(){
+  if(!state.deck || !state.deck.seq) return;
+  const seconds = serieAutoSecondsValue();
+  const html = serieBuildPlayerHtml(state.deck, state.level, seconds);
+  saveAs(new Blob([html], {type:"text/html;charset=utf-8"}), exportFileName("serie", state.level, "html").replace(/\.html$/, ` pagina ${seconds}s.html`));
+}
