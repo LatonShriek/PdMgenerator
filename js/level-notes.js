@@ -109,7 +109,7 @@ function levelNote(exId, level){
   switch(exId){
     case "griglie": {
       const cat = GRID_CATEGORY_BY_LEVEL[level], sub = (level-1)%4 + 1;
-      const rows = gridRowsForLevel(level), cols = gridColsForLevel(level);
+      const rows = state.griglieRowsOverride || gridRowsForLevel(level), cols = state.griglieColsOverride || gridColsForLevel(level);
       const effLevel = tierEffectiveLevel(level, cat);
       const tg = gridScoreTargets(effLevel);
       const extra = [];
