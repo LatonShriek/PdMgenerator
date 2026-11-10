@@ -36,6 +36,29 @@ function exportGriglie(deck, level){
       const bgHex = c.fill ? hexNoHash(colorHex(c.fill)) : "FFFFFF";
       const borderHex = c.border ? hexNoHash(colorHex(c.border)) : "000000";
       const symHex = c.symColor ? hexNoHash(colorHex(c.symColor)) : "101010";
+      const shapeDef = GRID_SHAPES[c.sym];
+      if(shapeDef){
+        // Forme geometriche: cerchio della cella (senza testo) + forma vera disegnata sopra, non un carattere.
+        // Il rombo è un rombo vero (largo 0,62 dell'altezza), non un quadrato ruotato; le forme vuote hanno il
+        // contorno spesso, così il loro colore si vede bene. Misure: stessa logica del testo (piccolo = 0,42×).
+        const cx = marginX + c.col*PITCH + CIRCLE/2, cy = marginY + c.row*PITCH + CIRCLE/2;
+        slide.addShape(p.ShapeType.ellipse, {
+          x: cx - CIRCLE/2, y: cy - CIRCLE/2, w:CIRCLE, h:CIRCLE,
+          fill:{color:bgHex}, line:{color:borderHex, width:lineWidth, dashType:({tratteggiato:"dash", puntinato:"sysDot"})[c.bStyle] || "solid"}
+        });
+        const B = CIRCLE * 0.66 * (c.size==="piccolo" ? 0.42 : 1);   // lato della scatola che contiene la forma
+        const strokePt = Math.max(2, Math.round(B*72*0.15));
+        const g = { circle:{w:B*0.86,h:B*0.86}, square:{w:B*0.8,h:B*0.8}, triUp:{w:B*0.9,h:B*0.8}, triDown:{w:B*0.9,h:B*0.8},
+                    rhombus:{w:B*0.62,h:B*0.9}, star:{w:B*1.0,h:B*1.0} }[shapeDef.geo];
+        const type = { circle:p.ShapeType.ellipse, square:p.ShapeType.rect, triUp:p.ShapeType.triangle, triDown:p.ShapeType.triangle,
+                       rhombus:p.ShapeType.diamond, star:p.ShapeType.star5 }[shapeDef.geo];
+        const opts = { x: cx - g.w/2, y: cy - g.h/2 + (shapeDef.geo==="star" ? B*0.03 : 0), w:g.w, h:g.h,
+                       line:{color:symHex, width: shapeDef.filled ? 1 : strokePt} };
+        if(shapeDef.filled) opts.fill = {color:symHex};
+        if(shapeDef.geo==="triDown") opts.rotate = 180;
+        slide.addShape(type, opts);
+        return;
+      }
       slide.addText(c.sym, {
         shape: "ellipse",
         x: marginX + c.col*PITCH, y: marginY + c.row*PITCH, w:CIRCLE, h:CIRCLE,

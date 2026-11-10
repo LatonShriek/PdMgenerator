@@ -1,157 +1,157 @@
 {
  "griglie|L1|s11": {
-  "deck": "36764e2dd0165297",
-  "stage": "7407cf56ea287bbd",
+  "deck": "57f28bfc8ce86611",
+  "stage": "1554b71ffe3b639a",
   "rule": "8f23a0172c523350",
-  "n": 8794,
-  "h": 8360
+  "n": 8907,
+  "h": 17183
  },
  "griglie|L1|s22": {
-  "deck": "9bd686d0828b4866",
-  "stage": "8c4a499037d356eb",
+  "deck": "2559844323720797",
+  "stage": "50112751a9e49665",
   "rule": "8f23a0172c523350",
-  "n": 8832,
-  "h": 8370
+  "n": 8797,
+  "h": 16580
  },
  "griglie|L2|s11": {
-  "deck": "da344558398bac2a",
-  "stage": "072978db92699ef0",
+  "deck": "fb6ef3aeda5fbc38",
+  "stage": "89671ed333a7109b",
   "rule": "3c788d29fd2b8391",
-  "n": 8670,
-  "h": 8250
+  "n": 8968,
+  "h": 17166
  },
  "griglie|L2|s22": {
-  "deck": "7fdefa3a7e6c7993",
-  "stage": "bcf97a3f555e76b1",
+  "deck": "379f6b0119e53309",
+  "stage": "6d6df0971da3d881",
   "rule": "3c788d29fd2b8391",
-  "n": 8849,
-  "h": 8282
+  "n": 8661,
+  "h": 16541
  },
  "griglie|L3|s11": {
-  "deck": "8ea7bdf4ec2b0eb0",
-  "stage": "744017b718ba0fcc",
+  "deck": "ff33a1012455cd20",
+  "stage": "c1bb01e730dc87fe",
   "rule": "b0b3fa27a98af427",
-  "n": 8698,
-  "h": 8275
+  "n": 8916,
+  "h": 17013
  },
  "griglie|L3|s22": {
-  "deck": "2eaee6f323a44fe6",
-  "stage": "fe33803e120cc49d",
+  "deck": "80582f2df26e9d20",
+  "stage": "d19e9c90a90f7c7f",
   "rule": "b0b3fa27a98af427",
-  "n": 8907,
-  "h": 8325
+  "n": 8712,
+  "h": 16576
  },
  "griglie|L5|s11": {
-  "deck": "a182e461dc6dcd36",
-  "stage": "5cd1545828c352f3",
+  "deck": "ce26c2d410cce563",
+  "stage": "ada7f66cb41a7e2e",
   "rule": "ea63f32257a3a50a",
-  "n": 9366,
-  "h": 9631
+  "n": 9465,
+  "h": 9687
  },
  "griglie|L5|s22": {
-  "deck": "eff53f8330cda43c",
-  "stage": "2d9547ceb3b1d7fc",
+  "deck": "7dd3855d82856811",
+  "stage": "b1a82ef9d1bf140f",
   "rule": "ea63f32257a3a50a",
-  "n": 9398,
-  "h": 9677
+  "n": 9334,
+  "h": 9604
  },
  "griglie|L8|s11": {
-  "deck": "030aa064cb8976c1",
-  "stage": "f4adbbcb51ef28ec",
+  "deck": "f1ac44f432645aea",
+  "stage": "1b0f97cf455a9e94",
   "rule": "69d04961163101fb",
-  "n": 9624,
-  "h": 9837
+  "n": 9607,
+  "h": 9795
  },
  "griglie|L8|s22": {
-  "deck": "e1ed850a6f6f96c7",
-  "stage": "3dc5fcc24d760d95",
+  "deck": "26f9259971505a90",
+  "stage": "e14bb69053a4c6ba",
   "rule": "69d04961163101fb",
-  "n": 9616,
-  "h": 9840
+  "n": 9428,
+  "h": 9687
  },
  "griglie|L12|s11": {
-  "deck": "435095a71a81e760",
-  "stage": "b0770349fe774bfd",
+  "deck": "1a846f0f9893cf30",
+  "stage": "740b6d58d02cc549",
   "rule": "1b7b41b980d7f456",
-  "n": 13660,
-  "h": 13105
+  "n": 13609,
+  "h": 13085
  },
  "griglie|L12|s22": {
-  "deck": "68fa7c0a172bee95",
-  "stage": "3a80ef8d17f37ffb",
+  "deck": "61935e82223f040c",
+  "stage": "cadd977d81b75a73",
   "rule": "1b7b41b980d7f456",
-  "n": 13391,
-  "h": 13067
+  "n": 13554,
+  "h": 13056
  },
  "griglie|L16|s11": {
-  "deck": "af96d6c630fd1042",
-  "stage": "961f79ac7850d9f8",
+  "deck": "acf6252855c16fb9",
+  "stage": "5b8fec0a9a2ba615",
   "rule": "c5a7c7ba808e95b2",
-  "n": 13848,
-  "h": 13283
+  "n": 13607,
+  "h": 13253
  },
  "griglie|L16|s22": {
-  "deck": "b4483057b40e5ee6",
-  "stage": "a4da32e9573f104a",
+  "deck": "ae080c1c38ee5989",
+  "stage": "f9da3e8873ac181c",
   "rule": "c5a7c7ba808e95b2",
-  "n": 13812,
-  "h": 13313
+  "n": 13584,
+  "h": 13156
  },
  "griglie|L20|s11": {
-  "deck": "534f47a45a2527a2",
-  "stage": "bbdc4cc3d7b2a50e",
+  "deck": "9699fa14a3171831",
+  "stage": "60bff10e4f45ff4d",
   "rule": "6dd73154ad0fd7b1",
-  "n": 13795,
-  "h": 13245
+  "n": 13734,
+  "h": 13307
  },
  "griglie|L20|s22": {
-  "deck": "057c7790e3df75e6",
-  "stage": "f0b25f5c24e1d784",
+  "deck": "d83a4dff4d2b3d27",
+  "stage": "b69c5fcdf30b7227",
   "rule": "6dd73154ad0fd7b1",
-  "n": 13822,
-  "h": 13384
+  "n": 13669,
+  "h": 13190
  },
  "griglie|L24|s11": {
-  "deck": "f4ada4bce4186abe",
-  "stage": "06c0620c7c394310",
+  "deck": "f3dec9227beb3927",
+  "stage": "b53265c9555557e7",
   "rule": "794565ff9bc4f808",
-  "n": 15128,
-  "h": 14680
+  "n": 15157,
+  "h": 14621
  },
  "griglie|L24|s22": {
-  "deck": "5a9105094c7cb728",
-  "stage": "56ae93c374718072",
+  "deck": "ef58e04d2f551065",
+  "stage": "30e38c5f5cb13caa",
   "rule": "794565ff9bc4f808",
-  "n": 15360,
-  "h": 14757
+  "n": 15036,
+  "h": 14719
  },
  "griglie|L28|s11": {
-  "deck": "424631ab4beb4607",
-  "stage": "3fcc0b76523f915b",
+  "deck": "acbdd77811476ac1",
+  "stage": "a29c374a36020586",
   "rule": "3b5d58f8b1751ac2",
-  "n": 15141,
-  "h": 14636
+  "n": 15142,
+  "h": 14785
  },
  "griglie|L28|s22": {
-  "deck": "38bdf79491a0c834",
-  "stage": "cffd13f43acea2bd",
+  "deck": "f5bf57606df607e5",
+  "stage": "99979254e3f7cf30",
   "rule": "3b5d58f8b1751ac2",
-  "n": 15386,
-  "h": 14912
+  "n": 15121,
+  "h": 14681
  },
  "griglie|L32|s11": {
-  "deck": "641d24abfb76a085",
-  "stage": "48a0aeeda917b7dd",
+  "deck": "ee0c70e094946a47",
+  "stage": "bb42f4ca85a0e8dc",
   "rule": "681a6f9f5b4e003b",
-  "n": 15362,
-  "h": 14840
+  "n": 15289,
+  "h": 14850
  },
  "griglie|L32|s22": {
-  "deck": "5c29713b6e60c4ca",
-  "stage": "a25e0d3051b1139a",
+  "deck": "fa68486b5b5f2cf5",
+  "stage": "53feb91003c8d3cd",
   "rule": "681a6f9f5b4e003b",
-  "n": 15438,
-  "h": 14850
+  "n": 15145,
+  "h": 14727
  },
  "intruso|L1|s11": {
   "deck": "578075086bbf3da7",
@@ -1470,60 +1470,60 @@
   "h": 453046
  },
  "griglie|mat-digits|L10": {
-  "deck": "803def98d5585a11",
-  "stage": "c3ef1e2ad762fca8",
+  "deck": "f7516dbbe5cb2cf7",
+  "stage": "d3a26e2c13dce9f4",
   "rule": "29a366aa5b909a08",
-  "n": 10392,
-  "h": 9932
+  "n": 10445,
+  "h": 9933
  },
  "griglie|mat-letters|L10": {
-  "deck": "01863fdc6a9f0e6a",
-  "stage": "961b105e03ab6e97",
+  "deck": "12120b655ab4161a",
+  "stage": "e90dc2a232ede0d2",
   "rule": "29a366aa5b909a08",
-  "n": 10368,
-  "h": 9914
+  "n": 10521,
+  "h": 9998
  },
  "griglie|mat-mixed|L10": {
-  "deck": "d49f10c041fa8f44",
-  "stage": "984a6fda0927b507",
+  "deck": "5f5cf351204d0c71",
+  "stage": "5e88e3c2310c5afa",
   "rule": "29a366aa5b909a08",
-  "n": 10290,
-  "h": 9870
+  "n": 10361,
+  "h": 9895
  },
  "griglie|mat-shapes|L10": {
-  "deck": "f9fc4d4102062418",
-  "stage": "6ef767e6bc3aaa68",
+  "deck": "16508ab8a32d1b09",
+  "stage": "0a6a9b7dccf70884",
   "rule": "29a366aa5b909a08",
-  "n": 10573,
-  "h": 9989
+  "n": 10558,
+  "h": 18428
  },
  "griglie|mat-arrows|L10": {
-  "deck": "eaa8c35643f54c2d",
-  "stage": "a348068fe4298c7b",
+  "deck": "f52ea6d14358a5fd",
+  "stage": "e616b47dc8566b43",
   "rule": "29a366aa5b909a08",
-  "n": 10556,
-  "h": 9985
+  "n": 10312,
+  "h": 9873
  },
  "griglie|mat-cyrillic|L10": {
-  "deck": "e3d35c3808a2fe99",
-  "stage": "64d0849972904b8c",
+  "deck": "a6ed2ba8c7c430d8",
+  "stage": "9f87068ab18a3588",
   "rule": "29a366aa5b909a08",
-  "n": 10458,
-  "h": 9863
+  "n": 10451,
+  "h": 9969
  },
  "griglie|mat-cjk|L10": {
-  "deck": "a0799253e0803acf",
-  "stage": "547a05f510fb4826",
+  "deck": "8fc24bca9ac91de4",
+  "stage": "b5146052d62cfc66",
   "rule": "29a366aa5b909a08",
-  "n": 10532,
-  "h": 9992
+  "n": 10366,
+  "h": 9896
  },
  "griglie|mat-geez|L10": {
-  "deck": "25af783d73bc848e",
-  "stage": "3dca07a9c95587be",
+  "deck": "0bf1cb3d19c8edf8",
+  "stage": "e4d88c6975bf6efb",
   "rule": "29a366aa5b909a08",
-  "n": 10458,
-  "h": 9863
+  "n": 10451,
+  "h": 9969
  },
  "intruso|mat-digit|L15": {
   "deck": "aec1e8d0df97b422",

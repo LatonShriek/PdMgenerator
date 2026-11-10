@@ -6,6 +6,32 @@
 
 function gridRuleLabel(r){ return r.keepText ? r.text : r.text.replace(/^Conta (tutti )?(gli )?/,""); }
 
+// Disegno vero delle forme geometriche (vedi GRID_SHAPES nel generatore): SVG in una scatola 100×100 che si ridimensiona con
+// il testo (1,5em: le forme devono leggersi bene anche a distanza), così le misure "grande/piccolo" della cella restano valide. Il rombo è un vero rombo (largo 62, alto 88),
+// non un quadrato ruotato; le forme vuote hanno il contorno spesso (14 su 100) perché il loro colore si veda bene.
+function gridShapeSvg(sym, color){
+  const d = GRID_SHAPES[sym];
+  if(!d) return null;
+  let body;
+  if(d.geo==="circle") body = `<circle cx="50" cy="50" r="${d.filled?43:37}"/>`;
+  else if(d.geo==="square") body = d.filled ? `<rect x="14" y="14" width="72" height="72"/>` : `<rect x="19" y="19" width="62" height="62"/>`;
+  else if(d.geo==="triUp") body = d.filled ? `<polygon points="50,9 93,88 7,88"/>` : `<polygon points="50,15 86,82 14,82"/>`;
+  else if(d.geo==="triDown") body = d.filled ? `<polygon points="50,91 93,12 7,12"/>` : `<polygon points="50,85 86,18 14,18"/>`;
+  else if(d.geo==="rhombus") body = d.filled ? `<polygon points="50,6 81,50 50,94 19,50"/>` : `<polygon points="50,13 75,50 50,87 25,50"/>`;
+  else {
+    const R = d.filled ? 49 : 42, r = R*0.42, pts = [];
+    for(let i=0;i<10;i++){ const a = -Math.PI/2 + i*Math.PI/5, rad = i%2===0 ? R : r; pts.push((50+rad*Math.cos(a)).toFixed(1)+","+(54+rad*Math.sin(a)).toFixed(1)); }
+    body = `<polygon points="${pts.join(" ")}"/>`;
+  }
+  const paint = d.filled ? `fill="${color}" stroke="${color}" stroke-width="3"` : `fill="none" stroke="${color}" stroke-width="14"`;
+  return `<svg viewBox="0 0 100 100" width="1.5em" height="1.5em" style="display:block" aria-label="${d.name}"><g ${paint} stroke-linejoin="round">${body}</g></svg>`;
+}
+// Scrive il simbolo di una cella dentro `el`: disegno SVG per le forme, testo per tutto il resto.
+function setGridSym(el, sym, color){
+  const svg = gridShapeSvg(sym, color);
+  if(svg) el.innerHTML = svg; else el.textContent = sym;
+}
+
 function renderOneGrid(s){
   const rule = s.rules[s.ruleIndex];
   const grid = document.createElement("div");
@@ -30,15 +56,15 @@ function renderOneGrid(s){
     if(c.size==="piccolo"){
       const sm = document.createElement("span");
       sm.style.fontSize = "0.5em";
-      sm.textContent = c.sym;
+      setGridSym(sm, c.sym, symHex);
       div.appendChild(sm);
     } else if(c.size==="grande"){
       const bg = document.createElement("span");
       bg.style.fontSize = "1.2em";
-      bg.textContent = c.sym;
+      setGridSym(bg, c.sym, symHex);
       div.appendChild(bg);
     } else {
-      div.textContent = c.sym;
+      setGridSym(div, c.sym, symHex);
     }
     grid.appendChild(div);
   });

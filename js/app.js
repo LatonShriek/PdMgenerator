@@ -149,6 +149,7 @@ function render(){
 
 document.getElementById("levelRange").addEventListener("input", e=>{
   state.level = Number(e.target.value);
+  renderExControls(); // i valori "automatici" mostrati dai controlli di numerosità seguono il livello
   generate();
 });
 document.getElementById("btnGenerate").addEventListener("click", generate);

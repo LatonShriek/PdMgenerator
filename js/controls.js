@@ -63,6 +63,13 @@ function materialSelector(exId){
   return wrap;
 }
 
+function bankNote(text){
+  const n = document.createElement("div");
+  n.className = "level-note";
+  n.textContent = text;
+  return n;
+}
+
 function numerosityControl(labelText, stateKey, min, max, autoValue){
   const wrap = document.createElement("div");
   const countLabel = document.createElement("label");
@@ -75,20 +82,30 @@ function numerosityControl(labelText, stateKey, min, max, autoValue){
   const countInput = document.createElement("input");
   countInput.type = "range"; countInput.min = String(min); countInput.max = String(max);
   countInput.value = state[stateKey] || autoValue;
-  const countBadge = document.createElement("div");
-  countBadge.className = "level-badge";
-  countBadge.textContent = isAuto ? "auto" : countInput.value;
-  countInput.addEventListener("input", e=>{
-    state[stateKey] = Number(e.target.value);
-    countBadge.textContent = state[stateKey];
+  // Casella numerica accanto al cursore: il cursore va bene per i ritocchi, ma con intervalli ampi (fino a 40, o 600 per le
+  // serie) è più comodo scrivere il numero esatto. I due controlli restano sincronizzati; il valore è sempre tenuto tra min e max.
+  const countBadge = document.createElement("input");
+  countBadge.type = "number"; countBadge.min = String(min); countBadge.max = String(max); countBadge.step = "1";
+  countBadge.className = "level-badge level-number";
+  countBadge.setAttribute("aria-label", labelText);
+  countBadge.value = state[stateKey] || autoValue;
+  const apply = v => {
+    v = Math.max(min, Math.min(max, Math.round(Number(v))));
+    if(!isFinite(v)) return;
+    state[stateKey] = v;
+    countInput.value = String(v); countBadge.value = String(v);
+    resetBtn.classList.remove("active");
+    resetBtn.textContent = "Torna ad automatico (da livello)";
     generate();
-  });
+  };
+  countInput.addEventListener("input", e=> apply(e.target.value));
+  countBadge.addEventListener("change", e=> apply(e.target.value));
   countRow.appendChild(countInput); countRow.appendChild(countBadge);
   wrap.appendChild(countRow);
   const resetBtn = document.createElement("button");
   resetBtn.className = "chip" + (isAuto ? " active":"");
   resetBtn.style.marginTop = "8px";
-  resetBtn.textContent = "Automatico (da livello)";
+  resetBtn.textContent = isAuto ? "Automatico (da livello)" : "Torna ad automatico (da livello)";
   resetBtn.onclick = ()=>{ state[stateKey]=null; renderExControls(); generate(); };
   wrap.appendChild(resetBtn);
   return wrap;
@@ -107,6 +124,13 @@ const EX_CONTROLS = {
       render();
     };
     wrap.appendChild(btn);
+    // Numerosità manuale: righe e colonne della griglia (di solito decise dal livello). Più celle = cerchi più piccoli sulla slide.
+    wrap.appendChild(numerosityControl("Numero di righe", "griglieRowsOverride", 3, 10, gridRowsForLevel(state.level)));
+    wrap.appendChild(numerosityControl("Numero di colonne", "griglieColsOverride", 4, 14, gridColsForLevel(state.level)));
+    const gridNote = document.createElement("div");
+    gridNote.className = "level-note";
+    gridNote.textContent = "Il numero di consegne da contare resta tra 4 e 14: con più celle aumentano gli elementi «di disturbo», non i numeri da contare.";
+    wrap.appendChild(gridNote);
     return wrap;
   },
   classificazioni: ()=>{
@@ -115,7 +139,8 @@ const EX_CONTROLS = {
     note.className = "level-note";
     note.textContent = "Dati tre termini, nominare la categoria. Livelli 1-8: scelta fra 4 opzioni; poi risposta libera. Banca di categorie in validazione (voci «proposta»): le risposte accettate compaiono con «Mostra risposta».";
     wrap.appendChild(note);
-    wrap.appendChild(numerosityControl("Numero di quesiti per sessione", "classificazioniItemsOverride", 4, 16, 8));
+    wrap.appendChild(numerosityControl("Numero di quesiti per sessione", "classificazioniItemsOverride", 4, 40, 8));
+    wrap.appendChild(bankNote("Ai livelli bassi la banca ha meno di 40 quesiti: se ne chiedi più di quelli disponibili ne escono meno, mai ripetuti."));
     return wrap;
   },
   intrusoconc: ()=>{
@@ -124,7 +149,8 @@ const EX_CONTROLS = {
     note.className = "level-note";
     note.textContent = "Quattro parole: tre della stessa categoria, una no. Fino al livello 8 l'intruso viene da un campo molto lontano; dal 9 sempre più spesso dallo stesso campo (più difficile). Banca di categorie in validazione.";
     wrap.appendChild(note);
-    wrap.appendChild(numerosityControl("Numero di quesiti per sessione", "intrusoconcItemsOverride", 4, 16, 8));
+    wrap.appendChild(numerosityControl("Numero di quesiti per sessione", "intrusoconcItemsOverride", 4, 40, 8));
+    wrap.appendChild(bankNote("Ai livelli bassi la banca ha meno di 40 quesiti: se ne chiedi più di quelli disponibili ne escono meno, mai ripetuti."));
     return wrap;
   },
   analogie: ()=>{
@@ -133,7 +159,8 @@ const EX_CONTROLS = {
     note.className = "level-note";
     note.textContent = "A : B = C : ?  Fino al livello 12 la risposta si sceglie fra 4 opzioni; dal 17 anche quesiti invertiti (A : B = ? : D). Banca di coppie in validazione (voci «proposta»).";
     wrap.appendChild(note);
-    wrap.appendChild(numerosityControl("Numero di quesiti per sessione", "analogieItemsOverride", 4, 16, 8));
+    wrap.appendChild(numerosityControl("Numero di quesiti per sessione", "analogieItemsOverride", 4, 40, 8));
+    wrap.appendChild(bankNote("Ai livelli bassi la banca ha meno di 40 quesiti: se ne chiedi più di quelli disponibili ne escono meno, mai ripetuti."));
     return wrap;
   },
   serie: ()=>{
@@ -155,13 +182,47 @@ const EX_CONTROLS = {
     nextNote.className = "level-note";
     nextNote.textContent = "Controlla solo il pannello a schermo qui in sidebar (utile mentre generi il materiale). Nel file PowerPoint esportato, regola in vigore e regola successiva vanno sempre entrambe nelle note del relatore — mai come testo sulla slide, quindi mai visibili al paziente durante la proiezione o la stampa normale.";
     wrap.appendChild(nextNote);
-    wrap.appendChild(numerosityControl("Numero di stimoli nella serie", "serieItemsOverride", 20, 300, 154));
+    wrap.appendChild(numerosityControl("Numero di stimoli nella serie", "serieItemsOverride", 20, 600, 154));
+
+    // Presentazione automatica (solo nel file PowerPoint esportato): ogni stimolo scorre da solo a intervalli regolari.
+    const autoRow = document.createElement("label");
+    autoRow.style.cssText = "display:flex; align-items:center; gap:8px; margin-top:14px; font-weight:600;";
+    const autoCheck = document.createElement("input");
+    autoCheck.type = "checkbox";
+    autoCheck.checked = state.serieAutoPlay;
+    autoRow.appendChild(autoCheck);
+    autoRow.appendChild(document.createTextNode("Presentazione automatica nel PowerPoint"));
+    wrap.appendChild(autoRow);
+    const secRow = document.createElement("div");
+    secRow.className = "level-row";
+    secRow.style.marginTop = "8px";
+    secRow.style.display = state.serieAutoPlay ? "flex" : "none";
+    const secLabel = document.createElement("span");
+    secLabel.className = "level-note";
+    secLabel.style.margin = "0";
+    secLabel.textContent = "Secondi per stimolo";
+    const secInput = document.createElement("input");
+    secInput.type = "number"; secInput.min = "0.5"; secInput.max = "30"; secInput.step = "0.5";
+    secInput.className = "level-badge level-number";
+    secInput.setAttribute("aria-label", "Secondi per stimolo");
+    secInput.value = String(state.serieAutoSeconds);
+    secInput.addEventListener("change", e=>{
+      const v = Math.max(0.5, Math.min(30, Number(e.target.value) || 2));
+      state.serieAutoSeconds = v; secInput.value = String(v);
+    });
+    secRow.appendChild(secLabel); secRow.appendChild(secInput);
+    wrap.appendChild(secRow);
+    autoCheck.addEventListener("change", e=>{ state.serieAutoPlay = e.target.checked; secRow.style.display = e.target.checked ? "flex" : "none"; });
+    const autoNote = document.createElement("div");
+    autoNote.className = "level-note";
+    autoNote.textContent = "Vale solo per il file PowerPoint (non per l'anteprima a schermo). Dalla prima slide si avvia con un clic; poi gli stimoli scorrono da soli all'intervallo scelto. Un tocco sullo schermo ferma lo stimolo (compare «in pausa»), un altro tocco riprende dallo stimolo successivo. Il file prodotto ha il doppio delle slide: le copie «in pausa» stanno in fondo.";
+    wrap.appendChild(autoNote);
     return wrap;
   },
   intruso: ()=>{
     const wrap = document.createElement("div");
     wrap.appendChild(materialSelector("intruso"));
-    wrap.appendChild(numerosityControl("Numero di schermate per sessione", "intrusoScreensOverride", 4, 16, 9));
+    wrap.appendChild(numerosityControl("Numero di schermate per sessione", "intrusoScreensOverride", 4, 40, 9));
     return wrap;
   },
   inversione: ()=>{
@@ -180,7 +241,7 @@ const EX_CONTROLS = {
     howNote.style.marginTop = "8px";
     howNote.textContent = "Con \"Mostra risposta / regola\" attivo, sotto ogni stimolo compaiono TUTTE le trasformazioni valide per quel tipo di blocco insieme, non una sola da scegliere — puoi usarle liberamente durante la seduta.";
     wrap.appendChild(howNote);
-    wrap.appendChild(numerosityControl("Numero di stimoli per blocco", "inversioneItemsOverride", 2, 10, defaultItemsPerInversione(state.level)));
+    wrap.appendChild(numerosityControl("Numero di stimoli per blocco", "inversioneItemsOverride", 2, 20, defaultItemsPerInversione(state.level)));
 
     const alnumRow = document.createElement("label");
     alnumRow.style.cssText = "display:flex; align-items:center; gap:8px; margin-top:14px; font-weight:600;";
@@ -203,12 +264,12 @@ const EX_CONTROLS = {
     p.className = "level-note";
     p.textContent = "Compito: dividere le 6 immagini in due gruppi da 3, in base a un criterio comune (142 criteri reali, verificati da Rodrigo). Ogni volta che generi materiale, l'app pesca un criterio a caso tra quelli disponibili per il livello e sceglie 3+3 oggetti da pool più ampi dei 3 mostrati negli originali — così la combinazione non è mai identica anche restando sullo stesso livello. Le immagini sono pittogrammi OpenMoji (disegni, non foto); circa 4 termini su 10 non hanno un'icona affidabile in libreria — in quel caso il riquadro mostra il nome dell'oggetto invece del disegno, non è un errore.";
     wrap.appendChild(p);
-    wrap.appendChild(numerosityControl("Numero di prove per sessione", "categorizzazioneTrialsOverride", 4, 16, 9));
+    wrap.appendChild(numerosityControl("Numero di prove per sessione", "categorizzazioneTrialsOverride", 4, 40, 9));
     return wrap;
   },
   accesso: ()=>{
     const wrap = document.createElement("div");
-    wrap.appendChild(numerosityControl("Numero di parole per sessione", "accessoWordsOverride", 1, 10, 1));
+    wrap.appendChild(numerosityControl("Numero di parole per sessione", "accessoWordsOverride", 1, 30, 1));
     return wrap;
   },
   fascicolo: ()=>{
