@@ -7,6 +7,7 @@
   var isNode = (typeof module!=="undefined" && module.exports);
   var BANK = isNode ? require("../../data/classificazioni.js") : root.CLASSIFICAZIONI;
   var DOM  = isNode ? require("../../data/intruso-concettuale.js") : root.INTRUSO_DOMINI;
+  var ATTR = isNode ? require("../../data/intruso-attributi.js") : root.INTRUSO_ATTRIBUTI;
 
   // ---- costanti di taratura (esposte) ----
   var INTRUSO_CONC_MAX_LEVEL = 32;
@@ -17,15 +18,34 @@
   function maxTier(level){ return 1 + Math.floor((level-1)*5/32); }
   function minTier(level){ return Math.max(1, maxTier(level)-1); }
   function atypMax(level){ return 0.5 + 0.5*tNorm(level); }
-  // quota di intrusi dello stesso dominio: 0 fino al livello 8, poi cresce linearmente fino a 0.9 al 32
-  function sameDomainProb(level){ return level<SAME_DOMAIN_FROM ? 0 : 0.9*(level-SAME_DOMAIN_FROM+1)/(INTRUSO_CONC_MAX_LEVEL-SAME_DOMAIN_FROM+1); }
+  // quota di intrusi dello stesso dominio: 0 fino al livello 8, poi cresce fino a 0.9 al livello 17
+  function sameDomainProb(level){ return level<SAME_DOMAIN_FROM ? 0 : Math.min(0.9, 0.9*(level-SAME_DOMAIN_FROM+1)/9); }
   function TARGET_D(level){ return 1.2 + tNorm(level)*7.8; }
+
+  // Quota di quesiti «a attributo» (tutte le parole nello stesso campo, l'intruso differisce per una caratteristica):
+  // 30% al livello 1, 90% al 32. Il livello fissa le regole ammesse: tier massimo 1..4, uno in più ogni 7 livelli.
+  function attrProb(level){ return 0.3 + 0.65*tNorm(level); }
+  function attrMaxTier(level){ return Math.min(4, 1 + Math.floor((level-1)/7)); }
 
   function norm(s){ return s.toLowerCase(); }
   function shuffle(arr, rng){ var a=arr.slice(); for(var i=a.length-1;i>0;i--){ var j=Math.floor(rng()*(i+1)); var t=a[i]; a[i]=a[j]; a[j]=t; } return a; }
   function inCat(c,w){ return c.w.some(function(x){return norm(x)===norm(w);}); }
 
+  function attrCandidate(level, rng){
+    var hi=attrMaxTier(level), lo=Math.max(1,hi-1);
+    var pool=ATTR.filter(function(r){ return r.tier>=lo && r.tier<=hi; });
+    var r=pool[Math.floor(rng()*pool.length)];
+    var three=shuffle(r.si,rng).slice(0,3);
+    var odd=r.no[Math.floor(rng()*r.no.length)];
+    var words=shuffle(three.concat([odd]),rng), oddIndex=words.indexOf(odd);
+    return { words:words, oddIndex:oddIndex, category:r.regola, intruderCategory:"non rispetta la regola", tier:r.tier,
+      difficulty:1.2+(r.tier-1)*2.6, attr:true,
+      answer:"L'intruso è «"+odd+"»: le altre tre «"+r.regola+"»",
+      key:"attr:"+r.regola+"|"+odd+"|"+three.slice().sort().join(",") };
+  }
+
   function candidate(level, rng){
+    if(ATTR && rng() < attrProb(level)) return attrCandidate(level, rng);
     var lo=minTier(level), hi=maxTier(level);
     var pool=BANK.filter(function(c){ return c.t>=lo && c.t<=hi && c.w.length>=4; });
     var X=pool[Math.floor(rng()*pool.length)];
@@ -79,7 +99,7 @@
     var count=(typeof state!=="undefined" && state.intrusoconcItemsOverride) || ITEMS_DEFAULT;
     return buildIntrusoConcettuale(level, {used:used, count:count});
   }
-  var api={ buildIntrusoConcettuale:buildIntrusoConcettuale, maxTier:maxTier, INTRUSO_CONC_W:INTRUSO_CONC_W, sameDomainProb:sameDomainProb };
+  var api={ buildIntrusoConcettuale:buildIntrusoConcettuale, attrProb:attrProb, attrMaxTier:attrMaxTier, maxTier:maxTier, INTRUSO_CONC_W:INTRUSO_CONC_W, sameDomainProb:sameDomainProb };
   if(isNode){ module.exports=api; }
   else { root.genIntrusoConcettuale=genIntrusoConcettuale; root.buildIntrusoConcettuale=buildIntrusoConcettuale; }
 })(typeof window!=="undefined"?window:globalThis);
