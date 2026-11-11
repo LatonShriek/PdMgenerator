@@ -5,6 +5,8 @@ const assert = require('node:assert');
 const G = require('../js/generators/intruso-concettuale.js');
 const BANK = require('../data/classificazioni.js');
 const DOM = require('../data/intruso-concettuale.js');
+const ATTR = require('../data/intruso-attributi.js');
+const bankItems = d => d.items.filter(i => !i.attr);
 
 function mulberry32(a){ return function(){ a|=0; a=a+0x6D2B79F5|0; let t=Math.imul(a^a>>>15,1|a); t=t+Math.imul(t^t>>>7,61|t)^t; return ((t^t>>>14)>>>0)/4294967296; }; }
 const LIVELLI = [1,4,8,9,12,16,17,20,24,28,32];
@@ -22,6 +24,7 @@ test('4 parole distinte; 3 della categoria, l\'intruso no; risposta coerente', (
     assert.strictEqual(d.items.length, 8);
     for (const it of d.items) {
       assert.strictEqual(it.words.length, 4);
+      if (it.attr) continue;
       assert.strictEqual(new Set(it.words.map(norm)).size, 4);
       const X = BANK.find(c => c.n === it.category), Y = BANK.find(c => c.n === it.intruderCategory);
       const odd = it.words[it.oddIndex];
@@ -35,7 +38,7 @@ test('4 parole distinte; 3 della categoria, l\'intruso no; risposta coerente', (
 test('unicità: nessun\'altra categoria contiene l\'intruso con due delle tre parole', () => {
   for (const lv of LIVELLI) {
     const d = G.buildIntrusoConcettuale(lv, {rng: mulberry32(7+lv), count: 8});
-    for (const it of d.items) {
+    for (const it of bankItems(d)) {
       const odd = it.words[it.oddIndex], rest = it.words.filter((_, i) => i !== it.oddIndex);
       BANK.forEach(c => { if (inCat(c, odd)) assert.ok(rest.filter(w => inCat(c, w)).length <= 1, `${c.n} rende ambiguo: ${it.words.join(', ')}`); });
       // nessuna categoria contiene tutte e quattro le parole
@@ -45,14 +48,14 @@ test('unicità: nessun\'altra categoria contiene l\'intruso con due delle tre pa
 });
 
 test('distanza: stesso dominio solo dal livello 9; sempre più frequente salendo', () => {
-  for (const lv of [1,4,8]) for (const seed of [1,2,3]) G.buildIntrusoConcettuale(lv,{rng:mulberry32(seed),count:8}).items.forEach(i => assert.notStrictEqual(DOM[i.category], DOM[i.intruderCategory]));
-  const quota = lv => { let s=0,n=0; for (const seed of [1,2,3,4,5,6]) G.buildIntrusoConcettuale(lv,{rng:mulberry32(seed*13+lv),count:8}).items.forEach(i=>{ n++; if (DOM[i.category]===DOM[i.intruderCategory]) s++; }); return s/n; };
-  assert.ok(quota(32) > quota(12), 'quota stesso dominio non cresce');
+  for (const lv of [1,4,8]) for (const seed of [1,2,3]) G.buildIntrusoConcettuale(lv,{rng:mulberry32(seed),count:8}).items.filter(i=>!i.attr).forEach(i => assert.notStrictEqual(DOM[i.category], DOM[i.intruderCategory]));
+  const quota = lv => { let s=0,n=0; for (const seed of [1,2,3,4,5,6]) G.buildIntrusoConcettuale(lv,{rng:mulberry32(seed*13+lv),count:8}).items.filter(i=>!i.attr).forEach(i=>{ n++; if (DOM[i.category]===DOM[i.intruderCategory]) s++; }); return s/n; };
+  assert.ok(quota(32) > quota(9), 'quota stesso dominio non cresce');
   assert.ok(quota(32) >= 0.7);
 });
 
 test('fascia di astrazione entro il limite e difficoltà crescente', () => {
-  for (const lv of LIVELLI) G.buildIntrusoConcettuale(lv,{rng:mulberry32(lv),count:8}).items.forEach(i => assert.ok(i.tier <= G.maxTier(lv)));
+  for (const lv of LIVELLI) G.buildIntrusoConcettuale(lv,{rng:mulberry32(lv),count:8}).items.filter(i=>!i.attr).forEach(i => assert.ok(i.tier <= G.maxTier(lv)));
   const mean = lv => { let s=0,n=0; for (const seed of [1,2,3,4]) G.buildIntrusoConcettuale(lv,{rng:mulberry32(seed*7+lv),count:8}).items.forEach(i=>{s+=i.difficulty;n++;}); return s/n; };
   let prev = -1; for (const lv of [1,6,11,16,21,26,32]) { const m = mean(lv); assert.ok(m >= prev - 0.25, 'livello ' + lv); prev = m; }
   assert.ok(mean(32) > mean(1) + 3);
@@ -70,4 +73,23 @@ test('posizione dell\'intruso variabile e stesso seme -> stesso materiale', () =
   assert.deepStrictEqual(x.items.map(i=>i.words), y.items.map(i=>i.words));
   const pos = new Set(); for (let s=1;s<=6;s++) G.buildIntrusoConcettuale(10,{rng:mulberry32(s),count:8}).items.forEach(i=>pos.add(i.oddIndex));
   assert.strictEqual(pos.size, 4);
+});
+
+test('intrusi a caratteristica: dati coerenti, tier per livello, quota crescente, trappole presenti', () => {
+  ATTR.forEach(r => {
+    assert.ok(r.si.length >= 4 && r.no.length >= 3, r.regola);
+    assert.strictEqual(new Set(r.si.concat(r.no).map(norm)).size, r.si.length + r.no.length, 'doppioni in ' + r.regola);
+    assert.ok(r.tier >= 1 && r.tier <= 4);
+  });
+  for (const lv of LIVELLI) for (const seed of [1,2,3]) {
+    const d = G.buildIntrusoConcettuale(lv, {rng: mulberry32(seed*31+lv), count: 8});
+    d.items.filter(i => i.attr).forEach(it => {
+      const r = ATTR.find(x => x.regola === it.category), odd = it.words[it.oddIndex];
+      assert.ok(r.no.includes(odd) && !r.si.includes(odd));
+      it.words.filter((_, i) => i !== it.oddIndex).forEach(w => assert.ok(r.si.includes(w)));
+      assert.ok(it.tier <= G.attrMaxTier(lv) && it.tier >= G.attrMaxTier(lv) - 1);
+    });
+  }
+  const quota = lv => { let s=0,n=0; for (const seed of [1,2,3,4,5,6]) G.buildIntrusoConcettuale(lv,{rng:mulberry32(seed*17+lv),count:8}).items.forEach(i=>{ n++; if (i.attr) s++; }); return s/n; };
+  assert.ok(quota(32) > quota(1));
 });

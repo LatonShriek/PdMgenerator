@@ -13,6 +13,7 @@ GUIDA_BUONE_PRATICHE.md     guida di buone pratiche per costruire web app (docum
 data/                       dati puri, separati dalla logica
   classificazioni.js          banca categorie per Classificazioni (voci «proposta», da validare)
   intruso-concettuale.js      domini delle categorie (distanza dell'intruso)
+  intruso-attributi.js        regole «per caratteristica» con trappole (Intruso concettuale)
   analogie.js                 banca di coppie per Analogie (voci «proposta», da validare)
   categorizzazione.js         libreria dei criteri di categorizzazione
   fascicolo-parole.js         banca di parole per anagrammi e crucipuzzle del Fascicolo (passo 10)
