@@ -28,7 +28,7 @@ function renderClassificazioni(deck){
       a.className = "answer-inline";
       a.style.cssText = "margin:8px 4px;display:inline-block;";
       const alt = it.accepted.filter(x=>x!==it.category);
-      a.textContent = it.category + (alt.length ? " (anche: " + alt.join(", ") + ")" : "");
+      a.textContent = it.category + (alt.length ? " (anche: " + alt.join(", ") + ")" : "") + (it.trappole && it.trappole.length ? " — trappole, NON accettare: " + it.trappole.slice(0,4).join(", ") : "");
       block.appendChild(a);
     }
     wrap.appendChild(block);

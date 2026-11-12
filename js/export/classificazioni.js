@@ -12,7 +12,7 @@ function exportClassificazioni(deck, level){
       s.addText(it.options.map((o,k)=>`${"ABCD"[k]}) ${o}`).join("      "), {x:0.5,y:5.0,w:12.3,h:1.2,fontSize:30,align:"center",valign:"middle",color:"1E2A26",isTextBox:true});
     }
     const alt = it.accepted.filter(x=>x!==it.category);
-    s.addNotes("Risposta: " + it.category + (alt.length ? " — accettate anche: " + alt.join(", ") : ""));
+    s.addNotes("Risposta: " + it.category + (alt.length ? " — accettate anche: " + alt.join(", ") : "") + (it.trappole && it.trappole.length ? " — trappole, NON accettare: " + it.trappole.slice(0,4).join(", ") : ""));
   });
   return p.writeFile({fileName:exportFileName("classificazioni", level, "pptx")});
 }

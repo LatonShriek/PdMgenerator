@@ -96,6 +96,21 @@
     R("eccesso","Virtù e suo eccesso",5,"portata all'eccesso degenera in",
       "coraggio:temerarietà risparmio:avarizia fiducia:ingenuità sicurezza:arroganza generosità:prodigalità prudenza:diffidenza ambizione:avidità orgoglio:superbia curiosità:morbosità assertività:aggressività")
   ];
+  // Relazioni con trappole esplicite (data/analogie-vicinanza.js): si aggiungono in coda.
+  var VICINANZA = (typeof module !== "undefined" && module.exports) ? require("./analogie-vicinanza.js") : (root.ANALOGIE_VICINANZA || []);
+  // Una coppia già presente in un'altra relazione non si duplica (stesso quesito, due volte): le trappole si
+  // attaccano alla coppia esistente; una relazione che resta con meno di 10 coppie non si aggiunge.
+  function coppiaKey(p){ return p.a.toLowerCase()+">"+p.b.toLowerCase(); }
+  var esistenti={}; ANALOGIE.forEach(function(r){ r.coppie.forEach(function(p){ esistenti[coppiaKey(p)]=p; }); });
+  VICINANZA.forEach(function(r){
+    if(ANALOGIE.some(function(x){return x.id===r.id;})) return;
+    var nuove=[];
+    r.coppie.forEach(function(p){
+      var e=esistenti[coppiaKey(p)];
+      if(e){ if(!(e.d&&e.d.length)) e.d=p.d; } else nuove.push(p);
+    });
+    if(nuove.length>=10){ r.coppie=nuove; ANALOGIE.push(r); nuove.forEach(function(p){ esistenti[coppiaKey(p)]=p; }); }
+  });
   if (typeof module !== "undefined" && module.exports) module.exports = ANALOGIE;
   else root.ANALOGIE = ANALOGIE;
 })(typeof window !== "undefined" ? window : globalThis);

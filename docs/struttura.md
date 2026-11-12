@@ -15,6 +15,8 @@ data/                       dati puri, separati dalla logica
   intruso-concettuale.js      domini delle categorie (distanza dell'intruso)
   intruso-attributi.js        regole «per caratteristica» con trappole (Intruso concettuale)
   analogie.js                 banca di coppie per Analogie (voci «proposta», da validare)
+  classificazioni-vicinanza.js  categorie strette con trappole (aggiunte a Classificazioni)
+  analogie-vicinanza.js       relazioni con risposte-trappola (aggiunte ad Analogie)
   categorizzazione.js         libreria dei criteri di categorizzazione
   categorizzazione-vicinanza.js  criteri a vicinanza semantica con trappole (aggiunti alla libreria)
   fascicolo-parole.js         banca di parole per anagrammi e crucipuzzle del Fascicolo (passo 10)
