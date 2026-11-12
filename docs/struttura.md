@@ -16,6 +16,7 @@ data/                       dati puri, separati dalla logica
   intruso-attributi.js        regole «per caratteristica» con trappole (Intruso concettuale)
   analogie.js                 banca di coppie per Analogie (voci «proposta», da validare)
   categorizzazione.js         libreria dei criteri di categorizzazione
+  categorizzazione-vicinanza.js  criteri a vicinanza semantica con trappole (aggiunti alla libreria)
   fascicolo-parole.js         banca di parole per anagrammi e crucipuzzle del Fascicolo (passo 10)
   accesso-extra.js            parole aggiuntive per Accesso lessicale, 4 fasce (passo 11)
   base.js                     dati di base: alfabeti, parole reali, fasce lessicali, regole delle serie (passo 9)

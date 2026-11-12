@@ -855,73 +855,73 @@
  },
  "categorizzazione|L16|s11": {
   "deck": "asincrono",
-  "stage": "3a6c9c86da34474e",
+  "stage": "2a0a29d7c156d4af",
   "rule": "6a90ca40fca71947",
   "n": 0,
-  "h": 5370
+  "h": 5406
  },
  "categorizzazione|L16|s22": {
   "deck": "asincrono",
-  "stage": "aa44d530c78f0181",
+  "stage": "d5b69e0f2714060c",
   "rule": "6a90ca40fca71947",
   "n": 0,
-  "h": 5363
+  "h": 5426
  },
  "categorizzazione|L20|s11": {
   "deck": "asincrono",
-  "stage": "ddaf3f3ec0299771",
+  "stage": "97fde354463eb88c",
   "rule": "d749e0e61717ebaf",
   "n": 0,
-  "h": 5395
+  "h": 5367
  },
  "categorizzazione|L20|s22": {
   "deck": "asincrono",
-  "stage": "684698629ef1a47b",
+  "stage": "3921ed28718ff059",
   "rule": "d749e0e61717ebaf",
   "n": 0,
-  "h": 5438
+  "h": 5508
  },
  "categorizzazione|L24|s11": {
   "deck": "asincrono",
-  "stage": "341f563f654de6cc",
+  "stage": "0a74605ee77e0714",
   "rule": "218655036dd3959a",
   "n": 0,
-  "h": 5675
+  "h": 5688
  },
  "categorizzazione|L24|s22": {
   "deck": "asincrono",
-  "stage": "261b08ad99136e9a",
+  "stage": "e2ad6333db809525",
   "rule": "218655036dd3959a",
   "n": 0,
-  "h": 5691
+  "h": 5676
  },
  "categorizzazione|L28|s11": {
   "deck": "asincrono",
-  "stage": "72091ce23b15aa39",
+  "stage": "247da1a7bb65509c",
   "rule": "877d7d30c6fa9ebb",
   "n": 0,
-  "h": 5463
+  "h": 5426
  },
  "categorizzazione|L28|s22": {
   "deck": "asincrono",
-  "stage": "528596e40ae69233",
+  "stage": "3588cfad42c30f64",
   "rule": "877d7d30c6fa9ebb",
   "n": 0,
-  "h": 5442
+  "h": 5499
  },
  "categorizzazione|L32|s11": {
   "deck": "asincrono",
-  "stage": "f5b1c906a77acd2b",
+  "stage": "9eba96ad9873d521",
   "rule": "43e3952daea5cd4a",
   "n": 0,
-  "h": 5486
+  "h": 5481
  },
  "categorizzazione|L32|s22": {
   "deck": "asincrono",
-  "stage": "f73f4c2f8b57e911",
+  "stage": "09f0d1e3f0ee2bc8",
   "rule": "43e3952daea5cd4a",
   "n": 0,
-  "h": 5516
+  "h": 5537
  },
  "classificazioni|L1|s11": {
   "deck": "f6cc81c20df7cbb3",
