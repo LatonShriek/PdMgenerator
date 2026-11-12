@@ -83,3 +83,26 @@ test('stesso seme -> stesso materiale', () => {
   const x = G.buildClassificazioni(15,{rng:mulberry32(42),count:8}), y = G.buildClassificazioni(15,{rng:mulberry32(42),count:8});
   assert.deepStrictEqual(x.items.map(i=>i.terms), y.items.map(i=>i.terms));
 });
+
+test('vicinanza e trappole: opzioni vicine ai livelli medi, nessuna trappola accettata come giusta', () => {
+  const DOM = require('../data/intruso-concettuale.js');
+  assert.ok(BANK.filter(c => c.d && c.d.length).length >= 30, 'categorie strette con trappole dichiarate');
+  assert.ok(G.nTrap(1) === 0 && G.nTrap(4) === 1 && G.nTrap(8) === 2, 'quota di opzioni-trappola per livello');
+  assert.ok(G.nSame(1) === 0 && G.nSame(8) === 3, 'quota di opzioni dello stesso dominio');
+  let vicine = 0, tot = 0;
+  for (let seed = 1; seed <= 30; seed++) {
+    const d = G.buildClassificazioni(8, {rng: mulberry32(seed), count: 8});
+    d.items.forEach(it => {
+      it.trappole.forEach(t => assert.ok(!it.accepted.map(norm).includes(norm(t)), `la trappola «${t}» è anche accettata`));
+      it.options.forEach(o => { if (o !== it.category) { tot++; if (DOM[o] && DOM[o] === DOM[it.category]) vicine++; } });
+      assert.strictEqual(new Set(it.options).size, 4, 'opzioni duplicate');
+    });
+  }
+  assert.ok(vicine / tot > 0.5, 'al livello 8 più della metà delle opzioni sbagliate è dello stesso dominio (oggi ' + Math.round(100 * vicine / tot) + '%)');
+});
+
+test('le categorie strette: nessun termine del loro elenco appartiene a due categorie con lo stesso nome', () => {
+  const V = require('../data/classificazioni-vicinanza.js');
+  assert.ok(V.length >= 30);
+  V.forEach(c => { assert.ok(BANK.some(x => x.n === c.n), c.n + ' non è nella banca'); assert.ok(c.d.length >= 2, c.n + ': servono almeno 2 trappole'); });
+});

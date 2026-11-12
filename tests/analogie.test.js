@@ -79,3 +79,21 @@ test('stesso seme -> stesso materiale', () => {
   const x = G.buildAnalogie(15,{rng:mulberry32(42),count:8}), y = G.buildAnalogie(15,{rng:mulberry32(42),count:8});
   assert.deepStrictEqual(x.items.map(i=>i.prompt), y.items.map(i=>i.prompt));
 });
+
+test('trappole: opzioni plausibili ma mai accettate, nessuna fino al livello 2, più dal 9', () => {
+  const G2 = require('../js/generators/analogie.js');
+  assert.ok(G2.nTrap(2) === 0 && G2.nTrap(5) === 1 && G2.nTrap(9) === 2);
+  const conD = BANK.reduce((n, r) => n + r.coppie.filter(p => p.d && p.d.length).length, 0);
+  assert.ok(conD >= 50, 'coppie con trappole dichiarate (oggi ' + conD + ')');
+  let conTrappola = 0, tot = 0;
+  for (let seed = 1; seed <= 20; seed++) {
+    const d = G2.buildAnalogie(9, {rng: (function(a){ return function(){ a|=0; a=a+0x6D2B79F5|0; let t=Math.imul(a^a>>>15,1|a); t=t+Math.imul(t^t>>>7,61|t)^t; return ((t^t>>>14)>>>0)/4294967296; }; })(seed), count: 8});
+    d.items.forEach(it => {
+      tot++;
+      it.trappole.forEach(w => assert.ok(!it.accepted.map(norm).includes(norm(w)), `la trappola «${w}» è accettata`));
+      if (it.options.some(o => it.trappole.includes(o))) conTrappola++;
+      assert.strictEqual(new Set(it.options.map(norm)).size, 4);
+    });
+  }
+  assert.ok(conTrappola / tot > 0.7, 'quasi tutti i quesiti del livello 9 hanno almeno una trappola fra le opzioni (oggi ' + Math.round(100 * conTrappola / tot) + '%)');
+});

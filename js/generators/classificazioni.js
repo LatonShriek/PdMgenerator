@@ -4,6 +4,7 @@
 // Doppio uso: script classico nel browser (funzione globale genClassificazioni) e modulo in Node (test).
 (function(root){
   var BANK = (typeof module!=="undefined" && module.exports) ? require("../../data/classificazioni.js") : root.CLASSIFICAZIONI;
+  var DOM = (typeof module!=="undefined" && module.exports) ? require("../../data/intruso-concettuale.js") : (root.INTRUSO_DOMINI||{});
 
   // ---- costanti di taratura (esposte) ----
   var CLASSIFICAZIONI_MAX_LEVEL = 32;
@@ -18,6 +19,10 @@
   function atypMax(level){ return 0.5 + 0.5*tNorm(level); }
   function CLASSIFICAZIONI_TARGET_D(level){ return 1.4 + tNorm(level)*7.4; }
 
+  // quante opzioni-trappola (categorie vicine che non reggono) nelle risposte a scelta: nessuna ai livelli 1-2, poi 1, poi 2
+  function nTrap(level){ return level<=2 ? 0 : level<=5 ? 1 : 2; }
+  // quante delle 3 opzioni sbagliate vengono dallo STESSO campo della risposta (stesso dominio): 0 ai livelli 1-2, poi 1, 2, 3
+  function nSame(level){ return level<=2 ? 0 : level<=4 ? 1 : level<=6 ? 2 : 3; }
   function norm(s){ return s.toLowerCase(); }
   function shuffle(arr, rng){ var a=arr.slice(); for(var i=a.length-1;i>0;i--){ var j=Math.floor(rng()*(i+1)); var t=a[i]; a[i]=a[j]; a[j]=t; } return a; }
   function containing(terms){ return BANK.filter(function(c){ var w=c.w.map(norm); return terms.every(function(t){ return w.indexOf(norm(t))>=0; }); }); }
@@ -37,9 +42,27 @@
     containing(terms).forEach(function(c){ [c.n].concat(c.s).forEach(function(a){ if(acc.indexOf(a)<0) acc.push(a); }); });
     var item={ category:cat.n, tier:cat.t, terms:terms, accepted:acc, maxTermIndex:maxTermIndex, difficulty:D,
       key:"cat:"+cat.n, setKey:"set:"+cat.n+":"+terms.map(norm).sort().join(",") };
+    // TRAPPOLE: categorie vicine e plausibili che però non reggono per tutti e tre i termini —
+    // quelle dichiarate sulla categoria (d) e quelle della banca che contengono 1-2 dei tre termini.
+    var accSet=new Set(acc.map(norm));
+    var trap=[]; (cat.d||[]).forEach(function(n){ if(!accSet.has(norm(n)) && trap.indexOf(n)<0) trap.push(n); });
+    BANK.forEach(function(c){
+      if(c.n===cat.n || accSet.has(norm(c.n))) return;
+      var w=c.w.map(norm), hit=terms.filter(function(t){return w.indexOf(norm(t))>=0;}).length;
+      if(hit>=1 && hit<3 && trap.indexOf(c.n)<0) trap.push(c.n);
+    });
+    item.trappole=trap;
     if(level<=MC_MAX_LEVEL){
-      var others=BANK.filter(function(c){ return c.n!==cat.n && acc.indexOf(c.n)<0 && c.s.every(function(s){return acc.indexOf(s)<0;}) && Math.abs(c.t-cat.t)<=1; });
-      item.options=shuffle([cat.n].concat(shuffle(others,rng).slice(0,3).map(function(c){return c.n;})),rng);
+      var others=BANK.filter(function(c){ return c.n!==cat.n && acc.indexOf(c.n)<0 && c.s.every(function(s){return acc.indexOf(s)<0;}) && trap.indexOf(c.n)<0 && Math.abs(c.t-cat.t)<=1; });
+      var nT=Math.min(trap.length, nTrap(level));
+      var near=shuffle(trap,rng).slice(0,nT).filter(function(n){return n!==cat.n;});
+      // poi categorie dello stesso dominio (campo vicino), infine categorie qualunque
+      var dom=DOM[cat.n];
+      var sameDom=others.filter(function(c){ return dom && DOM[c.n]===dom; }), farDom=others.filter(function(c){ return !(dom && DOM[c.n]===dom); });
+      var picked=near.slice();
+      shuffle(sameDom,rng).slice(0,Math.max(0,Math.min(nSame(level), 3-picked.length))).forEach(function(c){ picked.push(c.n); });
+      shuffle(farDom.concat(sameDom),rng).forEach(function(c){ if(picked.length<3 && picked.indexOf(c.n)<0) picked.push(c.n); });
+      item.options=shuffle([cat.n].concat(picked.slice(0,3)),rng);
     }
     return item;
   }
@@ -78,7 +101,7 @@
     return buildClassificazioni(level, {used:used, count:count});
   }
 
-  var api={ buildClassificazioni:buildClassificazioni, maxTier:maxTier, CLASSIFICAZIONI_TARGET_D:CLASSIFICAZIONI_TARGET_D, CLASSIFICAZIONI_W:CLASSIFICAZIONI_W };
+  var api={ buildClassificazioni:buildClassificazioni, maxTier:maxTier, nTrap:nTrap, nSame:nSame, CLASSIFICAZIONI_TARGET_D:CLASSIFICAZIONI_TARGET_D, CLASSIFICAZIONI_W:CLASSIFICAZIONI_W };
   if(typeof module!=="undefined" && module.exports){ module.exports=api; }
   else { root.genClassificazioni=genClassificazioni; root.buildClassificazioni=buildClassificazioni; }
 })(typeof window!=="undefined"?window:globalThis);

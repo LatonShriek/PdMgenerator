@@ -17,6 +17,8 @@
   function minTier(level){ return Math.max(1, maxTier(level)-1); }
   function atypMax(level){ return 0.6 + 0.4*tNorm(level); }
   function nHard(level){ return level<=4 ? 0 : level<=8 ? 1 : 2; }   // distrattori «plausibili» (stessa relazione, altra coppia)
+  // opzioni-trappola nelle risposte a scelta: nessuna ai livelli 1-2, una fino all'8, due dal 9
+  function nTrap(level){ return level<=2 ? 0 : level<=8 ? 1 : 2; }
   function TARGET_D(level){ return 1.2 + tNorm(level)*7.8; }
 
   function norm(s){ return s.toLowerCase(); }
@@ -26,7 +28,9 @@
   function candidate(level, rng, sessionPairs){
     var lo=minTier(level), hi=maxTier(level);
     var rels=BANK.filter(function(r){ return r.t>=lo && r.t<=hi; });
-    var rel=rels[Math.floor(rng()*rels.length)];
+    // relazione pesata sul numero di coppie: le relazioni piccole non si ripetono più delle grandi (garanzia dei 4 cicli)
+    var tot=rels.reduce(function(s,r){return s+r.coppie.length;},0), x=rng()*tot, rel=rels[rels.length-1];
+    for(var ri=0;ri<rels.length;ri++){ x-=rels[ri].coppie.length; if(x<0){ rel=rels[ri]; break; } }
     var window=Math.min(rel.coppie.length, Math.max(4, Math.ceil(atypMax(level)*rel.coppie.length)));
     var idx=shuffle(Array.from({length:window},function(_,i){return i;}),rng).slice(0,2);
     var p1=rel.coppie[idx[0]], p2=rel.coppie[idx[1]];
@@ -44,12 +48,24 @@
       reversed:reversed, prompt:prompt, answerWord:answer, accepted:accepted, difficulty:D,
       answer:(reversed?p2.a:p2.b)+" ("+p1.a+" "+rel.testo+" "+p1.b+(reversed?"":"")+")",
       key:"rel:"+rel.id, pairKeys:[pk(rel,p1),pk(rel,p2)], itemKey:"q:"+rel.id+":"+p1.a+">"+p1.b+"|"+p2.a+">"+p2.b+(reversed?":r":"") };
+    // TRAPPOLE: risposte vicine e plausibili ma sbagliate. In ordine di priorità: quelle dichiarate sulla coppia
+    // (d); la risposta giusta per un'ALTRA relazione con lo stesso termine (stessa parola, relazione diversa);
+    // una parola del ruolo sbagliato nella stessa relazione; la risposta già data nella prima coppia (copiatura).
+    var pickSide=reversed?"a":"b", stemSide=reversed?"b":"a", wrongRole=reversed?"b":"a";
+    var bannedT=new Set(accepted.concat([answer]).map(norm)); bannedT.add(norm(reversed?p2.b:p2.a));
+    var traps=[]; function addTrap(w){ if(w && !bannedT.has(norm(w)) && traps.map(norm).indexOf(norm(w))<0) traps.push(w); }
+    if(!reversed) (p2.d||[]).forEach(addTrap);
+    BANK.forEach(function(r){ if(r!==rel) r.coppie.forEach(function(p){ if(norm(p[stemSide])===norm(reversed?p2.b:p2.a)) addTrap(p[pickSide]); }); });
+    shuffle(rel.coppie.filter(function(p){return p!==p1&&p!==p2;}),rng).slice(0,2).forEach(function(p){ addTrap(p[wrongRole]); });
+    addTrap(reversed?p1.a:p1.b);
+    item.trappole=traps.slice(0,4);
     if(mc){
-      var banned=new Set([p1.a,p1.b,p2.a,p2.b].concat(accepted).map(norm)); var pick=reversed?"a":"b";
-      var same=rel.coppie.filter(function(p){return p!==p1&&p!==p2;}).map(function(p){return p[pick];}).filter(function(w){return !banned.has(norm(w));});
-      var other=[]; BANK.forEach(function(r){ if(r!==rel) r.coppie.forEach(function(p){ if(!banned.has(norm(p[pick]))) other.push(p[pick]); }); });
+      var banned=new Set([p1.a,p1.b,p2.a,p2.b].concat(accepted).map(norm));
+      var same=rel.coppie.filter(function(p){return p!==p1&&p!==p2;}).map(function(p){return p[pickSide];}).filter(function(w){return !banned.has(norm(w));});
+      var other=[]; BANK.forEach(function(r){ if(r!==rel) r.coppie.forEach(function(p){ if(!banned.has(norm(p[pickSide]))) other.push(p[pickSide]); }); });
       var opts=[], seen=new Set();
-      function add(w){ if(!seen.has(norm(w)) && !banned.has(norm(w))){ seen.add(norm(w)); opts.push(w); } }
+      function add(w){ if(!seen.has(norm(w)) && !bannedT.has(norm(w))){ seen.add(norm(w)); opts.push(w); } }
+      traps.slice(0, nTrap(level)).forEach(add);
       shuffle(same,rng).slice(0,hard).forEach(add);
       shuffle(other,rng).forEach(function(w){ if(opts.length<3) add(w); });
       if(opts.length<3) return null;
@@ -65,7 +81,7 @@
     var target=TARGET_D(level), chosen=[], sessionPairs=new Set(), keys=[];
     for(var n=0;n<count;n++){
       var cands=[];
-      for(var t=0;t<900 && cands.length<40;t++){ var c=candidate(level,rng,sessionPairs); if(c) cands.push(c); }
+      for(var t=0;t<1800 && cands.length<80;t++){ var c=candidate(level,rng,sessionPairs); if(c) cands.push(c); }
       if(!cands.length) break;
       // coppie mai proposte prima; poi la meno recente; poi vicinanza al punteggio-obiettivo
       function stale(c){ return Math.max.apply(null, c.pairKeys.map(function(k){ return lastIdx.has(k)?lastIdx.get(k):-1; })); }
@@ -82,7 +98,7 @@
     var count=(typeof state!=="undefined" && state.analogieItemsOverride) || ITEMS_DEFAULT;
     return buildAnalogie(level, {used:used, count:count});
   }
-  var api={ buildAnalogie:buildAnalogie, maxTier:maxTier, ANALOGIE_W:ANALOGIE_W };
+  var api={ buildAnalogie:buildAnalogie, maxTier:maxTier, nTrap:nTrap, ANALOGIE_W:ANALOGIE_W };
   if(isNode){ module.exports=api; }
   else { root.genAnalogie=genAnalogie; root.buildAnalogie=buildAnalogie; }
 })(typeof window!=="undefined"?window:globalThis);

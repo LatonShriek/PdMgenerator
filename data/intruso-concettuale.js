@@ -31,6 +31,15 @@
     D("luoghi","Negozi"),
     D("cibo","Prodotti da forno|Condimenti|Carni e salumi|Frutta secca|Legumi"),
     D("trasporti","Parti dell'auto"),
+    // categorie strette a vicinanza semantica (data/classificazioni-vicinanza.js)
+    D("animali","Animali selvatici|Rettili|Rapaci|Mammiferi acquatici|Anfibi|Animali che vanno in letargo|Animali notturni|Roditori|Marsupiali"),
+    D("cibo","Agrumi|Frutti di bosco|Pasta lunga|Pasta corta|Formaggi freschi|Formaggi stagionati"),
+    D("natura","Alberi da frutto|Conifere|Cose che galleggiano|Pietre preziose|Metalli preziosi"),
+    D("cultura","Strumenti a corda|Strumenti ad arco|Strumenti a percussione|Sport di squadra|Sport individuali|Sport con la racchetta"),
+    D("casa","Funzionano a elettricità|Cose di vetro|Cose appuntite"),
+    D("trasporti","Mezzi senza motore"),
+    D("scienza","Numeri pari|Numeri primi|Mesi di trentuno giorni"),
+    D("corpo","Ossa"),
     D("mente","Tipi di ragionamento|Concetti logici|Bisogni umani|Concetti di probabilità|Strategie di memoria|Qualità del pensiero")
   );
   if (typeof module !== "undefined" && module.exports) module.exports = DOMINI;

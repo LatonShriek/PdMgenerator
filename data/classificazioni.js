@@ -206,6 +206,9 @@
   };
   CLASSIFICAZIONI.forEach(function(c){ (EXTRA[c.n]||"").split(" ").forEach(function(x){ if(x && c.w.indexOf(x.replace(/_/g," "))<0 && c.w.indexOf(x)<0) c.w.push(x); }); });
   CLASSIFICAZIONI.forEach(function(c){ c.w = c.w.map(function(x){ return x.replace(/_/g," "); }); });
+  // Categorie strette a vicinanza semantica con trappole (data/classificazioni-vicinanza.js): si aggiungono in coda.
+  var VICINANZA = (typeof module !== "undefined" && module.exports) ? require("./classificazioni-vicinanza.js") : (root.CLASSIFICAZIONI_VICINANZA || []);
+  VICINANZA.forEach(function(c){ if(!CLASSIFICAZIONI.some(function(x){return x.n===c.n;})) CLASSIFICAZIONI.push(c); });
   if (typeof module !== "undefined" && module.exports) module.exports = CLASSIFICAZIONI;
   else root.CLASSIFICAZIONI = CLASSIFICAZIONI;
 })(typeof window !== "undefined" ? window : globalThis);
