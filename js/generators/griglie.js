@@ -94,13 +94,12 @@ function familyForLevel(level, ctx){
 
 // Tre assi di colore indipendenti — sfondo, bordo, e colore del simbolo stesso.
 // REGOLA: in una stessa griglia non compaiono mai lo stesso colore in versione chiara e scura
-// (azzurro+blu, verde chiaro+verde, rosa+rosso, arancio chiaro+arancione): troppo facili da
+// (azzurro+blu, verde chiaro+verde, rosa+rosso, arancio chiaro+rosso): troppo facili da
 // confondere. Ogni colore ha una famiglia di tinta (`hue`) e una griglia usa famiglie di tinta
 // DIVERSE per gli sfondi e per gli inchiostri (bordo e simbolo).
 // SFONDI: cinque tinte chiare, distanza cromatica minima ΔE≈41 (CIELAB) tra loro; l'inchiostro
 // scuro resta leggibile su tutti.
-// INCHIOSTRI (bordo e colore del simbolo): sei tinte scure. Coppie troppo vicine (rosso/arancione
-// ΔE≈36, blu/viola ΔE≈40) non compaiono mai insieme nella stessa griglia.
+// INCHIOSTRI (bordo e colore del simbolo): sei tinte scure. Coppie troppo vicine (blu/viola ΔE≈40) non compaiono mai insieme nella stessa griglia.
 const FILL_POOL = [
   { name:"giallo", css:"#FFE45C", hue:"giallo" },
   { name:"azzurro", css:"#8FD3FF", hue:"blu" },
@@ -110,16 +109,15 @@ const FILL_POOL = [
 ];
 // Inchiostri più vivaci di prima (richiesta di Rodrigo: il verde scuro si confondeva col nero e i colori dei
 // simboli "vuoti" si vedevano male): ognuno è lontano dal nero (ΔE ≥ 70) e mantiene un contrasto di almeno ~2,7:1
-// sugli sfondi, che per simboli grandi e in grassetto resta ben leggibile. Il marrone è diventato un arancione scuro.
+// sugli sfondi, che per simboli grandi e in grassetto resta ben leggibile.
 const INK_POOL = [
   { name:"rosso", css:"#D8001C", hue:"rosso" },
   { name:"blu", css:"#0A47E8", hue:"blu" },
   { name:"verde", css:"#00823A", hue:"verde" },
   { name:"nero", css:"#000000", hue:"nero" },
-  { name:"arancione", css:"#B84800", hue:"arancio" },
   { name:"viola", css:"#8222C8", hue:"viola" }
 ];
-const INK_CONFLICTS = [["rosso","arancione"], ["blu","viola"]];
+const INK_CONFLICTS = [["blu","viola"]];
 // Sfondi troppo simili tra loro anche se di famiglie di tinta diverse (segnalato da Rodrigo:
 // "giallino" e "arancione chiaro" si confondono) — stessa logica di INK_CONFLICTS, ma per gli sfondi.
 const FILL_CONFLICTS = [["giallo","arancio chiaro"]];
@@ -311,8 +309,6 @@ function buildPosOptions(rows, cols){
     { w:2, text:`nel blocco in basso a destra (righe ${rows-rowSpan+1}–${rows}, colonne ${cols-colSpan+1}–${cols})`, f:c=>c.row>=rows-rowSpan && c.col>=cols-colSpan },
     { w:2, text:`nella prima e nell'ultima riga (righe 1 e ${rows})`, f:c=>c.row===0 || c.row===rows-1 },
     { w:2, text:`nelle colonne 1, ${colMid} e ${cols}`, f:c=>c.col===0 || c.col===colMid-1 || c.col===cols-1 },
-    { w:2, text:"nelle celle a scacchiera dello stesso tipo dell'angolo in alto a sinistra", f:c=>(c.row+c.col)%2===0 },
-    { w:2, text:"nelle celle a scacchiera opposte all'angolo in alto a sinistra", f:c=>(c.row+c.col)%2===1 },
     { w:1, text:"nella metà sinistra della griglia", f:c=>c.col < Math.floor(cols/2) },
     { w:1, text:"nella metà destra della griglia", f:c=>c.col >= Math.ceil(cols/2) },
     { w:1, text:"nella metà superiore della griglia", f:c=>c.row < Math.floor(rows/2) },

@@ -152,21 +152,32 @@ html,body{margin:0;height:100%;background:#fff;overflow:hidden;font-family:sans-
 var SEQ=${data}, MS=${Math.round(seconds*1000)}, i=-1, timer=null, paused=false, started=false;
 var s=document.getElementById("s"), m=document.getElementById("m"), t=document.getElementById("t");
 function show(){ if(i>=SEQ.length){ s.textContent=""; t.textContent="Fine della serie — tocca per ricominciare"; clearTimeout(timer); return; } t.textContent=""; s.textContent=SEQ[i][0]; s.style.color=SEQ[i][1]; }
-function tick(){ i++; show(); if(i<SEQ.length) timer=setTimeout(tick,MS); else timer=null; }
+var GAP=Math.min(250,Math.round(MS*0.25));
+function tick(){ i++; if(i>=SEQ.length){ show(); timer=null; return; }
+  s.textContent=""; timer=setTimeout(function(){ show(); timer=setTimeout(tick,MS-GAP); },GAP); }  // breve schermo vuoto: anche lo stesso stimolo ripetuto si vede cambiare
 function setPause(p){ paused=p; m.textContent=p?"in pausa — tocca per riprendere":""; }
 function toggle(){
   if(!started) return;
   if(i>=SEQ.length){ i=-1; setPause(false); tick(); return; }
   if(!paused){ clearTimeout(timer); timer=null; setPause(true); }
-  else { setPause(false); timer=setTimeout(tick,MS); }   // riprende dallo stimolo successivo
+  else { setPause(false); timer=setTimeout(tick,GAP); }   // riprende dallo stimolo successivo
 }
 function fs(){ var d=document, e=d.documentElement; if(d.fullscreenElement||d.webkitFullscreenElement){ (d.exitFullscreen||d.webkitExitFullscreen).call(d); } else { var r=e.requestFullscreen||e.webkitRequestFullscreen; if(r){ try{ var p=r.call(e); if(p&&p.catch){ p.catch(function(){}); } }catch(x){} } } }
 document.getElementById("bf").addEventListener("click",function(ev){ ev.stopPropagation(); fs(); });
 document.getElementById("bp").addEventListener("click",function(ev){ ev.stopPropagation(); toggle(); });
-document.addEventListener("click",toggle);
+document.addEventListener("click",function(){ if(!wl) keepAwake(); toggle(); });
 document.addEventListener("keydown",function(e){ if(e.key==="f"||e.key==="F"){fs();} else if(e.key===" "||e.key==="Enter"){e.preventDefault();toggle();} });
+
+var wl=null, nv=null;
+function keepAwake(){
+  try{ if(navigator.wakeLock){ navigator.wakeLock.request("screen").then(function(l){ wl=l; l.addEventListener("release",function(){ wl=null; }); }).catch(function(){}); } }catch(x){}
+  if(!nv){ try{ nv=document.createElement("video"); nv.setAttribute("playsinline",""); nv.muted=true; nv.loop=true; nv.style.cssText="position:fixed;width:1px;height:1px;opacity:.01;pointer-events:none";
+    var src=nv.canPlayType("video/webm")?"data:video/webm;base64,GkXfo59ChoEBQveBAULygQRC84EIQoKEd2VibUKHgQJChYECGFOAZwEAAAAAAAHiEU2bdLpNu4tTq4QVSalmU6yBoU27i1OrhBZUrmtTrIHYTbuMU6uEElTDZ1OsggEeTbuMU6uEHFO7a1OsggHM7AEAAAAAAABZAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAVSalmsirXsYMPQkBNgI1MYXZmNjAuMTYuMTAwV0GNTGF2ZjYwLjE2LjEwMESJiECPQAAAAAAAFlSua8GuAQAAAAAAADjXgQFzxYjQAO6RZ/bWmpyBACK1nIN1bmSIgQCGhVZfVlA4g4EBI+ODhDuaygDgibCBELqBEJqBAhJUw2f8c3OgY8CAZ8iaRaOHRU5DT0RFUkSHjUxhdmY2MC4xNi4xMDBzc9ZjwItjxYjQAO6RZ/bWmmfIoUWjh0VOQ09ERVJEh5RMYXZjNjAuMzEuMTAyIGxpYnZweGfIoUWjiERVUkFUSU9ORIeTMDA6MDA6MDEuMDAwMDAwMDAwAB9DtnWo54EAo6OBAACAEAIAnQEqEAAQAABHCIWFiJmEiAICAAwNYAD+/6tQgBxTu2uRu4+zgQC3iveBAfGCAZ/wgQM=":"data:video/mp4;base64,AAAAIGZ0eXBpc29tAAACAGlzb21pc28yYXZjMW1wNDEAAAMTbW9vdgAAAGxtdmhkAAAAAAAAAAAAAAAAAAAD6AAAA+gAAQAAAQAAAAAAAAAAAAAAAAEAAAAAAAAAAAAAAAAAAAABAAAAAAAAAAAAAAAAAABAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAgAAAj10cmFrAAAAXHRraGQAAAADAAAAAAAAAAAAAAABAAAAAAAAA+gAAAAAAAAAAAAAAAAAAAAAAAEAAAAAAAAAAAAAAAAAAAABAAAAAAAAAAAAAAAAAABAAAAAABAAAAAQAAAAAAAkZWR0cwAAABxlbHN0AAAAAAAAAAEAAAPoAAAAAAABAAAAAAG1bWRpYQAAACBtZGhkAAAAAAAAAAAAAAAAAABAAAAAQABVxAAAAAAALWhkbHIAAAAAAAAAAHZpZGUAAAAAAAAAAAAAAABWaWRlb0hhbmRsZXIAAAABYG1pbmYAAAAUdm1oZAAAAAEAAAAAAAAAAAAAACRkaW5mAAAAHGRyZWYAAAAAAAAAAQAAAAx1cmwgAAAAAQAAASBzdGJsAAAAvHN0c2QAAAAAAAAAAQAAAKxhdmMxAAAAAAAAAAEAAAAAAAAAAAAAAAAAAAAAABAAEABIAAAASAAAAAAAAAABFUxhdmM2MC4zMS4xMDIgbGlieDI2NAAAAAAAAAAAAAAAGP//AAAAMmF2Y0MBZAAK/+EAF2dkAAqs2V7ARAAAAwAEAAADAAg8SJZYAQAEaO+Py/34+AAAAAAQcGFzcAAAAAEAAAABAAAAFGJ0cnQAAAAAAAAWIAAAFiAAAAAYc3R0cwAAAAAAAAABAAAAAQAAQAAAAAAcc3RzYwAAAAAAAAABAAAAAQAAAAEAAAABAAAAFHN0c3oAAAAAAAACxAAAAAEAAAAUc3RjbwAAAAAAAAABAAADQwAAAGJ1ZHRhAAAAWm1ldGEAAAAAAAAAIWhkbHIAAAAAAAAAAG1kaXJhcHBsAAAAAAAAAAAAAAAALWlsc3QAAAAlqXRvbwAAAB1kYXRhAAAAAQAAAABMYXZmNjAuMTYuMTAwAAAACGZyZWUAAALMbWRhdAAAAqoGBf//ptxF6b3m2Ui3lizYINkj7u94MjY0IC0gY29yZSAxNjQgcjMxMDggMzFlMTlmOSAtIEguMjY0L01QRUctNCBBVkMgY29kZWMgLSBDb3B5bGVmdCAyMDAzLTIwMjMgLSBodHRwOi8vd3d3LnZpZGVvbGFuLm9yZy94MjY0Lmh0bWwgLSBvcHRpb25zOiBjYWJhYz0xIHJlZj0xIGRlYmxvY2s9MTowOjAgYW5hbHlzZT0weDM6MHgzIG1lPWhleCBzdWJtZT0yIHBzeT0xIHBzeV9yZD0xLjAwOjAuMDAgbWl4ZWRfcmVmPTAgbWVfcmFuZ2U9MTYgY2hyb21hX21lPTEgdHJlbGxpcz0wIDh4OGRjdD0xIGNxbT0wIGRlYWR6b25lPTIxLDExIGZhc3RfcHNraXA9MSBjaHJvbWFfcXBfb2Zmc2V0PTAgdGhyZWFkcz0xIGxvb2thaGVhZF90aHJlYWRzPTEgc2xpY2VkX3RocmVhZHM9MCBucj0wIGRlY2ltYXRlPTEgaW50ZXJsYWNlZD0wIGJsdXJheV9jb21wYXQ9MCBjb25zdHJhaW5lZF9pbnRyYT0wIGJmcmFtZXM9MyBiX3B5cmFtaWQ9MiBiX2FkYXB0PTEgYl9iaWFzPTAgZGlyZWN0PTEgd2VpZ2h0Yj0xIG9wZW5fZ29wPTAgd2VpZ2h0cD0xIGtleWludD0yNTAga2V5aW50X21pbj0xIHNjZW5lY3V0PTQwIGludHJhX3JlZnJlc2g9MCByY19sb29rYWhlYWQ9MTAgcmM9Y3JmIG1idHJlZT0xIGNyZj0yMy4wIHFjb21wPTAuNjAgcXBtaW49MCBxcG1heD02OSBxcHN0ZXA9NCBpcF9yYXRpbz0xLjQwIGFxPTE6MS4wMACAAAAAEmWIhAAV/+r/wlU/vbN0XEX/8Q=="; nv.src=src; document.body.appendChild(nv); }catch(x){} }
+  try{ if(nv){ var p=nv.play(); if(p&&p.catch){ p.catch(function(){}); } } }catch(x){}
+}
+document.addEventListener("visibilitychange",function(){ if(document.visibilityState==="visible"&&started){ keepAwake(); } });
 var n=3; t.textContent="La serie parte tra "+n+"…";
-var c=setInterval(function(){ n--; if(n>0){ t.textContent="La serie parte tra "+n+"…"; } else { clearInterval(c); started=true; tick(); } },1000);
+var c=setInterval(function(){ n--; if(n>0){ t.textContent="La serie parte tra "+n+"…"; } else { clearInterval(c); started=true; keepAwake(); tick(); } },1000);
 </script></body></html>`;
 }
 

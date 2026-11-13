@@ -61,14 +61,14 @@ test('termini più atipici solo ai livelli alti', () => {
   assert.ok(maxIdx(1) <= 0.5 + 1e-9);
 });
 
-test('scelta multipla fino al livello 8: 4 opzioni, una sola giusta', () => {
-  for (const lv of [1,5,8]) G.buildClassificazioni(lv,{rng:mulberry32(lv),count:8}).items.forEach(it => {
+test('risposta aperta di default; con scelta=true 4 opzioni, una sola giusta', () => {
+  for (const lv of [1,5,8,20]) G.buildClassificazioni(lv,{rng:mulberry32(lv),count:8}).items.forEach(it => assert.ok(!it.options));
+  for (const lv of [1,5,8,20]) G.buildClassificazioni(lv,{rng:mulberry32(lv),count:8,scelta:true}).items.forEach(it => {
     assert.strictEqual(it.options.length, 4);
     assert.strictEqual(new Set(it.options).size, 4);
     assert.ok(it.options.includes(it.category));
     it.options.filter(o => o !== it.category).forEach(o => assert.ok(!it.accepted.includes(o), `opzione ${o} sarebbe accettabile`));
   });
-  G.buildClassificazioni(9,{rng:mulberry32(1),count:8}).items.forEach(it => assert.ok(!it.options));
 });
 
 test('anti-ripetizione: categorie già usate non tornano finché ne restano di nuove', () => {
@@ -87,11 +87,11 @@ test('stesso seme -> stesso materiale', () => {
 test('vicinanza e trappole: opzioni vicine ai livelli medi, nessuna trappola accettata come giusta', () => {
   const DOM = require('../data/intruso-concettuale.js');
   assert.ok(BANK.filter(c => c.d && c.d.length).length >= 30, 'categorie strette con trappole dichiarate');
-  assert.ok(G.nTrap(1) === 0 && G.nTrap(4) === 1 && G.nTrap(8) === 2, 'quota di opzioni-trappola per livello');
-  assert.ok(G.nSame(1) === 0 && G.nSame(8) === 3, 'quota di opzioni dello stesso dominio');
+  assert.ok(G.nTrap(1) === 1 && G.nTrap(4) === 1 && G.nTrap(8) === 2, 'quota di opzioni-trappola per livello');
+  assert.ok(G.nSame(1) === 3 && G.nSame(8) === 3, 'quota di opzioni dello stesso dominio');
   let vicine = 0, tot = 0;
   for (let seed = 1; seed <= 30; seed++) {
-    const d = G.buildClassificazioni(8, {rng: mulberry32(seed), count: 8});
+    const d = G.buildClassificazioni(8, {rng: mulberry32(seed), count: 8, scelta: true});
     d.items.forEach(it => {
       it.trappole.forEach(t => assert.ok(!it.accepted.map(norm).includes(norm(t)), `la trappola «${t}» è anche accettata`));
       it.options.forEach(o => { if (o !== it.category) { tot++; if (DOM[o] && DOM[o] === DOM[it.category]) vicine++; } });

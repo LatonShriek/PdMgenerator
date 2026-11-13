@@ -58,15 +58,15 @@ test('quesiti invertiti (?:D) solo dal livello 17', () => {
   assert.ok(any);
 });
 
-test('scelta multipla fino al livello 12: 4 opzioni, una sola accettabile', () => {
-  for (const lv of [1,5,9,12]) G.buildAnalogie(lv,{rng:mulberry32(lv),count:8}).items.forEach(it => {
+test('risposta aperta di default; con scelta=true: 4 opzioni, una sola accettabile', () => {
+  for (const lv of [1,5,9,12]) G.buildAnalogie(lv,{rng:mulberry32(lv),count:8}).items.forEach(it => assert.ok(!it.options));
+  for (const lv of [1,5,9,12]) G.buildAnalogie(lv,{rng:mulberry32(lv),count:8,scelta:true}).items.forEach(it => {
     assert.strictEqual(it.options.length, 4);
     assert.strictEqual(new Set(it.options.map(norm)).size, 4);
     assert.ok(it.options.includes(it.answerWord));
     it.options.filter(o => o !== it.answerWord).forEach(o => assert.ok(!it.accepted.includes(o), 'opzione accettabile: ' + o));
     [it.pair1.a, it.pair1.b].forEach(w => assert.ok(!it.options.includes(w), 'opzione = parola del quesito'));
   });
-  G.buildAnalogie(13,{rng:mulberry32(1),count:8}).items.forEach(it => assert.ok(!it.options));
 });
 
 test('anti-ripetizione: coppie nuove finché ce ne sono (livello 16)', () => {
@@ -80,14 +80,14 @@ test('stesso seme -> stesso materiale', () => {
   assert.deepStrictEqual(x.items.map(i=>i.prompt), y.items.map(i=>i.prompt));
 });
 
-test('trappole: opzioni plausibili ma mai accettate, nessuna fino al livello 2, più dal 9', () => {
+test('trappole: opzioni plausibili ma mai accettate, sempre almeno una, due dal 9', () => {
   const G2 = require('../js/generators/analogie.js');
-  assert.ok(G2.nTrap(2) === 0 && G2.nTrap(5) === 1 && G2.nTrap(9) === 2);
+  assert.ok(G2.nTrap(1) === 1 && G2.nTrap(5) === 1 && G2.nTrap(9) === 2);
   const conD = BANK.reduce((n, r) => n + r.coppie.filter(p => p.d && p.d.length).length, 0);
   assert.ok(conD >= 50, 'coppie con trappole dichiarate (oggi ' + conD + ')');
   let conTrappola = 0, tot = 0;
   for (let seed = 1; seed <= 20; seed++) {
-    const d = G2.buildAnalogie(9, {rng: (function(a){ return function(){ a|=0; a=a+0x6D2B79F5|0; let t=Math.imul(a^a>>>15,1|a); t=t+Math.imul(t^t>>>7,61|t)^t; return ((t^t>>>14)>>>0)/4294967296; }; })(seed), count: 8});
+    const d = G2.buildAnalogie(9, {scelta: true, rng: (function(a){ return function(){ a|=0; a=a+0x6D2B79F5|0; let t=Math.imul(a^a>>>15,1|a); t=t+Math.imul(t^t>>>7,61|t)^t; return ((t^t>>>14)>>>0)/4294967296; }; })(seed), count: 8});
     d.items.forEach(it => {
       tot++;
       it.trappole.forEach(w => assert.ok(!it.accepted.map(norm).includes(norm(w)), `la trappola «${w}» è accettata`));
