@@ -38,4 +38,4 @@ Limiti noti (da dichiarare con onestà):
 - Il crucipuzzle può piazzare meno parole di quelle scelte (piazzamento greedy); il test fissa il comportamento attuale (minimo 8) senza modificarlo.
 
 - `tests/profili-browser.js`: le impostazioni di un gruppo non passano a un altro gruppo (`CHROMIUM_PATH=/usr/bin/google-chrome node tests/profili-browser.js`).
-- `tests/serie-player-browser.js`: il lettore autonomo della Serie parte da solo, si ferma e riprende con un tocco.
+- `tests/serie-player-browser.js`: il lettore autonomo della Serie parte da solo, si ferma e riprende con un tocco, mostra lo schermo vuoto tra due stimoli uguali e include il blocco dello spegnimento schermo.
