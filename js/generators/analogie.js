@@ -9,23 +9,23 @@
   // ---- costanti di taratura (esposte) ----
   var ANALOGIE_MAX_LEVEL = 32;
   var ANALOGIE_W = { fascia:1.0, atipicita:2.0, invertita:1.2, rispostaLibera:1.5, distrattoreDifficile:0.4 };
-  var MC_MAX_LEVEL = 12;       // fino a questo livello la risposta si sceglie fra 4 opzioni
+  // Risposta APERTA di default (uso in presenza). La scelta fra 4 opzioni solo con opts.scelta=true, sempre con distrattori vicini.
   var REVERSED_FROM = 17;      // quesiti «A : B = ? : D» dal livello 17
   var ITEMS_DEFAULT = 8;
   function tNorm(level){ return (level-1)/(ANALOGIE_MAX_LEVEL-1); }
   function maxTier(level){ return 1 + Math.floor((level-1)*5/32); }
   function minTier(level){ return Math.max(1, maxTier(level)-1); }
   function atypMax(level){ return 0.6 + 0.4*tNorm(level); }
-  function nHard(level){ return level<=4 ? 0 : level<=8 ? 1 : 2; }   // distrattori «plausibili» (stessa relazione, altra coppia)
-  // opzioni-trappola nelle risposte a scelta: nessuna ai livelli 1-2, una fino all'8, due dal 9
-  function nTrap(level){ return level<=2 ? 0 : level<=8 ? 1 : 2; }
+  function nHard(level){ return level<=8 ? 1 : 2; }   // distrattori «plausibili» (stessa relazione, altra coppia)
+  // opzioni-trappola nelle risposte a scelta: una fino all'8, due dal 9
+  function nTrap(level){ return level<=8 ? 1 : 2; }
   function TARGET_D(level){ return 1.2 + tNorm(level)*7.8; }
 
   function norm(s){ return s.toLowerCase(); }
   function shuffle(arr, rng){ var a=arr.slice(); for(var i=a.length-1;i>0;i--){ var j=Math.floor(rng()*(i+1)); var t=a[i]; a[i]=a[j]; a[j]=t; } return a; }
   function pk(rel, p){ return "p:"+rel.id+":"+p.a+">"+p.b; }
 
-  function candidate(level, rng, sessionPairs){
+  function candidate(level, rng, sessionPairs, scelta){
     var lo=minTier(level), hi=maxTier(level);
     var rels=BANK.filter(function(r){ return r.t>=lo && r.t<=hi; });
     // relazione pesata sul numero di coppie: le relazioni piccole non si ripetono più delle grandi (garanzia dei 4 cicli)
@@ -41,7 +41,7 @@
     var answer = reversed ? p2.a : p2.b;
     var accepted = reversed ? [p2.a] : [p2.b].concat(p2.ok);
     var prompt = reversed ? (p1.a+" : "+p1.b+" = ? : "+p2.b) : (p1.a+" : "+p1.b+" = "+p2.a+" : ?");
-    var mc = level<=MC_MAX_LEVEL, hard=mc?nHard(level):0;
+    var mc = !!scelta, hard=mc?nHard(level):0;
     var atyp=(idx[0]+idx[1])/2/Math.max(1,rel.coppie.length-1);
     var D=rel.t*ANALOGIE_W.fascia + atyp*ANALOGIE_W.atipicita + (reversed?ANALOGIE_W.invertita:0) + (mc?0:ANALOGIE_W.rispostaLibera) + hard*ANALOGIE_W.distrattoreDifficile;
     var item={ relation:rel.id, relationName:rel.nome, relationText:rel.testo, tier:rel.t, pair1:{a:p1.a,b:p1.b}, pair2:{a:p2.a,b:p2.b},
@@ -81,7 +81,7 @@
     var target=TARGET_D(level), chosen=[], sessionPairs=new Set(), keys=[];
     for(var n=0;n<count;n++){
       var cands=[];
-      for(var t=0;t<1800 && cands.length<80;t++){ var c=candidate(level,rng,sessionPairs); if(c) cands.push(c); }
+      for(var t=0;t<1800 && cands.length<80;t++){ var c=candidate(level,rng,sessionPairs,!!opts.scelta); if(c) cands.push(c); }
       if(!cands.length) break;
       // coppie mai proposte prima; poi la meno recente; poi vicinanza al punteggio-obiettivo
       function stale(c){ return Math.max.apply(null, c.pairKeys.map(function(k){ return lastIdx.has(k)?lastIdx.get(k):-1; })); }
@@ -90,7 +90,7 @@
       best.pairKeys.forEach(function(k){ sessionPairs.add(k); keys.push(k); }); keys.push(best.itemKey);
     }
     return { type:"analogie", level:level, items:chosen, historyKeys:keys,
-      rule:"Completare l'analogia: la seconda coppia ha la stessa relazione della prima." + (level<=MC_MAX_LEVEL?" Fino al livello "+MC_MAX_LEVEL+" la risposta si sceglie fra 4 opzioni.":""),
+      rule:"Completare l'analogia: la seconda coppia ha la stessa relazione della prima." + (opts.scelta?" La risposta si sceglie fra 4 opzioni.":""),
       slides:chosen.map(function(it){return {item:it};}) };
   }
 

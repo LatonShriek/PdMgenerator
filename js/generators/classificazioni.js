@@ -9,7 +9,7 @@
   // ---- costanti di taratura (esposte) ----
   var CLASSIFICAZIONI_MAX_LEVEL = 32;
   var CLASSIFICAZIONI_W = { fascia:1.0, atipicita:3.0, rispostaLibera:1.0 };
-  var MC_MAX_LEVEL = 8;       // fino a questo livello la risposta si sceglie fra 4 opzioni
+  // Risposta APERTA di default (uso in presenza). La scelta fra 4 opzioni si ottiene solo con opts.scelta=true e ha SEMPRE distrattori vicini.
   var ITEMS_DEFAULT = 8;
   function tNorm(level){ return (level-1)/(CLASSIFICAZIONI_MAX_LEVEL-1); }
   // fasce 1-5 sbloccate: fascia 2 dal livello 8, 3 dal 14, 4 dal 20, 5 dal 27
@@ -19,15 +19,15 @@
   function atypMax(level){ return 0.5 + 0.5*tNorm(level); }
   function CLASSIFICAZIONI_TARGET_D(level){ return 1.4 + tNorm(level)*7.4; }
 
-  // quante opzioni-trappola (categorie vicine che non reggono) nelle risposte a scelta: nessuna ai livelli 1-2, poi 1, poi 2
-  function nTrap(level){ return level<=2 ? 0 : level<=5 ? 1 : 2; }
-  // quante delle 3 opzioni sbagliate vengono dallo STESSO campo della risposta (stesso dominio): 0 ai livelli 1-2, poi 1, 2, 3
-  function nSame(level){ return level<=2 ? 0 : level<=4 ? 1 : level<=6 ? 2 : 3; }
+  // quante opzioni-trappola (categorie vicine che non reggono) nelle risposte a scelta: 1 fino al livello 4, poi 2
+  function nTrap(level){ return level<=4 ? 1 : 2; }
+  // quante delle 3 opzioni sbagliate vengono dallo STESSO campo della risposta (stesso dominio): tutte e 3, fin dal livello 1
+  function nSame(level){ return 3; }
   function norm(s){ return s.toLowerCase(); }
   function shuffle(arr, rng){ var a=arr.slice(); for(var i=a.length-1;i>0;i--){ var j=Math.floor(rng()*(i+1)); var t=a[i]; a[i]=a[j]; a[j]=t; } return a; }
   function containing(terms){ return BANK.filter(function(c){ var w=c.w.map(norm); return terms.every(function(t){ return w.indexOf(norm(t))>=0; }); }); }
 
-  function candidate(level, rng){
+  function candidate(level, rng, scelta){
     var lo=minTier(level), hi=maxTier(level);
     var pool=BANK.filter(function(c){ return c.t>=lo && c.t<=hi; });
     var cat=pool[Math.floor(rng()*pool.length)];
@@ -36,7 +36,7 @@
     var terms=idx.map(function(i){return cat.w[i];});
     var maxTermIndex=idx[2];
     var atyp=(idx[0]+idx[1]+idx[2])/3/Math.max(1,cat.w.length-1);
-    var D=cat.t*CLASSIFICAZIONI_W.fascia + atyp*CLASSIFICAZIONI_W.atipicita + (level>MC_MAX_LEVEL?CLASSIFICAZIONI_W.rispostaLibera:0);
+    var D=cat.t*CLASSIFICAZIONI_W.fascia + atyp*CLASSIFICAZIONI_W.atipicita + (scelta?0:CLASSIFICAZIONI_W.rispostaLibera);
     // risposte accettate: nome, sinonimi, categorie più ampie, e ogni altra categoria della banca che contiene i tre termini
     var acc=[cat.n].concat(cat.s, cat.p);
     containing(terms).forEach(function(c){ [c.n].concat(c.s).forEach(function(a){ if(acc.indexOf(a)<0) acc.push(a); }); });
@@ -52,7 +52,7 @@
       if(hit>=1 && hit<3 && trap.indexOf(c.n)<0) trap.push(c.n);
     });
     item.trappole=trap;
-    if(level<=MC_MAX_LEVEL){
+    if(scelta){
       var others=BANK.filter(function(c){ return c.n!==cat.n && acc.indexOf(c.n)<0 && c.s.every(function(s){return acc.indexOf(s)<0;}) && trap.indexOf(c.n)<0 && Math.abs(c.t-cat.t)<=1; });
       var nT=Math.min(trap.length, nTrap(level));
       var near=shuffle(trap,rng).slice(0,nT).filter(function(n){return n!==cat.n;});
@@ -74,7 +74,7 @@
     var target=CLASSIFICAZIONI_TARGET_D(level), chosen=[], sessionCats=new Set(), keys=[];
     for(var n=0;n<count;n++){
       var cands=[];
-      for(var t=0;t<600 && cands.length<40;t++){ var c=candidate(level,rng); if(c && !sessionCats.has(c.key)) cands.push(c); }
+      for(var t=0;t<600 && cands.length<40;t++){ var c=candidate(level,rng,!!opts.scelta); if(c && !sessionCats.has(c.key)) cands.push(c); }
       if(!cands.length) break;
       // categoria mai proposta > categoria proposta meno di recente; a parità, stessa terna mai vista; poi vicinanza al punteggio-obiettivo
       cands.sort(function(a,b){
@@ -92,7 +92,7 @@
       best.id="q"+(n+1); chosen.push(best); sessionCats.add(best.key); keys.push(best.key, best.setKey);
     }
     return { type:"classificazioni", level:level, items:chosen, historyKeys:keys,
-      rule:"Dire a quale categoria appartengono i tre termini." + (level<=MC_MAX_LEVEL?" Ai primi livelli la risposta si sceglie fra 4 opzioni.":""),
+      rule:"Dire a quale categoria appartengono i tre termini." + (opts.scelta?" La risposta si sceglie fra 4 opzioni.":""),
       slides:chosen.map(function(it){return {item:it};}) };
   }
 
