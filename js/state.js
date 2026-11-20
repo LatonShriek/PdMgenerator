@@ -17,6 +17,7 @@ const state = {
   materialOverride:{griglie:"auto", intruso:"auto", inversione:"auto"},
   inversioneItemsOverride:null,
   griglieRowsOverride:null,
+  griglieNRichiesteOverride:null,
   griglieColsOverride:null,
   inversioneForceAlnum:false,
   intrusoScreensOverride:null,

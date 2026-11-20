@@ -111,13 +111,14 @@ function levelNote(exId, level){
       const cat = GRID_CATEGORY_BY_LEVEL[level], sub = (level-1)%4 + 1;
       const rows = state.griglieRowsOverride || gridRowsForLevel(level), cols = state.griglieColsOverride || gridColsForLevel(level);
       const effLevel = tierEffectiveLevel(level, cat);
-      const tg = gridScoreTargets(effLevel);
+      const nReq = state.griglieNRichiesteOverride || 10;
+      const tg = gridScoreTargets(effLevel, nReq);
       const extra = [];
       if(effLevel>=6) extra.push("simbolo grande/piccolo");
       if(effLevel>=17) extra.push("bordo continuo/tratteggiato/puntinato"); else if(effLevel>=12) extra.push("bordo continuo/tratteggiato");
       if(effLevel>=9) extra.push("sfondo pieno/vuoto");
       const readNote = effLevel!==level ? ` — combinazioni calibrate come al livello ${effLevel} (${GRID_CATEGORY_LABELS[cat].toLowerCase()} ${effLevel>level ? "è facile da leggere per un lettore italiano" : "è poco familiare per un lettore italiano"})` : "";
-      return `${GRID_CATEGORY_LABELS[cat]} (passo ${sub}/4) — griglia ${rows}×${cols}${readNote}. Punteggio delle consegne (stimolo + molteplicità + astrazione): da ${tg[0].toFixed(1)} a ${tg[9].toFixed(1)}, media ${(tg.reduce((a,b)=>a+b,0)/10).toFixed(1)}; almeno ${gridColorMin(effLevel)} consegne su 10 usano i colori (sfondo, bordo, colore del simbolo); astrazione massima ${gridAbstractionMax(effLevel).toFixed(1)} (posizioni composte, negazioni, relazioni tra celle vicine solo dove il punteggio lo consente).` + (extra.length ? ` Attributi extra: ${extra.join(", ")}.` : "");
+      return `${GRID_CATEGORY_LABELS[cat]} (passo ${sub}/4) — griglia ${rows}×${cols}${readNote}. Punteggio delle consegne (stimolo + molteplicità + astrazione): da ${tg[0].toFixed(1)} a ${tg[nReq-1].toFixed(1)}, media ${(tg.reduce((a,b)=>a+b,0)/nReq).toFixed(1)}; almeno ${gridColorMin(effLevel, nReq)} consegne su ${nReq} usano i colori (sfondo, bordo, colore del simbolo); astrazione massima ${gridAbstractionMax(effLevel).toFixed(1)} (posizioni composte, negazioni, relazioni tra celle vicine solo dove il punteggio lo consente).` + (extra.length ? ` Attributi extra: ${extra.join(", ")}.` : "");
     }
     case "intruso": {
       const eligible = intrusoEligibleFamilies(level, intrusoPlanLen(level));

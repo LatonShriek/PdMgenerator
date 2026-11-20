@@ -280,7 +280,6 @@ const GRID_POS_W2_FROM = 10;
 function buildPosOptions(rows, cols){
   const isFrame = c => c.row===0 || c.row===rows-1 || c.col===0 || c.col===cols-1;
   const rMid = Math.floor((rows-3)/2), cMid = Math.floor((cols-3)/2);       // per le fasce "centrali"
-  const rowSpan = Math.ceil((rows+1)/2), colSpan = Math.ceil((cols+1)/2);   // per i blocchi (si sovrappongono di una riga/colonna in mezzo, come nell'originale 5×7)
   const colMid = Math.ceil((cols+1)/2);                                    // colonna centrale per "colonne 1, mid e ultima"
   return [
     { w:1, text:"nelle righe pari", f:c=>(c.row+1)%2===0 },
@@ -303,10 +302,6 @@ function buildPosOptions(rows, cols){
     { w:2, text:"nelle celle in riga dispari e colonna pari", f:c=>(c.row+1)%2===1 && (c.col+1)%2===0 },
     { w:2, text:"nelle celle in riga pari e colonna dispari", f:c=>(c.row+1)%2===0 && (c.col+1)%2===1 },
     { w:2, text:"nelle celle in riga pari e colonna pari", f:c=>(c.row+1)%2===0 && (c.col+1)%2===0 },
-    { w:2, text:`nel blocco in alto a sinistra (righe 1–${rowSpan}, colonne 1–${colSpan})`, f:c=>c.row<rowSpan && c.col<colSpan },
-    { w:2, text:`nel blocco in alto a destra (righe 1–${rowSpan}, colonne ${cols-colSpan+1}–${cols})`, f:c=>c.row<rowSpan && c.col>=cols-colSpan },
-    { w:2, text:`nel blocco in basso a sinistra (righe ${rows-rowSpan+1}–${rows}, colonne 1–${colSpan})`, f:c=>c.row>=rows-rowSpan && c.col<colSpan },
-    { w:2, text:`nel blocco in basso a destra (righe ${rows-rowSpan+1}–${rows}, colonne ${cols-colSpan+1}–${cols})`, f:c=>c.row>=rows-rowSpan && c.col>=cols-colSpan },
     { w:2, text:`nella prima e nell'ultima riga (righe 1 e ${rows})`, f:c=>c.row===0 || c.row===rows-1 },
     { w:2, text:`nelle colonne 1, ${colMid} e ${cols}`, f:c=>c.col===0 || c.col===colMid-1 || c.col===cols-1 },
     { w:1, text:"nella metà sinistra della griglia", f:c=>c.col < Math.floor(cols/2) },
@@ -332,14 +327,15 @@ const GRID_SCORE_SPREAD = [1.0, 2.4];   // semi-ampiezza della rampa dentro la g
 const GRID_COLOR_SHARE = [0.5, 0.7];    // quota minima di consegne che usano sfondo/bordo/colore del simbolo
 const GRID_ABSTRACTION_MAX = [1, 4.2];  // astrazione massima ammessa a livello 1 → 32
 function gridTierFromScore(sc){ return sc<1.5 ? 1 : sc<3.5 ? 2 : sc<5.5 ? 3 : 4; }
-function gridScoreTargets(effLevel){
+function gridScoreTargets(effLevel, N=10){
   const t = levelT(effLevel);
   const mu = GRID_SCORE_MU[0] + (GRID_SCORE_MU[1]-GRID_SCORE_MU[0])*t;
   const w = GRID_SCORE_SPREAD[0] + (GRID_SCORE_SPREAD[1]-GRID_SCORE_SPREAD[0])*t;
-  return Array.from({length:10}, (_,i)=> Math.max(0, mu + w*(i-4.5)/4.5));
+  const h = (N-1)/2; // N=10 → 4,5: identico a prima
+  return Array.from({length:N}, (_,i)=> Math.max(0, mu + w*(i-h)/h));
 }
 function gridAbstractionMax(effLevel){ const t = levelT(effLevel); return GRID_ABSTRACTION_MAX[0] + (GRID_ABSTRACTION_MAX[1]-GRID_ABSTRACTION_MAX[0])*Math.pow(t,0.9); }
-function gridColorMin(effLevel){ const t = levelT(effLevel); return Math.round(10*(GRID_COLOR_SHARE[0] + (GRID_COLOR_SHARE[1]-GRID_COLOR_SHARE[0])*t)); }
+function gridColorMin(effLevel, N=10){ const t = levelT(effLevel); return Math.round(N*(GRID_COLOR_SHARE[0] + (GRID_COLOR_SHARE[1]-GRID_COLOR_SHARE[0])*t)); }
 
 // Un criterio è descritto da una "specifica": gruppo di simboli (uno, due in alternativa
 // "«A» o «B»", oppure una proprietà della famiglia) + vincoli su sfondo / bordo (colore e stile:
@@ -727,14 +723,14 @@ function gridRulesConflict(a, b){
   const sub = (x,y) => x.every(k=>y.includes(k));
   return sub(a.axes, b.axes) || sub(b.axes, a.axes);
 }
-// Sceglie le 10 consegne di UNA griglia seguendo la rampa di punteggio del livello (gridScoreTargets): per ogni
+// Sceglie le N consegne (di norma 10) di UNA griglia seguendo la rampa di punteggio del livello (gridScoreTargets): per ogni
 // posto della rampa prende la consegna il cui punteggio è più vicino, con penalità per conteggi già usciti,
 // stesso bersaglio o stesso colore già usato, sbilanciamento stimolo/posizione; quota minima di consegne con
 // colori; astrazione massima e numero di consegne astratte limitati dal livello. Ritorna { chosen, cost }.
-function selectRulesByScore(evaluated, effLevel){
-  const N = 10, t = levelT(effLevel);
-  const amax = gridAbstractionMax(effLevel), cmin = gridColorMin(effLevel), targets = gridScoreTargets(effLevel);
-  const capA2 = Math.floor(1 + 5*t), capA3 = Math.floor(1 + 3*t), capRel = t<0.7 ? 1 : 2;
+function selectRulesByScore(evaluated, effLevel, N=10){
+  const t = levelT(effLevel), k = N/10; // k=1 con 10 consegne: tetti identici a prima; con più consegne i tetti di astrazione crescono in proporzione
+  const amax = gridAbstractionMax(effLevel), cmin = gridColorMin(effLevel, N), targets = gridScoreTargets(effLevel, N);
+  const capA2 = Math.floor((1 + 5*t)*k), capA3 = Math.floor((1 + 3*t)*k), capRel = Math.floor((t<0.7 ? 1 : 2)*k);
   const pool = evaluated.filter(r => r.count>=4 && r.count<=14 && r.parts.A <= amax+1e-9);
   let best = null;
   for(let rep=0; rep<4; rep++){
@@ -778,7 +774,7 @@ function selectRulesByScore(evaluated, effLevel){
   return best;
 }
 
-function genOneGrid(symbols, level, category, rows, cols){
+function genOneGrid(symbols, level, category, rows, cols, N=10){
   // Più tentativi di griglia, tenendo il migliore (costo minore = consegne più vicine alla rampa di punteggio,
   // conteggi diversi tra loro, nessun bersaglio ripetuto, colori usati). La combinatoria segue il livello
   // EFFETTIVO (leggibilità della categoria, vedi tierEffectiveLevel); la dimensione della griglia segue il livello vero.
@@ -786,9 +782,9 @@ function genOneGrid(symbols, level, category, rows, cols){
   let best = null;
   for(let attempt=0; attempt<25; attempt++){
     const { cells, evaluated } = buildGridAttempt(symbols, level, effLevel, rows, cols);
-    const sel = selectRulesByScore(evaluated, effLevel);
+    const sel = selectRulesByScore(evaluated, effLevel, N);
     if(!best || sel.cost < best.cost) best = { cells, rules: sel.chosen, cost: sel.cost };
-    if(sel.chosen.length===10 && sel.cost < 7) break;
+    if(sel.chosen.length===N && sel.cost < 7*N/10) break;
   }
   return best;
 }
@@ -814,9 +810,11 @@ function genGriglie(level, excludeKeys){
   // Una sola griglia per sessione, con tutte le regole valide (fino a 10) selezionabili
   // una alla volta — come nei materiali originali: non più griglie diverse, ma varianti
   // di regola sulla stessa griglia.
+  // Numero di consegne: 10 di norma, modificabile a mano dalla barra laterale (4–30).
+  const nReq = state.griglieNRichiesteOverride || 10;
   const N_GRIDS = 1;
   const slides = Array.from({length:N_GRIDS}, ()=>{
-    const {cells, rules} = genOneGrid(symbols, level, fam.category, rows, cols);
+    const {cells, rules} = genOneGrid(symbols, level, fam.category, rows, cols, nReq);
     return { cells, rows, cols, rules, ruleIndex:0 };
   });
 

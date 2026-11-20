@@ -127,9 +127,10 @@ const EX_CONTROLS = {
     // Numerosità manuale: righe e colonne della griglia (di solito decise dal livello). Più celle = cerchi più piccoli sulla slide.
     wrap.appendChild(numerosityControl("Numero di righe", "griglieRowsOverride", 3, 10, gridRowsForLevel(state.level)));
     wrap.appendChild(numerosityControl("Numero di colonne", "griglieColsOverride", 4, 14, gridColsForLevel(state.level)));
+    wrap.appendChild(numerosityControl("Numero di consegne (richieste) sulla griglia", "griglieNRichiesteOverride", 4, 30, 10));
     const gridNote = document.createElement("div");
     gridNote.className = "level-note";
-    gridNote.textContent = "Il numero di consegne da contare resta tra 4 e 14: con più celle aumentano gli elementi «di disturbo», non i numeri da contare.";
+    gridNote.textContent = "Ogni consegna conta da 4 a 14 elementi: con più celle aumentano gli elementi «di disturbo», non i numeri da contare. Il numero di consegne (di norma 10) si può portare fino a 30: la rampa di difficoltà si allunga in proporzione.";
     wrap.appendChild(gridNote);
     return wrap;
   },

@@ -146,7 +146,7 @@ function rememberGroupLevel(){
 // Si salvano con il nome del gruppo e si richiamano quando quel gruppo viene scelto; un gruppo mai usato parte dai valori
 // di base, quindi una modifica fatta per un profilo non passa mai a un altro.
 const GROUP_SETTINGS_PREFIX = "pdm_settings::";
-const GROUP_SETTING_KEYS = ["digitRule","catMode","materialOverride","inversioneItemsOverride","griglieRowsOverride","griglieColsOverride",
+const GROUP_SETTING_KEYS = ["digitRule","catMode","materialOverride","inversioneItemsOverride","griglieRowsOverride","griglieColsOverride","griglieNRichiesteOverride",
   "inversioneForceAlnum","intrusoScreensOverride","serieItemsOverride","serieAutoPlay","serieAutoSeconds","serieGoogle",
   "classificazioniItemsOverride","intrusoconcItemsOverride","analogieItemsOverride","serieShowNextCriterion",
   "categorizzazioneTrialsOverride","accessoWordsOverride"];
