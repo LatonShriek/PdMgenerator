@@ -5,18 +5,26 @@
 // Provato con tests/golden-browser.js (materiale prima e dopo identico).
 
 // ---------- INVERSIONE E RIORDINO ----------
-// Contrassegni: livelli 1-3: 1 solo rosso; dal 4: rosso e verde insieme (anticipato il 22 nov 2026, richiesta di Rodrigo: prima il verde
-// compariva dal 16). Dal livello 8 anche grande/piccolo (vedi withMarks) e maiuscole/minuscole miste (invMixedCaseProb).
+// Contrassegni (scala anticipata il 22 nov 2026, richiesta di Rodrigo): livelli 1-3: 1 solo rosso. Dal 4 compare il verde e i caratteri colorati sono
+// 1 o 2 (quota di "2" in salita, +1/12 a livello dal 5), anche dello STESSO colore (rosso+rosso, verde+verde) o di colori DIVERSI (rosso+verde),
+// in parti uguali. Dal 12 anche il blu (fino a 3 caratteri colorati) e i caratteri SOTTOLINEATI (vedi underlineChars). Dall'8 grande/piccolo (sizeChars)
+// e maiuscole/minuscole miste (invMixedCaseProb). Le consegne (cosa chiedere a voce) le sceglie il terapista: qui cambia solo la complessità del materiale.
+const INV_MARK_HEX = { red:"#D64545", green:"#3E9B4F", blue:"#2F6FD0" };
+function invMarkPalette(level){ return level>=12 ? ["red","green","blue"] : level>=4 ? ["red","green"] : ["red"]; }
 function markChars(text, level){
   const positions = [...text].map((_,i)=>i);
-  let n, colors;
-  if(level>=4){ n=2; colors=["#D64545","#3E9B4F"]; }
-  else { n=1; colors=["#D64545","#D64545"]; }
+  const pal = invMarkPalette(level);
+  let n = (level>=5 && Math.random() < Math.min(1,(level-4)/12)) ? 2 : 1;
+  if(level>=12 && text.length>=4 && Math.random() < Math.min(1,(level-11)/12)) n = 3;
   n = Math.min(n, text.length);
   const chosen=[];
   while(chosen.length<n){ const i=pick(positions); if(!chosen.includes(i)) chosen.push(i); }
   chosen.sort((a,b)=>a-b);
-  return chosen.map((idx,k)=>({index:idx, color:colors[k]}));
+  let names;
+  if(n===1 || pal.length===1) names = chosen.map(()=>pick(pal));
+  else if(Math.random()<0.5){ const c = pick(pal); names = chosen.map(()=>c); }                       // colori uguali
+  else { const sh = shuffle([...pal]); names = chosen.map((_,k)=>sh[k % sh.length]); }                  // colori diversi
+  return chosen.map((idx,k)=>({index:idx, color:INV_MARK_HEX[names[k]]}));
 }
 // Quota di stringhe con caratteri GRANDI e PICCOLI insieme: nessuna fino al livello 7, poi sale fino al 100% al 26 (stessa rampa delle maiuscole miste).
 function invSizeProb(level){ return level<=7 ? 0 : Math.min(1, (level-7)/19); }
@@ -29,8 +37,16 @@ function sizeChars(text, level){
   }
   return null;
 }
+// Caratteri SOTTOLINEATI (da livello 12, quota (livello−11)/19 delle stringhe): 1 o 2 caratteri, mai tutti.
+function invUnderlineProb(level){ return level<=11 ? 0 : Math.min(1, (level-11)/19); }
+function underlineChars(text, level){
+  const n = [...text].length;
+  if(n<3 || Math.random() >= invUnderlineProb(level)) return null;
+  const k = Math.min(n-1, Math.random()<0.5 ? 1 : 2);
+  return shuffle([...Array(n).keys()]).slice(0,k).sort((a,b)=>a-b);
+}
 function withMarks(text, level){
-  return {text, marks: markChars(text, level), sizes: sizeChars(text, level)};
+  return {text, marks: markChars(text, level), sizes: sizeChars(text, level), under: underlineChars(text, level)};
 }
 
 // Non-parole pronunciabili: sillabe aperte italiane (consonante+vocale, oppure gruppo

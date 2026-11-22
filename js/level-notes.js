@@ -152,7 +152,9 @@ function levelNote(exId, level){
       const pp = invPronounceProb(level);
       const parts = [level<=INV_LEXICAL_UNTIL ? "Parole reali" : (pp>=1 ? "Non-parole pronunciabili" : `Non-parole (pronunciabili ${Math.round(pp*100)}%)`)];
       parts.push(`lunghezze ${lens.join("-")}`);
-      parts.push(level>=4 ? "contrassegni rosso+verde" : "1 contrassegno rosso");
+      parts.push(level>=12 ? "1-3 contrassegni rosso/verde/blu (uguali o diversi)" : level>=5 ? "1 o 2 contrassegni rosso/verde (uguali o diversi)" : level>=4 ? "1 contrassegno rosso o verde" : "1 contrassegno rosso");
+      const pu = invUnderlineProb(level);
+      if(pu>0) parts.push(`caratteri sottolineati nel ${Math.round(pu*100)}% delle stringhe`);
       const ps = invSizeProb(level);
       if(ps>0) parts.push(ps>=1 ? "caratteri grandi e piccoli nella stessa stringa" : `caratteri grandi/piccoli nel ${Math.round(ps*100)}% delle stringhe`);
       if(level>=INV_ALNUM_FROM) parts.push("blocco alfanumerico");
