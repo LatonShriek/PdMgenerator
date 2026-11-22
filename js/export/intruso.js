@@ -79,10 +79,15 @@ function exportIntruso(deck, level){
   p.layout = "LAYOUT_WIDE"; // 13.33x7.5in
   const SLIDE_W=13.33, SLIDE_H=7.5, MARGIN=0.3;
   const areaW = SLIDE_W - MARGIN*2, areaH = SLIDE_H - MARGIN*2;
+  // Dopo ogni schermata, di norma, una slide uguale con un cerchio rosso attorno all'unico elemento (soluzione): si disattiva dalla barra laterale.
+  const withSolution = state.intrusoSolutionSlides !== false;
   deck.slides.forEach((s,si)=>{
+   [false, true].filter(sol=>!sol || withSolution).forEach(solution=>{
     const slide = p.addSlide();
     slide.background = {color:"FFFFFF"};
-    slide.addNotes(`Livello ${level}. Schermata ${si+1}/${deck.slides.length} (${s.familyLabel}). ${s.rule}`);
+    slide.addNotes(solution
+      ? `Livello ${level}. SOLUZIONE della schermata ${si+1}/${deck.slides.length} (${s.familyLabel}): ${s.answer}`
+      : `Livello ${level}. Schermata ${si+1}/${deck.slides.length} (${s.familyLabel}). ${s.rule}`);
     const n = s.items.length;
     // Numero di colonne come nell'anteprima (bestGridCols): solo divisori esatti di n, così
     // l'ultima riga è sempre piena quanto le altre, mai una riga a metà.
@@ -161,6 +166,15 @@ function exportIntruso(deck, level){
         ...(inkFit ? { margin:0 } : { fit:"shrink" })
       });
     });
+    if(solution){
+      const ro = Math.floor(s.oddIndex/cols), co = s.oddIndex%cols;
+      const d = Math.min(cellW, cellH)*0.97;
+      slide.addShape((p.ShapeType && p.ShapeType.ellipse) || "ellipse", {
+        x:MARGIN+co*cellW+(cellW-d)/2, y:MARGIN+ro*cellH+(cellH-d)/2, w:d, h:d,
+        fill:{type:"none"}, line:{color:"E02424", width:5}
+      });
+    }
+   });
   });
   return p.writeFile({fileName:exportFileName("intruso", level, "pptx")});
 }

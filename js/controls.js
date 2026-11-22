@@ -249,6 +249,13 @@ const EX_CONTROLS = {
     const wrap = document.createElement("div");
     wrap.appendChild(materialSelector("intruso"));
     wrap.appendChild(numerosityControl("Numero di schermate per sessione", "intrusoScreensOverride", 4, 40, 9));
+    const sLabel = document.createElement("label");
+    sLabel.style.cssText = "display:flex; align-items:center; gap:6px; margin-top:8px; font-weight:600;";
+    const sCheck = document.createElement("input");
+    sCheck.type = "checkbox"; sCheck.checked = state.intrusoSolutionSlides !== false;
+    sCheck.addEventListener("change", e=>{ state.intrusoSolutionSlides = e.target.checked; });
+    sLabel.appendChild(sCheck); sLabel.appendChild(document.createTextNode("Dopo ogni schermata, slide con cerchio rosso sull'unico (nell'esportazione)"));
+    wrap.appendChild(sLabel);
     return wrap;
   },
   inversione: ()=>{

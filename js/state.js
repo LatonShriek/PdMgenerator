@@ -25,6 +25,7 @@ const state = {
   serieAutoPlay:false,
   serieAutoSeconds:2,
   serieGoogle:false,
+  intrusoSolutionSlides:true,
   classificazioniItemsOverride:null,
   intrusoconcItemsOverride:null,
   analogieItemsOverride:null,
