@@ -16,11 +16,17 @@ test('orientamenti per livello: nessuno / 4 / 8 secondo la scala', () => {
   const att = { 1:1, 3:1, 6:1, 7:4, 9:4, 10:8, 12:8, 13:1, 16:1, 17:4, 19:4, 20:8, 23:8, 24:1, 27:1, 28:4, 30:4, 31:8, 32:8 };
   Object.entries(att).forEach(([lv, n]) => assert.strictEqual(intrusoOrientCount(Number(lv)), n, 'livello ' + lv));
 });
-test('famiglie non ruotabili non ruotano mai; 180° solo senza asse', () => {
-  assert.strictEqual(JSON.stringify(intrusoAnglesFor('arrow', 10)), '[0]');
-  assert.strictEqual(JSON.stringify(intrusoAnglesFor('braille', 31)), '[0]');
-  assert.strictEqual(intrusoAnglesFor('letter', 10).length, 4);
-  assert.strictEqual(intrusoAnglesFor('katakana', 10).length, 8);
+test('ruotano solo semi e note; le altre famiglie mai', () => {
+  ['arrow', 'braille', 'letter', 'katakana', 'circles', 'quadrants', 'dice', 'geometric'].forEach(f => assert.strictEqual(JSON.stringify(intrusoAnglesFor(f, 10)), '[0]', f));
+  assert.strictEqual(intrusoAnglesFor('suits', 7).length, 4);
+  assert.strictEqual(intrusoAnglesFor('suits', 10).length, 8);
+  assert.strictEqual(intrusoAnglesFor('music', 31).length, 8);
+});
+test('nei livelli con orientamenti compaiono solo semi e note, senza ♦ ♢ ♮ ♯', () => {
+  [7, 10, 17, 20, 28, 31].forEach(lv => { for (let r = 0; r < 5; r++) genIntruso(lv, []).slides.forEach(s => {
+    assert.ok(['suits', 'music'].includes(s.familyId), 'livello ' + lv + ': ' + s.familyId);
+    assert.ok(![...s.items.join('')].some(ch => '♦♢♮♯'.includes(ch)), 'glifo simmetrico presente');
+  }); });
 });
 test('le scritture non familiari compaiono già come singoli (livelli 4-6)', () => {
   const nonFam = ['greek', 'cyrillic', 'armenian', 'thai', 'katakana', 'hebrew', 'braille', 'geez'];

@@ -91,15 +91,16 @@ function intrusoOrientCount(level){
   if((x>=10 && x<=12) || (x>=20 && x<=23) || x>=31) return 8;
   return 1;
 }
-// Un elemento ruotato è un elemento DIVERSO dall'originale (identico = stesso simbolo E stesso orientamento). Si ruotano solo famiglie i cui
-// glifi, ruotati, non diventano un altro glifo del pool. Fuori: frecce, forme, cerchi, quadranti, tratti da tabella, insiemistici, dadi,
-// domino, Braille, punteggiatura. Niente immagini speculari.
-const INTRUSO_ROT_OK = new Set(["digit","letter","roman","cyrillic","armenian","thai","geez","cyrillic-arcaico","canadian","lower","mixedcase","greek",
-  "katakana","hiragana","hebrew","devanagari","cjk","mahjong","suits","music","zodiac"]);
-// 180° e oltre solo per figure senza asse di simmetria: a 8 orientamenti compaiono solo queste famiglie
-const INTRUSO_ROT_180_OK = new Set(["armenian","thai","geez","cyrillic-arcaico","canadian","katakana","hiragana","hebrew","devanagari","cjk","mahjong"]);
-// glifi tolti quando si ruota: rotondi (uguali a ogni angolo) o che ruotati di 90° diventano un altro glifo (N↔Z)
-const INTRUSO_ROT_GLYPH_BAN = new Set(["O","o","N","Z","Ο","Ν","Ζ","О","Ⅹ"]);
+// Un elemento ruotato è un elemento DIVERSO dall'originale (identico = stesso simbolo E stesso orientamento). 22 nov 2026 (richiesta di Rodrigo):
+// la rotazione riguarda SOLO le famiglie con pochi stimoli (4-5 opzioni), dove l'orientamento allarga davvero le possibilità: semi delle carte e
+// note musicali. Verificato al computer (confronto delle immagini ruotate) che per le altre famiglie a pool piccolo la rotazione dà immagini
+// identiche ad altri stimoli dello stesso gruppo: cerchi pieni a metà e quadranti ruotati di 90° diventano un altro glifo del gruppo; dadi (1, 4, 5
+// uguali a se stessi a 90°, 2, 3 e 6 a 180°). Perciò non ruotano. Niente immagini speculari.
+const INTRUSO_ROT_OK = new Set(["suits","music"]);
+// con questi due gruppi tutti gli 8 angoli sono distinti (verificato), quindi anche 180° e oltre
+const INTRUSO_ROT_180_OK = new Set(["suits","music"]);
+// glifi tolti quando si ruota: ♦ ♢ (simmetrici: uguali a se stessi a 180°) e ♮ ♯ (quasi simmetrici a 180°)
+const INTRUSO_ROT_GLYPH_BAN = new Set(["♦","♢","♮","♯"]);
 const INTRUSO_ANGLES = { 4:[0,45,90,135], 8:[0,45,90,135,180,225,270,315] };
 const INTRUSO_SEP = "\u0001";
 function intrusoAnglesFor(familyId, level){
@@ -349,22 +350,22 @@ function intrusoMaxLen(family){
 }
 // Famiglie ammesse in una sessione di lunghezza L: sbloccate, capaci di reggere L e, se L>1,
 // "rodate" da qualche livello (non compaiono in coppia alla prima comparsa).
-function intrusoEligibleFamilies(level, L){
-  let base = INTRUSO_ALL_FAMILIES.filter(f=>f.unlockLevel<=level && intrusoMaxLen(f)>=L);
-  const m = intrusoOrientCount(level); // con gli orientamenti: solo famiglie ruotabili (a 8 orientamenti, solo quelle senza asse)
-  if(m>1){
-    let ok = m===8 ? base.filter(f=>INTRUSO_ROT_180_OK.has(f.id)) : [];
-    if(ok.length<4) ok = base.filter(f=>INTRUSO_ROT_OK.has(f.id));
-    if(ok.length>=3) base = ok;
-  }
+function intrusoEligibleRaw(level, L){
+  const base = INTRUSO_ALL_FAMILIES.filter(f=>f.unlockLevel<=level && intrusoMaxLen(f)>=L);
   if(L===1) return base;
   const settled = base.filter(f=>level >= f.unlockLevel+3);
   return settled.length>=4 ? settled : base;
 }
+// Nei livelli con orientamenti compaiono SOLO le famiglie ruotabili (semi e note): tutte le schermate della sessione ruotano.
+function intrusoEligibleFamilies(level, L){
+  const raw = intrusoEligibleRaw(level, L);
+  if(intrusoOrientCount(level)>1){ const ok = raw.filter(f=>INTRUSO_ROT_OK.has(f.id)); if(ok.length) return ok; }
+  return raw;
+}
 // Lunghezza effettiva della sessione: quella del livello, ridotta solo se troppo poche famiglie la reggono.
 function intrusoPlanLen(level){
   let L = intrusoSessionLen(level);
-  while(L>1 && intrusoEligibleFamilies(level, L).length < 4) L--;
+  while(L>1 && intrusoEligibleRaw(level, L).length < 4) L--; // conta le famiglie sbloccate, non solo le ruotabili
   return L;
 }
 // Punteggio di difficoltà (0..1) di UNA famiglia a lunghezza L: ora la lunghezza è la stessa per
