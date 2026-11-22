@@ -85,7 +85,12 @@ function renderIntruso(deck){
     const cols = bestGridCols(s.items.length, 1333, 500); // stesso rapporto larghezza/altezza dell'export
     strip.style.gridTemplateColumns = `repeat(${cols}, minmax(0,1fr))`;
     const useInkFit = INTRUSO_INK_FIT.has(s.familyId);
-    if(useInkFit){
+    // con gli orientamenti: elemento ruotato dentro un riquadro che ne contiene tutte le rotazioni; la cornice (se c'è) resta dritta
+    const rotAngles = (s.orient>1 && s.angles) ? [...new Set(s.angles)] : null;
+    const gl0 = Math.max(1, ...s.items.map(it=>[...String(it)].length));
+    const cw0 = (gl0>=2 && INTRUSO_GROUP_CHAR_WIDTH[s.familyId]) || INTRUSO_FAMILY_CHAR_WIDTH[s.familyId] || INTRUSO_DEFAULT_ATOMIC_CHAR_WIDTH;
+    const rbox = rotAngles ? intrusoRotBox(gl0, cw0, rotAngles, intrusoFramed(s.familyId, gl0)) : null;
+    if(useInkFit || rbox){
       // come nella slide: area con lo stesso rapporto e righe di pari altezza, così la cella è grande
       strip.style.aspectRatio = "1333 / 500";
       strip.style.gridTemplateRows = `repeat(${Math.ceil(s.items.length/cols)}, minmax(0,1fr))`;
@@ -95,7 +100,16 @@ function renderIntruso(deck){
       div.className = "cell" + (state.reveal && ci===s.oddIndex ? " answer":"");
       div.style.borderColor = "#D9DFD9";
       div.style.background = "#fff";
-      if(intrusoFramed(s.familyId, [...String(it)].length)){
+      if(rbox){
+        const framedR = intrusoFramed(s.familyId, [...String(it)].length);
+        const box = document.createElement("span");
+        box.style.cssText = `display:inline-block;position:relative;width:${rbox.W}em;height:${rbox.H}em;line-height:1;` + (framedR ? "border:1.5px solid #8A948E;border-radius:.3em;box-sizing:border-box;" : "");
+        const rot = document.createElement("span");
+        rot.textContent = it;
+        rot.style.cssText = `position:absolute;left:50%;top:50%;white-space:nowrap;transform:translate(-50%,-50%) rotate(${(s.angles && s.angles[ci])||0}deg);`;
+        box.appendChild(rot);
+        div.appendChild(box);
+      } else if(intrusoFramed(s.familyId, [...String(it)].length)){
         const fr = document.createElement("span");
         fr.textContent = it;
         fr.style.cssText = "display:inline-block;border:1.5px solid #8A948E;border-radius:.3em;padding:.04em .28em;line-height:1.25";
@@ -105,6 +119,14 @@ function renderIntruso(deck){
     });
     block.appendChild(strip);
     wrap.appendChild(block);
+    if(rbox && !useInkFit){
+      setTimeout(()=>{
+        const first = strip.firstElementChild; if(!first) return;
+        const rect = first.getBoundingClientRect();
+        const px = Math.floor(Math.max(10, Math.min((rect.width-8)*0.92/rbox.W, (rect.height-8)*0.92/rbox.H, rect.height*0.7)));
+        [...strip.children].forEach(cell=>{ cell.style.fontSize = px + "px"; cell.style.padding = "0"; });
+      }, 0);
+    }
     if(useInkFit){
       // dopo l'impaginazione: corpo del carattere calcolato sull'ingombro reale del glifo
       setTimeout(()=>{
@@ -117,7 +139,8 @@ function renderIntruso(deck){
         // coppie/terne: occupano solo il 62% / 74% della cella, per lasciare uno spazio chiaro tra un elemento e l'altro
         const px = gl===1 ? fitInkFontSize(s.items, rect.width - 8, rect.height - 8, fam, INTRUSO_FILL)
                           : Math.min(rect.width*(gl>=3 ? 0.74 : 0.62)/gl/cw, (rect.height-8)*0.7);
-        if(px) [...strip.children].forEach(cell=>{ cell.style.fontSize = Math.floor(px) + "px"; cell.style.padding = "0"; });
+        const pxF = rbox ? Math.min(px||1e9, (rect.width-8)*0.92/rbox.W, (rect.height-8)*0.92/rbox.H) : px;
+        if(pxF) [...strip.children].forEach(cell=>{ cell.style.fontSize = Math.floor(pxF) + "px"; cell.style.padding = "0"; });
       }, 0);
     }
   });

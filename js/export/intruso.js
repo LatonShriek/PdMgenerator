@@ -119,8 +119,31 @@ function exportIntruso(deck, level){
       ? fitInkFontSize(s.items, cellW*72, cellH*72, PPTX_FONT_STACK, INTRUSO_FILL) : null;
     if(inkFit) fontSize = Math.max(10, Math.min(400, Math.floor(inkFit)));
     const framed = intrusoFramed(s.familyId, itemLen);
+    // Con gli orientamenti: il corpo si riduce perché l'elemento ruotato (qualunque angolo usato nella schermata) stia nella cella; la cornice
+    // resta dritta e di misura fissa, ruota solo il testo. Ogni elemento è una casella di testo grande quanto il suo ingombro, centrata nella
+    // cella, con la rotazione del riquadro (verificata in LibreOffice; il testo specchiato invece non si può fare, per questo niente speculari).
+    const rotAngles = (s.orient>1 && s.angles) ? [...new Set(s.angles)] : null;
+    const rbox = rotAngles ? intrusoRotBox(itemLen, effCharWidth, rotAngles, framed) : null;
+    if(rbox){
+      fontSize = Math.max(8, Math.floor(Math.min(fontSize, (cellW*72*0.92)/rbox.W, (cellH*72*0.92)/rbox.H)));
+    }
     s.items.forEach((it,i)=>{
       const r = Math.floor(i/cols), c = i%cols;
+      if(rbox){
+        const cx = MARGIN+c*cellW+cellW/2, cy = MARGIN+r*cellH+cellH/2;
+        if(framed){
+          const fw = rbox.W*fontSize/72, fh = rbox.H*fontSize/72;
+          slide.addShape((p.ShapeType && p.ShapeType.roundRect) || "roundRect", {
+            x:cx-fw/2, y:cy-fh/2, w:fw, h:fh, fill:{color:"FFFFFF"}, line:{color:"8A948E", width:1.5}, rectRadius:0.1
+          });
+        }
+        const tw = rbox.w*fontSize/72, th = rbox.h*fontSize/72;
+        slide.addText(it, {
+          x:cx-tw/2, y:cy-th/2, w:tw, h:th, rotate:(s.angles && s.angles[i])||0,
+          align:"center", valign:"middle", fontSize, bold:true, color:"1E2A26", isTextBox:true, wrap:false, margin:0
+        });
+        return;
+      }
       if(framed){
         // cornice sottile attorno all'elemento (vedi intrusoFramed): larga quanto il testo + un po' d'aria, mai oltre la cella
         const fw = Math.min(cellW*0.94, fontSize/72*itemLen*effCharWidth*1.12 + 0.16), fh = Math.min(cellH*0.92, fontSize/72*1.35);

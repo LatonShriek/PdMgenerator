@@ -77,7 +77,43 @@ const INTRUSO_ATOMIC_FAMILIES = [
   {id:"sets", label:"simboli insiemistici", pool:["∈","∉","∩","∪","⊂","⊃","⊆","⊇","∋","∌"], unlockLevel:9},
   {id:"braille", label:"Braille", pool: codeRange(0x2801,63), unlockLevel:14}
 ];
-const INTRUSO_ALL_FAMILIES = [...INTRUSO_TEXT_FAMILIES, ...INTRUSO_ATOMIC_FAMILIES];
+// 22 nov 2026 — scala con ORIENTAMENTI (stessa di Traccia-N). Ogni famiglia ha due livelli: `hard` = sblocco storico (pesa sul punteggio di
+// difficoltà), `unlockLevel` = da quando compare. Le scritture non familiari (greco, cirillico, armeno, thai, Braille, ecc.) compaiono ora già
+// come SINGOLI (livelli 4-6): prima si sbloccavano quando gli elementi erano già coppie e non comparivano mai da soli.
+//   1-3 singoli semplici · 4-6 singoli + scritture non familiari · 7-9 singoli a 4 orientamenti · 10-12 singoli a 8 orientamenti
+//   13-16 coppie · 17-19 coppie a 4 orientamenti · 20-23 coppie a 8 · 24-27 terne · 28-30 terne a 4 · 31-32 terne a 8
+const INTRUSO_UNLOCK_SINGOLI = { greek:4, cyrillic:4, armenian:5, hebrew:5, thai:5, katakana:5, hiragana:5, devanagari:5,
+  geez:6, "cyrillic-arcaico":6, canadian:6, mahjong:6, braille:6, cjk:6, domino:6 };
+const INTRUSO_ALL_FAMILIES = [...INTRUSO_TEXT_FAMILIES, ...INTRUSO_ATOMIC_FAMILIES].map(f=>({...f, hard:f.unlockLevel, unlockLevel: INTRUSO_UNLOCK_SINGOLI[f.id] ?? f.unlockLevel}));
+function intrusoOrientCount(level){
+  const x = Math.floor(level + 1e-9);
+  if((x>=7 && x<=9) || (x>=17 && x<=19) || (x>=28 && x<=30)) return 4;
+  if((x>=10 && x<=12) || (x>=20 && x<=23) || x>=31) return 8;
+  return 1;
+}
+// Un elemento ruotato è un elemento DIVERSO dall'originale (identico = stesso simbolo E stesso orientamento). Si ruotano solo famiglie i cui
+// glifi, ruotati, non diventano un altro glifo del pool. Fuori: frecce, forme, cerchi, quadranti, tratti da tabella, insiemistici, dadi,
+// domino, Braille, punteggiatura. Niente immagini speculari.
+const INTRUSO_ROT_OK = new Set(["digit","letter","roman","cyrillic","armenian","thai","geez","cyrillic-arcaico","canadian","lower","mixedcase","greek",
+  "katakana","hiragana","hebrew","devanagari","cjk","mahjong","suits","music","zodiac"]);
+// 180° e oltre solo per figure senza asse di simmetria: a 8 orientamenti compaiono solo queste famiglie
+const INTRUSO_ROT_180_OK = new Set(["armenian","thai","geez","cyrillic-arcaico","canadian","katakana","hiragana","hebrew","devanagari","cjk","mahjong"]);
+// glifi tolti quando si ruota: rotondi (uguali a ogni angolo) o che ruotati di 90° diventano un altro glifo (N↔Z)
+const INTRUSO_ROT_GLYPH_BAN = new Set(["O","o","N","Z","Ο","Ν","Ζ","О","Ⅹ"]);
+const INTRUSO_ANGLES = { 4:[0,45,90,135], 8:[0,45,90,135,180,225,270,315] };
+const INTRUSO_SEP = "\u0001";
+function intrusoAnglesFor(familyId, level){
+  const m = intrusoOrientCount(level);
+  if(m===1 || !INTRUSO_ROT_OK.has(familyId)) return [0];
+  return (m===8 && INTRUSO_ROT_180_OK.has(familyId)) ? INTRUSO_ANGLES[8] : INTRUSO_ANGLES[4];
+}
+// Ingombro (in em) di un elemento di `len` glifi ruotato: serve a dimensionare corpo e cornice perché nulla esca dalla cella.
+function intrusoRotBox(len, cw, angles, framed){
+  const w = len*cw + (framed ? 0.6 : 0.1), h = framed ? 1.3 : 1.15;
+  let W = w, H = h;
+  angles.forEach(a=>{ const r = a*Math.PI/180, c = Math.abs(Math.cos(r)), n = Math.abs(Math.sin(r)); W = Math.max(W, w*c+h*n); H = Math.max(H, w*n+h*c); });
+  return { w, h, W, H };
+}
 
 // Curva di difficoltà di Intruso percettivo, ricalibrata perché ai livelli bassi/medi (segnalato
 // da Rodrigo: il livello 4 risultava molto facile) risultava troppo pianeggiante: quasi tutte le
@@ -146,7 +182,8 @@ function intrusoLenFor(family, level, textLen){
   return 1;
 }
 function buildIntrusoScreen(family, len, targetN, level, ctx){
-  const pool = intrusoPoolFor(family, level||1);
+  const angles = intrusoAnglesFor(family.id, level||1), rot = angles.length>1;
+  const pool = rot ? intrusoPoolFor(family, level||1).filter(ch=>!INTRUSO_ROT_GLYPH_BAN.has(ch)) : intrusoPoolFor(family, level||1);
   const poolCap = len===1 ? pool.length : 99;
   const kMax = Math.min(9 + Math.max(0, Math.floor((targetN-18)/3)), poolCap);   // 9 tipi fino a N=20, poi +1 ogni 3 elementi in più: resta "quasi tutti a coppie"
   let k = kMax;
@@ -158,12 +195,29 @@ function buildIntrusoScreen(family, len, targetN, level, ctx){
   const tKey = t => "T:" + family.id + "|" + t;
   const oKey = t => "O:" + family.id + "|" + t;
   let types;
-  if(len===1) types = ctx ? lruOrder(pool, tKey, ctx).slice(0, k) : pickN(pool, Math.min(k, pool.length));
-  else if(len>=2 && intrusoEffLevel(level)>=3 && Math.random() < (intrusoEffLevel(level)-2)/30) types = similarIntrusoTypes(pool, len, k);   // dal livello effettivo 3, quota crescente (+1/30) di tipi che differiscono per UN solo carattere (o per l'ordine): al 32 sempre
+  const useSim = len>=2 && intrusoEffLevel(level)>=3 && Math.random() < (intrusoEffLevel(level)-2)/30; // dal livello effettivo 3, quota crescente (+1/30) di tipi simili
+  if(rot){
+    // identità = simbolo + orientamento: pochi simboli, ciascuno a più orientamenti, così l'orientamento è davvero la variabile che cambia
+    const sCount = Math.min(pool.length, Math.max(2, Math.ceil(k/2) + (len>=2 ? 1 : 0)));
+    const strs = len===1 ? (ctx ? lruOrder(pool, tKey, ctx).slice(0, sCount) : pickN(pool, sCount))
+      : useSim ? similarIntrusoTypes(pool, len, sCount) : distinctIntrusoTypes(pool, len, sCount, ctx ? (c=>ctx.last.has(tKey(c))) : null);
+    const ids = []; strs.forEach(t=>angles.forEach(a=>ids.push(t+INTRUSO_SEP+a)));
+    types = shuffle(ids).slice(0, k);
+  }
+  else if(len===1) types = ctx ? lruOrder(pool, tKey, ctx).slice(0, k) : pickN(pool, Math.min(k, pool.length));
+  else if(useSim) types = similarIntrusoTypes(pool, len, k);
   else types = distinctIntrusoTypes(pool, len, k, ctx ? (c=>ctx.last.has(tKey(c))) : null);
   if(types.length<k) k = types.length;
   if(k<2) return null;
   const oddType = ctx ? lruOrder(types, oKey, ctx)[0] : pick(types);
+  if(rot){ // l'intruso deve avere almeno un «gemello» con lo stesso simbolo ma altro orientamento (è quello che il compito mette alla prova)
+    const oStr = oddType.split(INTRUSO_SEP)[0];
+    if(!types.some(t=>t!==oddType && t.split(INTRUSO_SEP)[0]===oStr)){
+      const alt = angles.map(a=>oStr+INTRUSO_SEP+a).find(t=>t!==oddType && !types.includes(t));
+      const others = types.map((t,i)=>i).filter(i=>types[i]!==oddType);
+      if(alt && others.length) types[others[others.length-1]] = alt;
+    }
+  }
   const oddIdx = types.indexOf(oddType);
   const remaining = targetN-1, groups = k-1;
   const base = Math.floor(remaining/groups), rem = remaining%groups;
@@ -173,16 +227,17 @@ function buildIntrusoScreen(family, len, targetN, level, ctx){
   types.forEach((t,i)=>{ for(let c=0;c<counts[i];c++) objs.push({value:t, isOdd:i===oddIdx}); });
   objs = shuffle(objs);
   const oddIndex = objs.findIndex(o=>o.isOdd);
-  const items = objs.map(o=>o.value);
+  const items = objs.map(o=>o.value.split(INTRUSO_SEP)[0]);
+  const itemAngles = objs.map(o=>rot ? Number(o.value.split(INTRUSO_SEP)[1]) : 0);
   if(ctx){
     ctx.use("F:" + family.id);
     types.forEach(t=> ctx.use(tKey(t)));
     ctx.use(oKey(oddType));
   }
   return {
-    items, oddIndex, familyLabel: family.label, familyId: family.id,
-    rule: `Trova l'unico elemento «${family.label}» che compare una sola volta (tutti gli altri sono ripetuti almeno 2 volte).`,
-    answer: `Posizione ${oddIndex+1}: «${items[oddIndex]}»`
+    items, angles:itemAngles, orient:angles.length, oddIndex, familyLabel: family.label, familyId: family.id,
+    rule: `Trova l'unico elemento «${family.label}» che compare una sola volta (tutti gli altri sono ripetuti almeno 2 volte).` + (rot ? " Due elementi uguali ma ruotati in modo diverso valgono come DIVERSI." : ""),
+    answer: `Posizione ${oddIndex+1}: «${items[oddIndex]}»` + (rot ? ` (ruotato di ${itemAngles[oddIndex]}°)` : "")
   };
 }
 // Le famiglie testuali NON sono tutte uguali (segnalato da Rodrigo): le cifre (10 simboli, molto
@@ -223,9 +278,9 @@ function lenForFamily(family, level){
 const INTRUSO_SCORE_W = { len:0.25, fam:0.25, sim:0.20, n:0.30 };
 const INTRUSO_TARGET_D = [0.05, 0.80];      // punteggio obiettivo al livello 1 → 32 (lineare)
 const INTRUSO_N_RANGE = [15, 30];           // numerosità minima / massima (27 per le terne)
-const INTRUSO_LEN_STEPS = [9, 21];          // livelli da cui gli elementi sono di 2 / di 3 simboli
+const INTRUSO_LEN_STEPS = [13, 24]; // (22 nov: prima 9 e 21)            // livelli da cui gli elementi sono di 2 / di 3 simboli
 function intrusoTargetD(level){ return INTRUSO_TARGET_D[0] + (INTRUSO_TARGET_D[1]-INTRUSO_TARGET_D[0])*levelT(level); }
-function intrusoFamTerm(family){ return Math.min(1, 0.7*Math.min(1, family.unlockLevel/28) + (1 - intrusoRecognizability(family.id))); }
+function intrusoFamTerm(family){ return Math.min(1, 0.7*Math.min(1, family.hard/28) + (1 - intrusoRecognizability(family.id))); }
 function intrusoSimTerm(level, len){ return len>=2 ? Math.max(0, Math.min(1, (intrusoEffLevel(level)-2)/30)) : 0; }
 function targetNForLevelIntruso(level, family, len){
   const W = INTRUSO_SCORE_W;
@@ -288,14 +343,20 @@ function intrusoSessionLen(level){
 // Lunghezza massima sostenibile da una famiglia (i pool enormi non arrivano alle terne; le tessere
 // di domino e mahjong restano singole: occupano già molto spazio e devono restare grandi).
 function intrusoMaxLen(family){
-  if(INTRUSO_TEXT_FAMILIES.includes(family)) return textFamilyWarmup(family.pool.length).triple<99 ? 3 : 2;
+  if(INTRUSO_TEXT_FAMILIES.some(t=>t.id===family.id)) return textFamilyWarmup(family.pool.length).triple<99 ? 3 : 2;
   if(family.id==="domino" || family.id==="mahjong") return 1;
   return family.small ? 3 : 2;
 }
 // Famiglie ammesse in una sessione di lunghezza L: sbloccate, capaci di reggere L e, se L>1,
 // "rodate" da qualche livello (non compaiono in coppia alla prima comparsa).
 function intrusoEligibleFamilies(level, L){
-  const base = INTRUSO_ALL_FAMILIES.filter(f=>f.unlockLevel<=level && intrusoMaxLen(f)>=L);
+  let base = INTRUSO_ALL_FAMILIES.filter(f=>f.unlockLevel<=level && intrusoMaxLen(f)>=L);
+  const m = intrusoOrientCount(level); // con gli orientamenti: solo famiglie ruotabili (a 8 orientamenti, solo quelle senza asse)
+  if(m>1){
+    let ok = m===8 ? base.filter(f=>INTRUSO_ROT_180_OK.has(f.id)) : [];
+    if(ok.length<4) ok = base.filter(f=>INTRUSO_ROT_OK.has(f.id));
+    if(ok.length>=3) base = ok;
+  }
   if(L===1) return base;
   const settled = base.filter(f=>level >= f.unlockLevel+3);
   return settled.length>=4 ? settled : base;
@@ -318,7 +379,7 @@ function levelFamiliesIntruso(level, count, ctx){
   count = count || 9;
   const L = intrusoPlanLen(level);
   const eligible = intrusoEligibleFamilies(level, L).slice().sort((a,b)=>intrusoFamilyDifficulty(a, level, L)-intrusoFamilyDifficulty(b, level, L));
-  const w = Math.min(eligible.length, Math.max(Math.min(count, eligible.length), Math.ceil(eligible.length*0.5)));
+  const w = L===1 ? eligible.length : Math.min(eligible.length, Math.max(Math.min(count, eligible.length), Math.ceil(eligible.length*0.5))); // singoli: tutte le famiglie sbloccate (le non familiari vanno introdotte)
   const start = Math.round(intrusoLevelT(level) * (eligible.length - w));
   const pool = eligible.slice(start, start + w);
   const order = [];
@@ -358,7 +419,7 @@ function genIntruso(level, excludeKeys){
   return {
     type:"intruso",
     slides,
-    rule: "Trova l'unico elemento che compare una sola volta (tutti gli altri sono ripetuti almeno 2 volte).",
+    rule: "Trova l'unico elemento che compare una sola volta (tutti gli altri sono ripetuti almeno 2 volte). Dove gli elementi sono ruotati, due elementi uguali ma con orientamento diverso valgono come diversi.",
     historyKeys: ctx.newKeys
   };
 }
