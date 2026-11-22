@@ -106,7 +106,8 @@ function genInversione(level, excludeKeys){
   const alnum = level>=INV_ALNUM_FROM || state.inversioneForceAlnum; // la spunta anticipa il blocco alfanumerico, la complessità (lunghezza, maiuscole) resta comunque legata al livello vero
   const lens = inversioneLens(level);
   const ov = state.materialOverride.inversione;
-  const alnumLens = ov==="mixed" ? lens : lens.filter(l=>l>=4);
+  const longLens = lens.filter(l=>l>=4);
+  const alnumLens = ov==="mixed" || !longLens.length ? lens : longLens; // ai livelli 1-3 le stringhe sono solo da 3: senza questo ripiego la spunta «aggiungi alfanumerico» non produceva nessun blocco
 
   // Prima si stabilisce l'elenco delle consegne (blocchi) che verranno effettivamente
   // generate, poi si distribuisce il totale di sessione in modo uniforme tra queste — così
