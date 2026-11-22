@@ -12,8 +12,8 @@ function exportInversione(deck, level){
   title.addNotes(
     `Tutte le regole disponibili (si applicano secondo il tipo di blocco, vedi sotto ogni stimolo):\n`+
     SEQUENCE_RULES.map(r=>`- ${r.label} (${r.kinds.join(", ")})`).join("\n")+
-    `\n\nOgni stimolo ha 1-2 caratteri colorati (rosso, dal livello 13 anche verde): la consegna clinica `+
-    `esatta legata a questi caratteri non è confermata nel materiale originale — verificare con Rodrigo.`
+    `\n\nOgni stimolo ha 1-2 caratteri colorati (rosso; dal livello 4 rosso e verde); dal livello 8 compaiono anche maiuscole/minuscole miste e `+
+    `caratteri GRANDI e PICCOLI nella stessa stringa. La consegna clinica esatta legata a questi attributi non è confermata nel materiale originale — verificare con Rodrigo.`
   );
   // Dimensione del font proporzionata alla lunghezza dello stimolo, non più fissa a 110pt
   // (troppo piccola: su una slide 13.33×7.5in restava confinata in un angolo). Calcolata per
@@ -44,8 +44,10 @@ function exportInversione(deck, level){
       const runs=[]; let cur=null;
       [...item.text].forEach((ch,i)=>{
         const col = markMap[i] ? hexNoHash(markMap[i]) : "1E2A26";
-        if(cur && cur.options.color===col){ cur.text+=ch; }
-        else { cur = {text:ch, options:{fontSize,bold:true,color:col}}; runs.push(cur); }
+        // grande = corpo pieno, piccolo = poco più della metà (la differenza deve vedersi bene a distanza)
+        const fs = (item.sizes && item.sizes[i]==="small") ? Math.round(fontSize*0.55) : fontSize;
+        if(cur && cur.options.color===col && cur.options.fontSize===fs){ cur.text+=ch; }
+        else { cur = {text:ch, options:{fontSize:fs,bold:true,color:col}}; runs.push(cur); }
       });
       stim.addText(runs, {x:0,y:0,w:13.33,h:7.5,align:"center",valign:"middle",isTextBox:true});
       // Niente soluzioni nel commento: si vedono solo nell'app con "Mostra risposta",

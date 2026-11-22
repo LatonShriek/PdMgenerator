@@ -308,158 +308,158 @@
   "h": 111373
  },
  "inversione|L1|s11": {
-  "deck": "bcf832d28e86b951",
-  "stage": "2aeba260c2e2f948",
+  "deck": "07c65a7dc938e400",
+  "stage": "4b2230ce370d9ef3",
   "rule": "354bc2ac6cfbb590",
-  "n": 1456,
+  "n": 1716,
   "h": 2224
  },
  "inversione|L1|s22": {
-  "deck": "71e1294ab10030f2",
-  "stage": "4b5a720f5bc29945",
+  "deck": "8c48dd21c7cb17cc",
+  "stage": "d1d762eab561bfc6",
   "rule": "354bc2ac6cfbb590",
-  "n": 1456,
+  "n": 1716,
   "h": 2224
  },
  "inversione|L2|s11": {
-  "deck": "bcf832d28e86b951",
-  "stage": "2aeba260c2e2f948",
+  "deck": "07c65a7dc938e400",
+  "stage": "4b2230ce370d9ef3",
   "rule": "354bc2ac6cfbb590",
-  "n": 1456,
+  "n": 1716,
   "h": 2224
  },
  "inversione|L2|s22": {
-  "deck": "71e1294ab10030f2",
-  "stage": "4b5a720f5bc29945",
+  "deck": "8c48dd21c7cb17cc",
+  "stage": "d1d762eab561bfc6",
   "rule": "354bc2ac6cfbb590",
-  "n": 1456,
+  "n": 1716,
   "h": 2224
  },
  "inversione|L3|s11": {
-  "deck": "bcf832d28e86b951",
-  "stage": "2aeba260c2e2f948",
+  "deck": "07c65a7dc938e400",
+  "stage": "4b2230ce370d9ef3",
   "rule": "354bc2ac6cfbb590",
-  "n": 1456,
+  "n": 1716,
   "h": 2224
  },
  "inversione|L3|s22": {
-  "deck": "71e1294ab10030f2",
-  "stage": "4b5a720f5bc29945",
+  "deck": "8c48dd21c7cb17cc",
+  "stage": "d1d762eab561bfc6",
   "rule": "354bc2ac6cfbb590",
-  "n": 1456,
+  "n": 1716,
   "h": 2224
  },
  "inversione|L5|s11": {
-  "deck": "b9adc9a3f9e4a332",
-  "stage": "f5758a57058dc943",
-  "rule": "137b671df1e08773",
-  "n": 1622,
-  "h": 2572
+  "deck": "b0a8406ab9760843",
+  "stage": "a2ebcf3389d8506c",
+  "rule": "50bd573ac3492c59",
+  "n": 2452,
+  "h": 3199
  },
  "inversione|L5|s22": {
-  "deck": "32327cfb80490a6e",
-  "stage": "c9544fc1d8001adc",
-  "rule": "137b671df1e08773",
-  "n": 1682,
-  "h": 2638
+  "deck": "d16a4e520adfebf7",
+  "stage": "3dafc00a4c898215",
+  "rule": "50bd573ac3492c59",
+  "n": 2452,
+  "h": 3199
  },
  "inversione|L8|s11": {
-  "deck": "a04f4434b3962a9e",
-  "stage": "9b342646630fcaef",
-  "rule": "37fa19b94125f8ce",
-  "n": 1772,
-  "h": 2737
+  "deck": "b0a8406ab9760843",
+  "stage": "a2ebcf3389d8506c",
+  "rule": "8e4276bdb26c6a37",
+  "n": 2452,
+  "h": 3199
  },
  "inversione|L8|s22": {
-  "deck": "fa31942af8d43766",
-  "stage": "5ffec52336f8b82b",
-  "rule": "37fa19b94125f8ce",
-  "n": 1922,
-  "h": 2902
+  "deck": "f9f18e7b75ffcf75",
+  "stage": "3ade51bdd68aae0f",
+  "rule": "8e4276bdb26c6a37",
+  "n": 2469,
+  "h": 3262
  },
  "inversione|L12|s11": {
-  "deck": "92f4a05110291bfd",
-  "stage": "77642a56ae0aaa8e",
-  "rule": "9234ed1f8a58aa2a",
-  "n": 2086,
-  "h": 3130
+  "deck": "2e3cfe6e40c49669",
+  "stage": "538b06bc1efe654b",
+  "rule": "c22b419196e1d37e",
+  "n": 2658,
+  "h": 3813
  },
  "inversione|L12|s22": {
-  "deck": "3379d65dbf6e3eb1",
-  "stage": "8b4c12df2ea297d0",
-  "rule": "9234ed1f8a58aa2a",
-  "n": 2056,
-  "h": 3097
+  "deck": "c48daeeb5c459d51",
+  "stage": "7c84461e926d573c",
+  "rule": "c22b419196e1d37e",
+  "n": 2608,
+  "h": 3633
  },
  "inversione|L16|s11": {
-  "deck": "9c3ee991d97aefa7",
-  "stage": "98577aa7574f570e",
-  "rule": "ef30e9e2d4ba4bbb",
-  "n": 3428,
-  "h": 5266
+  "deck": "83ba33f33006e3e0",
+  "stage": "6f575b46a6d6d9b7",
+  "rule": "76ff66b02cda11aa",
+  "n": 4166,
+  "h": 6525
  },
  "inversione|L16|s22": {
-  "deck": "7530a0770991f6bd",
-  "stage": "adeb39d3c41ccbe2",
-  "rule": "ef30e9e2d4ba4bbb",
-  "n": 3426,
-  "h": 5252
+  "deck": "84ecb3c0f8039a06",
+  "stage": "19dcb7998db1a309",
+  "rule": "76ff66b02cda11aa",
+  "n": 4145,
+  "h": 6424
  },
  "inversione|L20|s11": {
-  "deck": "7552153e5d946396",
-  "stage": "524eaf6228a947c6",
-  "rule": "bc09fffd567501cb",
-  "n": 3428,
-  "h": 5266
+  "deck": "9f76305c4ad6067b",
+  "stage": "89b52b2b140deb96",
+  "rule": "d236f610991f4029",
+  "n": 4355,
+  "h": 7231
  },
  "inversione|L20|s22": {
-  "deck": "924fc3ffe285df01",
-  "stage": "ef66dfc7aa54aa02",
-  "rule": "bc09fffd567501cb",
-  "n": 3426,
-  "h": 5252
+  "deck": "908619b2d8899e00",
+  "stage": "ce5a4ecfcae597bd",
+  "rule": "d236f610991f4029",
+  "n": 4303,
+  "h": 6991
  },
  "inversione|L24|s11": {
-  "deck": "1cd36e66f186229f",
-  "stage": "5d14d2e2dffa39e5",
-  "rule": "85a763bae927ca25",
-  "n": 3332,
-  "h": 5231
+  "deck": "8c29bce24825bf2f",
+  "stage": "e537ea18e14f62b4",
+  "rule": "5ea4d49b06feea76",
+  "n": 4489,
+  "h": 8029
  },
  "inversione|L24|s22": {
-  "deck": "5c3722a9c70aca5a",
-  "stage": "ea02f0ffd61346cd",
-  "rule": "85a763bae927ca25",
-  "n": 3332,
-  "h": 5231
+  "deck": "d0a3f2c9e184e309",
+  "stage": "8bffded5c28652f3",
+  "rule": "5ea4d49b06feea76",
+  "n": 4460,
+  "h": 7891
  },
  "inversione|L28|s11": {
-  "deck": "bf855300e98d0284",
-  "stage": "9e970769eb8c706c",
-  "rule": "5dd6ed7aef225119",
-  "n": 3332,
-  "h": 5231
+  "deck": "12b1ce6062518b34",
+  "stage": "3a7c096b405a7184",
+  "rule": "df10b4e6a347480f",
+  "n": 4560,
+  "h": 8320
  },
  "inversione|L28|s22": {
-  "deck": "657e698b3f36b1c8",
-  "stage": "445dbbaf69d66dbe",
-  "rule": "5dd6ed7aef225119",
-  "n": 3332,
-  "h": 5231
+  "deck": "a950e76cf5de6717",
+  "stage": "82746c7b0c6665be",
+  "rule": "df10b4e6a347480f",
+  "n": 4576,
+  "h": 8328
  },
  "inversione|L32|s11": {
-  "deck": "bbb46fcad8a78d0b",
-  "stage": "4edc6c04f353454f",
-  "rule": "c64261074b446015",
-  "n": 3548,
-  "h": 5717
+  "deck": "0b43b5feadd3dd15",
+  "stage": "7a2726746637f8a4",
+  "rule": "04052ae68c354d18",
+  "n": 4888,
+  "h": 9207
  },
  "inversione|L32|s22": {
-  "deck": "a15d944b273486bf",
-  "stage": "590705ae0250d5d5",
-  "rule": "c64261074b446015",
-  "n": 3548,
-  "h": 5717
+  "deck": "84418f021a87022b",
+  "stage": "2ede5a59a70fd99c",
+  "rule": "04052ae68c354d18",
+  "n": 4892,
+  "h": 9209
  },
  "serie|L1|s11": {
   "deck": "d6f20720c838a992",
@@ -1680,39 +1680,39 @@
   "h": 17093
  },
  "inversione|mat-digits|L12": {
-  "deck": "2dfd7bd9644b83d9",
-  "stage": "770b2c78f8d5fbec",
-  "rule": "9234ed1f8a58aa2a",
-  "n": 1830,
-  "h": 2755
+  "deck": "d935b30b540d40a5",
+  "stage": "ab38774b6760fa3e",
+  "rule": "c22b419196e1d37e",
+  "n": 2456,
+  "h": 3455
  },
  "inversione|mat-letters|L12": {
-  "deck": "38ebf3a8540b9120",
-  "stage": "80062b0b49ea5fb4",
-  "rule": "9234ed1f8a58aa2a",
-  "n": 1902,
-  "h": 2831
+  "deck": "e6c593d0a2e238d1",
+  "stage": "edc84c58374bb837",
+  "rule": "c22b419196e1d37e",
+  "n": 2409,
+  "h": 3272
  },
  "inversione|mat-mixed|L12": {
-  "deck": "2aba920a54b5f03f",
-  "stage": "225c03f350a9136d",
-  "rule": "9234ed1f8a58aa2a",
-  "n": 1890,
-  "h": 2820
+  "deck": "7d8e1a8ed2b09a25",
+  "stage": "5001cbd9289c7079",
+  "rule": "c22b419196e1d37e",
+  "n": 2427,
+  "h": 3294
  },
  "inversione|alnum|L20": {
-  "deck": "a8bb2af95b0ffbd7",
-  "stage": "b667e906fe559db3",
-  "rule": "bc09fffd567501cb",
-  "n": 3422,
-  "h": 5224
+  "deck": "4ddf85dee084bfa8",
+  "stage": "8d52f63380a5f87f",
+  "rule": "d236f610991f4029",
+  "n": 4372,
+  "h": 7232
  },
  "inversione|items6|L8": {
-  "deck": "2bb4ace7b4562040",
-  "stage": "768b0fbee10a974b",
-  "rule": "37fa19b94125f8ce",
-  "n": 2178,
-  "h": 3334
+  "deck": "3d8cb871984a7e5a",
+  "stage": "f8eace95c8d72f40",
+  "rule": "8e4276bdb26c6a37",
+  "n": 2945,
+  "h": 3982
  },
  "intruso|screens3|L10": {
   "deck": "a1ade5ff74436bcb",

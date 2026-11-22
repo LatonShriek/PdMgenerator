@@ -13,6 +13,7 @@ function renderMarkedText(item){
     const c = document.createElement("span");
     c.textContent = ch;
     if(markMap[i]) c.style.color = markMap[i];
+    if(item.sizes && item.sizes[i]){ c.style.fontSize = item.sizes[i]==="big" ? "1.3em" : "0.65em"; }
     frag.appendChild(c);
   });
   return frag;

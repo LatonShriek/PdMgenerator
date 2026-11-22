@@ -5,21 +5,32 @@
 // Provato con tests/golden-browser.js (materiale prima e dopo identico).
 
 // ---------- INVERSIONE E RIORDINO ----------
-// Contrassegni: livelli 1-4: 1 solo rosso; 5-15: 1 rosso oppure 2 rossi, con quota di "2" in salita
-// (+1/12 a livello); 16-32: rosso e verde insieme.
+// Contrassegni: livelli 1-3: 1 solo rosso; dal 4: rosso e verde insieme (anticipato il 22 nov 2026, richiesta di Rodrigo: prima il verde
+// compariva dal 16). Dal livello 8 anche grande/piccolo (vedi withMarks) e maiuscole/minuscole miste (invMixedCaseProb).
 function markChars(text, level){
   const positions = [...text].map((_,i)=>i);
   let n, colors;
-  if(level>=16){ n=2; colors=["#D64545","#3E9B4F"]; }
-  else { n = (level>=5 && Math.random() < Math.min(1,(level-4)/12)) ? 2 : 1; colors=["#D64545","#D64545"]; }
+  if(level>=4){ n=2; colors=["#D64545","#3E9B4F"]; }
+  else { n=1; colors=["#D64545","#D64545"]; }
   n = Math.min(n, text.length);
   const chosen=[];
   while(chosen.length<n){ const i=pick(positions); if(!chosen.includes(i)) chosen.push(i); }
   chosen.sort((a,b)=>a-b);
   return chosen.map((idx,k)=>({index:idx, color:colors[k]}));
 }
+// Quota di stringhe con caratteri GRANDI e PICCOLI insieme: nessuna fino al livello 7, poi sale fino al 100% al 26 (stessa rampa delle maiuscole miste).
+function invSizeProb(level){ return level<=7 ? 0 : Math.min(1, (level-7)/19); }
+function sizeChars(text, level){
+  const n = [...text].length;
+  if(n<2 || Math.random() >= invSizeProb(level)) return null;
+  for(let tries=0; tries<50; tries++){
+    const s = Array.from({length:n}, ()=> Math.random()<0.5 ? "big" : "small");
+    if(s.includes("big") && s.includes("small")) return s;
+  }
+  return null;
+}
 function withMarks(text, level){
-  return {text, marks: markChars(text, level)};
+  return {text, marks: markChars(text, level), sizes: sizeChars(text, level)};
 }
 
 // Non-parole pronunciabili: sillabe aperte italiane (consonante+vocale, oppure gruppo
@@ -83,8 +94,8 @@ const INV_ALNUM_FROM = 11, INV_LEXICAL_UNTIL = 8;
 // Quota di non-parole PRONUNCIABILI (il resto sono sequenze di lettere casuali): 100% fino al livello 9,
 // poi scende in modo lineare fino al 20% del livello 32.
 function invPronounceProb(level){ return level<=9 ? 1 : Math.max(0.2, 1 - 0.8*(level-9)/23); }
-// Quota di stringhe a maiuscole/minuscole MISTE: nessuna fino al livello 14, poi sale fino al 100% del 26.
-function invMixedCaseProb(level){ return level<=14 ? 0 : Math.min(1, (level-14)/12); }
+// Quota di stringhe a maiuscole/minuscole MISTE: nessuna fino al livello 7, poi sale fino al 100% al 26 (prima partiva dal 15).
+function invMixedCaseProb(level){ return level<=7 ? 0 : Math.min(1, (level-7)/19); }
 // Numero medio di blocchi in modalità automatica a un dato livello, usato solo per mostrare
 // un valore di default sensato nello slider "Numero di stimoli per blocco" (il conteggio
 // reale per blocco viene poi ricalcolato in genInversione in base alle consegne presenti).
