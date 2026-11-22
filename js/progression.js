@@ -231,6 +231,7 @@ function recallGroupLevel(){
 function progEsc(s){ return String(s).replace(/[&<>"]/g, c=>({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;"})[c]); }
 
 function renderProgressPanel(){
+  if(typeof renderPassaggioPanel==="function") renderPassaggioPanel();
   const host = document.getElementById("progressPanel");
   if(!host) return;
   const exId = state.exercise;
