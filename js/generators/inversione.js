@@ -7,7 +7,7 @@
 // ---------- INVERSIONE E RIORDINO ----------
 // Contrassegni (scala anticipata il 22 nov 2026, richiesta di Rodrigo): livelli 1-3: 1 solo rosso. Dal 4 compare il verde e i caratteri colorati sono
 // 1 o 2 (quota di "2" in salita, +1/12 a livello dal 5), anche dello STESSO colore (rosso+rosso, verde+verde) o di colori DIVERSI (rosso+verde),
-// in parti uguali. Dal 12 anche il blu (fino a 3 caratteri colorati) e i caratteri SOTTOLINEATI (vedi underlineChars). Dall'8 grande/piccolo (sizeChars)
+// in parti uguali. Dal 10 i caratteri SOTTOLINEATI (vedi underlineChars); dal 12 anche il blu (fino a 3 caratteri colorati). Dall'8 grande/piccolo (sizeChars)
 // e maiuscole/minuscole miste (invMixedCaseProb). Le consegne (cosa chiedere a voce) le sceglie il terapista: qui cambia solo la complessità del materiale.
 const INV_MARK_HEX = { red:"#D64545", green:"#3E9B4F", blue:"#2F6FD0" };
 function invMarkPalette(level){ return level>=12 ? ["red","green","blue"] : level>=4 ? ["red","green"] : ["red"]; }
@@ -37,8 +37,8 @@ function sizeChars(text, level){
   }
   return null;
 }
-// Caratteri SOTTOLINEATI (da livello 12, quota (livello−11)/19 delle stringhe): 1 o 2 caratteri, mai tutti.
-function invUnderlineProb(level){ return level<=11 ? 0 : Math.min(1, (level-11)/19); }
+// Caratteri SOTTOLINEATI (da livello 10, subito dopo grande/piccolo, quota (livello−9)/19 delle stringhe): 1 o 2 caratteri, mai tutti.
+function invUnderlineProb(level){ return level<=9 ? 0 : Math.min(1, (level-9)/19); }
 function underlineChars(text, level){
   const n = [...text].length;
   if(n<3 || Math.random() >= invUnderlineProb(level)) return null;

@@ -13,7 +13,7 @@ function exportInversione(deck, level){
     `Tutte le regole disponibili (si applicano secondo il tipo di blocco, vedi sotto ogni stimolo):\n`+
     SEQUENCE_RULES.map(r=>`- ${r.label} (${r.kinds.join(", ")})`).join("\n")+
     `\n\nOgni stimolo ha 1-2 caratteri colorati (rosso; dal livello 4 anche verde, dal 12 anche blu, a volte dello stesso colore e a volte di colori diversi); dal livello 8 compaiono anche maiuscole/minuscole miste e `+
-    `caratteri GRANDI e PICCOLI nella stessa stringa; dal 12 anche caratteri SOTTOLINEATI. La consegna clinica esatta legata a questi attributi non è confermata nel materiale originale — verificare con Rodrigo.`
+    `caratteri GRANDI e PICCOLI nella stessa stringa; dal 10 anche caratteri SOTTOLINEATI. La consegna clinica esatta legata a questi attributi non è confermata nel materiale originale — verificare con Rodrigo.`
   );
   // Dimensione del font proporzionata alla lunghezza dello stimolo, non più fissa a 110pt
   // (troppo piccola: su una slide 13.33×7.5in restava confinata in un angolo). Calcolata per
