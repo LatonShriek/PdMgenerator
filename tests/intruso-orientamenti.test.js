@@ -22,11 +22,18 @@ test('ruotano solo semi e note; le altre famiglie mai', () => {
   assert.strictEqual(intrusoAnglesFor('suits', 10).length, 8);
   assert.strictEqual(intrusoAnglesFor('music', 31).length, 8);
 });
-test('nei livelli con orientamenti compaiono solo semi e note, senza ♦ ♢ ♮ ♯', () => {
-  [7, 10, 17, 20, 28, 31].forEach(lv => { for (let r = 0; r < 5; r++) genIntruso(lv, []).slides.forEach(s => {
-    assert.ok(['suits', 'music'].includes(s.familyId), 'livello ' + lv + ': ' + s.familyId);
-    assert.ok(![...s.items.join('')].some(ch => '♦♢♮♯'.includes(ch)), 'glifo simmetrico presente');
-  }); });
+test('nei livelli con orientamenti la rotazione è una variante: una schermata ruotata per famiglia (solo semi e note), le altre famiglie senza rotazione', () => {
+  [7, 10, 17, 20, 28, 31].forEach(lv => { for (let r = 0; r < 5; r++) {
+    const slides = genIntruso(lv, []).slides;
+    const rot = slides.filter(s => s.orient > 1);
+    assert.ok(rot.length >= 1 && rot.length <= Math.floor(slides.length / 4), 'livello ' + lv + ': schermate ruotate ' + rot.length + ' su ' + slides.length);
+    rot.forEach(s => {
+      assert.ok(['suits', 'music'].includes(s.familyId), 'livello ' + lv + ': ' + s.familyId);
+      assert.ok(![...s.items.join('')].some(ch => '♦♢♮♯'.includes(ch)), 'glifo simmetrico presente');
+    });
+    assert.strictEqual(new Set(rot.map(s => s.familyId)).size, rot.length, 'una sola schermata ruotata per famiglia');
+    assert.ok(new Set(slides.filter(s => s.orient === 1).map(s => s.familyId)).size >= 3, 'le altre famiglie compaiono senza rotazione');
+  } });
 });
 test('le scritture non familiari compaiono già come singoli (livelli 4-6)', () => {
   const nonFam = ['greek', 'cyrillic', 'armenian', 'thai', 'katakana', 'hebrew', 'braille', 'geez'];

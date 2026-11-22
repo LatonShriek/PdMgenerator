@@ -357,10 +357,16 @@ function intrusoEligibleRaw(level, L){
   return settled.length>=4 ? settled : base;
 }
 // Nei livelli con orientamenti compaiono SOLO le famiglie ruotabili (semi e note): tutte le schermate della sessione ruotano.
+// Nei livelli con orientamenti la rotazione è solo una VARIANTE in più (Rodrigo, 22 nov 2026: non deve diventare il focus): le schermate normali usano
+// tutte le altre famiglie senza rotazione; semi e note ruotati compaiono in UNA schermata per famiglia (intrusoRotFamilies), con numerosità e lunghezza
+// decise dalla complessità del livello come negli altri livelli.
 function intrusoEligibleFamilies(level, L){
   const raw = intrusoEligibleRaw(level, L);
-  if(intrusoOrientCount(level)>1){ const ok = raw.filter(f=>INTRUSO_ROT_OK.has(f.id)); if(ok.length) return ok; }
+  if(intrusoOrientCount(level)>1){ const ok = raw.filter(f=>!INTRUSO_ROT_OK.has(f.id)); if(ok.length) return ok; }
   return raw;
+}
+function intrusoRotFamilies(level, L){
+  return intrusoOrientCount(level)>1 ? intrusoEligibleRaw(level, L).filter(f=>INTRUSO_ROT_OK.has(f.id)) : [];
 }
 // Lunghezza effettiva della sessione: quella del livello, ridotta solo se troppo poche famiglie la reggono.
 function intrusoPlanLen(level){
@@ -379,13 +385,17 @@ function levelFamiliesIntruso(level, count, ctx){
   // ma dentro una sessione la forbice resta stretta. Dentro la finestra, rotazione per cronologia.
   count = count || 9;
   const L = intrusoPlanLen(level);
+  const rotFams = intrusoRotFamilies(level, L);
+  const nRot = rotFams.length ? Math.min(rotFams.length, Math.max(1, Math.floor(count/4))) : 0;   // al più una schermata ruotata per famiglia, mai più di un quarto
+  const rotChosen = nRot ? (ctx ? lruOrder(rotFams, f=>"F:"+f.id, ctx) : shuffle(rotFams)).slice(0, nRot) : [];
+  count -= nRot;
   const eligible = intrusoEligibleFamilies(level, L).slice().sort((a,b)=>intrusoFamilyDifficulty(a, level, L)-intrusoFamilyDifficulty(b, level, L));
   const w = L===1 ? eligible.length : Math.min(eligible.length, Math.max(Math.min(count, eligible.length), Math.ceil(eligible.length*0.5))); // singoli: tutte le famiglie sbloccate (le non familiari vanno introdotte)
   const start = Math.round(intrusoLevelT(level) * (eligible.length - w));
   const pool = eligible.slice(start, start + w);
   const order = [];
   while(order.length<count) order.push(...(ctx ? lruOrder(pool, f=>"F:"+f.id, ctx) : shuffle(pool)));
-  const chosen = order.slice(0, count);
+  const chosen = order.slice(0, count).concat(rotChosen);
   return chosen.sort((a,b)=> intrusoFamilyDifficulty(a, level, L) - intrusoFamilyDifficulty(b, level, L));
 }
 
