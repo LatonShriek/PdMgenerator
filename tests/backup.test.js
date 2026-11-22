@@ -159,3 +159,15 @@ test('impostazioni del gruppo (pdm_settings::): salvate, ripristinate senza sovr
   assert.strictEqual(other.get(K), JSON.stringify({ analogieItemsOverride: 6 }));
   assert.strictEqual(B.validate({ format: bk.format, version: 1, entries: { [K]: '[1]' } }).skipped.length, 1);
 });
+
+test('progressMerge: le opzioni del gruppo seguono la copia modificata più di recente (data propria gsU)', () => {
+  const base = { settings: { thr: 80, consec: 1 }, ex: {}, levels: {}, fascicoloParts: {} };
+  const vecchia = Object.assign({}, base, { u: 900, groupSettings: { intrusoSolutionSlides: false }, gsU: 100 });
+  const nuova = Object.assign({}, base, { u: 50, groupSettings: { intrusoSolutionSlides: true, griglieSlidePerRegola: true }, gsU: 200 });
+  assert.deepStrictEqual(progressMerge(vecchia, nuova).groupSettings, nuova.groupSettings);
+  assert.deepStrictEqual(progressMerge(nuova, vecchia).groupSettings, nuova.groupSettings);
+  assert.strictEqual(progressMerge(vecchia, nuova).gsU, 200);
+  // copia online senza opzioni (precedente a questa funzione): restano quelle locali
+  const senza = Object.assign({}, base, { u: 10 });
+  assert.deepStrictEqual(progressMerge(nuova, senza).groupSettings, nuova.groupSettings);
+});

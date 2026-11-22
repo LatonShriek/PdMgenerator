@@ -12,7 +12,7 @@
    ========================================================= */
 const PROGRESS_PREFIX = "pdm_progress::";
 
-function progressBlank(){ return { u:0, settings:{thr:80, consec:1}, ex:{}, levels:{}, fascicoloParts:{} }; }
+function progressBlank(){ return { u:0, settings:{thr:80, consec:1}, ex:{}, levels:{}, fascicoloParts:{}, groupSettings:null, gsU:0 }; }
 
 function progressLoad(group){
   try{
@@ -43,6 +43,10 @@ function progressMerge(a, b){
   out.settings = Object.assign({thr:80, consec:1}, newer.settings || {});
   out.levels = Object.assign({}, newer.levels || {});
   out.fascicoloParts = Object.assign({}, newer.fascicoloParts || {});
+  // opzioni di lavoro del gruppo: vince la copia modificata più di recente (data propria `gsU`, indipendente dalle registrazioni)
+  const gsNewer = (a.gsU||0) >= (b.gsU||0) ? a : b;
+  out.groupSettings = gsNewer.groupSettings || null;
+  out.gsU = gsNewer.gsU || 0;
   const ids = new Set([...Object.keys(a.ex||{}), ...Object.keys(b.ex||{})]);
   ids.forEach(id=>{
     const ea = (a.ex||{})[id] || {}, eb = (b.ex||{})[id] || {};
@@ -158,13 +162,24 @@ function groupSettingsSave(){
   const out = {};
   GROUP_SETTING_KEYS.forEach(k=>{ out[k] = state[k]; });
   try{ localStorage.setItem(GROUP_SETTINGS_PREFIX + groupSettingsKey, JSON.stringify(out)); }catch(e){}
+  // Copia anche nel documento online del gruppo (lo stesso dei livelli), così le opzioni seguono il gruppo su ogni computer/tablet.
+  // Come per i livelli, finché la copia online non è arrivata non si scrive: un computer nuovo con i valori di base non deve sovrascriverla.
+  if(progressWaitingForSync(groupSettingsKey)) return;
+  const d = progressLoad(groupSettingsKey);
+  if(JSON.stringify(d.groupSettings || null) === JSON.stringify(out)) return; // nessuna novità: niente scritture inutili
+  d.groupSettings = out; d.gsU = Date.now();
+  progressStore(groupSettingsKey, d);
 }
 
 // Rimette a video le impostazioni del gruppo indicato (o i valori di base). Restituisce true se qualcosa è cambiato.
 function groupSettingsRecall(group){
   groupSettingsKey = group;
   let stored = null;
-  if(group) try{ stored = JSON.parse(localStorage.getItem(GROUP_SETTINGS_PREFIX + group) || "null"); }catch(e){}
+  // prima la copia nel documento del gruppo (condivisa online), altrimenti quella salvata solo in questo browser (prima del passaggio online)
+  if(group){
+    try{ stored = progressLoad(group).groupSettings || null; }catch(e){}
+    if(!stored) try{ stored = JSON.parse(localStorage.getItem(GROUP_SETTINGS_PREFIX + group) || "null"); }catch(e){}
+  }
   const before = JSON.stringify(GROUP_SETTING_KEYS.map(k=>state[k]));
   GROUP_SETTING_KEYS.forEach(k=>{
     const base = JSON.parse(JSON.stringify(GROUP_SETTING_DEFAULTS[k] === undefined ? null : GROUP_SETTING_DEFAULTS[k]));
