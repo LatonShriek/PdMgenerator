@@ -147,7 +147,7 @@ function rememberGroupLevel(){
 // di base, quindi una modifica fatta per un profilo non passa mai a un altro.
 const GROUP_SETTINGS_PREFIX = "pdm_settings::";
 const GROUP_SETTING_KEYS = ["digitRule","catMode","materialOverride","inversioneItemsOverride","griglieRowsOverride","griglieColsOverride","griglieNRichiesteOverride",
-  "inversioneForceAlnum","intrusoScreensOverride","serieItemsOverride","serieAutoPlay","serieAutoSeconds","serieGoogle","intrusoSolutionSlides",
+  "inversioneForceAlnum","intrusoScreensOverride","serieItemsOverride","serieAutoPlay","serieAutoSeconds","serieGoogle","intrusoSolutionSlides","griglieSlidePerRegola",
   "classificazioniItemsOverride","intrusoconcItemsOverride","analogieItemsOverride","serieShowNextCriterion",
   "categorizzazioneTrialsOverride","accessoWordsOverride"];
 const GROUP_SETTING_DEFAULTS = JSON.parse(JSON.stringify(GROUP_SETTING_KEYS.reduce((o,k)=>{ o[k] = state[k]; return o; }, {})));

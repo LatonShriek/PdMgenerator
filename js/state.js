@@ -26,6 +26,7 @@ const state = {
   serieAutoSeconds:2,
   serieGoogle:false,
   intrusoSolutionSlides:true,
+  griglieSlidePerRegola:false,
   classificazioniItemsOverride:null,
   intrusoconcItemsOverride:null,
   analogieItemsOverride:null,

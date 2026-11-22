@@ -124,6 +124,13 @@ const EX_CONTROLS = {
       render();
     };
     wrap.appendChild(btn);
+    const rLabel = document.createElement("label");
+    rLabel.style.cssText = "display:flex; align-items:center; gap:6px; margin-top:8px; font-weight:600;";
+    const rCheck = document.createElement("input");
+    rCheck.type = "checkbox"; rCheck.checked = state.griglieSlidePerRegola === true;
+    rCheck.addEventListener("change", e=>{ state.griglieSlidePerRegola = e.target.checked; });
+    rLabel.appendChild(rCheck); rLabel.appendChild(document.createTextNode("Esportazione: una slide per regola (istruzione → griglia → soluzione evidenziata con risposta)"));
+    wrap.appendChild(rLabel);
     // Numerosità manuale: righe e colonne della griglia (di solito decise dal livello). Più celle = cerchi più piccoli sulla slide.
     wrap.appendChild(numerosityControl("Numero di righe", "griglieRowsOverride", 3, 10, gridRowsForLevel(state.level)));
     wrap.appendChild(numerosityControl("Numero di colonne", "griglieColsOverride", 4, 14, gridColsForLevel(state.level)));
