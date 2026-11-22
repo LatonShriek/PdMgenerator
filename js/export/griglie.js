@@ -8,7 +8,7 @@ function exportGriglie(deck, level){
   p.layout = "LAYOUT_4x3"; // 10x7.5in — come gli originali, non widescreen (causa della distorsione)
   const SLIDE_W=10, SLIDE_H=7.5;
   // Modalità «una slide per regola»: per ogni regola, istruzione da sola → griglia completa (senza istruzione, il paziente deve ricordarla)
-  // → soluzione (celle corrette in evidenza, le altre sbiadite, risposta numerica in basso). Di norma spenta: si attiva dalla barra laterale.
+  // → soluzione (celle corrette lasciate in evidenza, le altre sbiadite, risposta numerica in basso). Di norma spenta: si attiva dalla barra laterale.
   const perRule = state.griglieSlidePerRegola === true;
   const BAND = 1.0; // fascia in basso riservata alla risposta (sempre lasciata libera in questa modalità, così le due griglie sono identiche)
   deck.slides.forEach((s)=>{
@@ -112,14 +112,10 @@ function drawGriglieGrid(p, slide, s, SLIDE_W, areaH, solution){
         fill:{color:bgHex}, line:{color:borderHex, width:lineWidth, dashType:dash}, isTextBox:true
       });
     }
-    if(solution){
-      if(solution.matches(c)){
-        // anello rosso spesso attorno alla cella corretta
-        slide.addShape(p.ShapeType.ellipse, { x:cx-CIRCLE/2-0.02, y:cy-CIRCLE/2-0.02, w:CIRCLE+0.04, h:CIRCLE+0.04, fill:{type:"none"}, line:{color:"E02424", width:Math.max(6, lineWidth*1.4)} });
-      } else {
-        // cella non corretta: velo bianco quasi opaco (si intravede appena)
-        slide.addShape(p.ShapeType.ellipse, { x:cx-CIRCLE/2-0.03, y:cy-CIRCLE/2-0.03, w:CIRCLE+0.06, h:CIRCLE+0.06, fill:{color:"FFFFFF", transparency:4}, line:{color:"FFFFFF", width:1} });
-      }
+    // Soluzione: nessun anello (le griglie hanno già bordi colorati, anche rossi, che si confonderebbero): le celle corrette restano
+    // esattamente com'erano, tutte le altre sono coperte da un velo bianco quasi opaco e si intravedono appena (si capisce dove stavano).
+    if(solution && !solution.matches(c)){
+      slide.addShape(p.ShapeType.ellipse, { x:cx-CIRCLE/2-0.04, y:cy-CIRCLE/2-0.04, w:CIRCLE+0.08, h:CIRCLE+0.08, fill:{color:"FFFFFF", transparency:6}, line:{color:"FFFFFF", width:2} });
     }
   });
 }
@@ -137,7 +133,7 @@ function exportGriglieRules(p, s, SLIDE_W, SLIDE_H, BAND){
     const b = p.addSlide(); b.background = {color:"FFFFFF"};
     b.addNotes(`Regola ${i+1}/${tot}: ${r.text}\n(il paziente deve ricordare l'istruzione: non è sulla slide)`);
     drawGriglieGrid(p, b, s, SLIDE_W, areaH, null);
-    // 3) soluzione: celle corrette in evidenza + risposta numerica
+    // 3) soluzione: celle corrette lasciate in evidenza + risposta numerica
     const c = p.addSlide(); c.background = {color:"FFFFFF"};
     const ans = r.answer || (r.count + " elementi");
     c.addNotes(`Regola ${i+1}/${tot}: ${r.text}\nRisposta: ${ans}`);
