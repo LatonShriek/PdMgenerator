@@ -114,16 +114,17 @@ function build(){
     else d.textContent=it;
     grid.appendChild(d);
   });
-  // misura l'ingombro reale del contenuto: se una cella è troppo piena, il corpo si riduce per tutte (stessa misura ovunque)
-  var sc=1;
+  // misura l'ingombro reale e adatta il corpo allo spazio della cella: il contenuto più ingombrante occupa al più l'88% della cella
+  // (si rimpicciolisce se esce, si ingrandisce se c'è molto spazio, fino a 1,8 volte); la misura è la stessa per tutte le celle
+  var sc=Infinity;
   [].forEach.call(grid.children,function(d){
     var a=d.getBoundingClientRect(), ch=d.firstElementChild, cwid, chei;
     if(ch){ var r=ch.getBoundingClientRect(); cwid=r.width; chei=r.height; }
     else { var rg=document.createRange(); rg.selectNodeContents(d); var q=rg.getBoundingClientRect(); cwid=q.width; chei=q.height; }
-    if(cwid>0) sc=Math.min(sc,(a.width-8)/cwid);
-    if(chei>0) sc=Math.min(sc,(a.height-8)/chei);
+    if(cwid>0) sc=Math.min(sc,(a.width-4)*0.88/cwid);
+    if(chei>0) sc=Math.min(sc,(a.height-4)*0.88/chei);
   });
-  if(sc<1){ var px2=Math.max(10,Math.floor(px*sc)); [].forEach.call(grid.children,function(d){ d.style.fontSize=px2+"px"; }); }
+  if(isFinite(sc)){ sc=Math.min(sc,1.8); var px2=Math.max(10,Math.floor(px*sc)); if(px2!==px) [].forEach.call(grid.children,function(d){ d.style.fontSize=px2+"px"; }); }
   prog.textContent="Schermata "+(i+1)+" di "+SL.length;
   s._oddRow=oddRow;
   applyState();
