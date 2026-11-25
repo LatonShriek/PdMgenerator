@@ -40,4 +40,5 @@ Limiti noti (da dichiarare con onestà):
 - `tests/profili-browser.js`: le impostazioni di un gruppo non passano a un altro gruppo (`CHROMIUM_PATH=/usr/bin/google-chrome node tests/profili-browser.js`).
 - `tests/impostazioni-online-browser.js`: le opzioni del gruppo finiscono nel documento online del gruppo e tornano su un altro dispositivo (Firestore finto, `node tests/impostazioni-online-browser.js`).
 - `tests/passaggio-browser.js`: il pannello «Passaggio livelli con Traccia-N» costruisce il codice dei livelli del gruppo e applica quello arrivato da Traccia-N (`node tests/passaggio-browser.js`).
+- `tests/intruso-player-browser.js`: il lettore a tocco dell'Intruso (errore segnalato, riga isolata dopo N errori, riepilogo, tutti i livelli su schermo largo e verticale senza uscire dalle celle).
 - `tests/serie-player-browser.js`: il lettore autonomo della Serie parte da solo, si ferma e riprende con un tocco, mostra lo schermo vuoto tra due stimoli uguali e include il blocco dello spegnimento schermo.

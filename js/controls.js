@@ -263,6 +263,35 @@ const EX_CONTROLS = {
     sCheck.addEventListener("change", e=>{ state.intrusoSolutionSlides = e.target.checked; });
     sLabel.appendChild(sCheck); sLabel.appendChild(document.createTextNode("Dopo ogni schermata, slide con cerchio rosso sull'unico (nell'esportazione)"));
     wrap.appendChild(sLabel);
+    // Lettore a tocco per l'uso individuale (tablet): tocco giusto = avanti; tocco sbagliato = errore; dopo N errori resta attiva solo la riga dell'intruso.
+    const hintLabel = document.createElement("label");
+    hintLabel.style.cssText = "display:flex; align-items:center; gap:8px; margin-top:14px; font-weight:600;";
+    hintLabel.appendChild(document.createTextNode("Lettore a tocco: aiuto (solo la riga giusta) dopo"));
+    const hintInput = document.createElement("input");
+    hintInput.type = "number"; hintInput.min = "1"; hintInput.max = "5"; hintInput.step = "1";
+    hintInput.className = "level-badge level-number";
+    hintInput.setAttribute("aria-label", "Errori prima dell'aiuto nel lettore a tocco");
+    hintInput.value = String(intrusoHintAfterValue());
+    hintInput.addEventListener("change", e=>{ state.intrusoHintAfter = e.target.value; state.intrusoHintAfter = intrusoHintAfterValue(); hintInput.value = String(state.intrusoHintAfter); });
+    hintLabel.appendChild(hintInput);
+    hintLabel.appendChild(document.createTextNode("errori"));
+    wrap.appendChild(hintLabel);
+    const touchRow = document.createElement("div");
+    touchRow.style.cssText = "display:flex; gap:8px; flex-wrap:wrap; margin-top:12px;";
+    const touchBtn = document.createElement("button");
+    touchBtn.className = "action primary"; touchBtn.style.cssText = "width:auto; margin:0;";
+    touchBtn.textContent = "▶ Avvia il lettore a tocco";
+    touchBtn.addEventListener("click", ()=>intrusoOpenPlayer());
+    const touchDl = document.createElement("button");
+    touchDl.className = "action ghost"; touchDl.style.cssText = "width:auto; margin:0;";
+    touchDl.textContent = "Scarica come pagina";
+    touchDl.addEventListener("click", ()=>intrusoDownloadPlayer());
+    touchRow.appendChild(touchBtn); touchRow.appendChild(touchDl);
+    wrap.appendChild(touchRow);
+    const touchNote = document.createElement("div");
+    touchNote.className = "level-note";
+    touchNote.textContent = "Per l'uso individuale su tablet: il paziente tocca l'unico elemento che compare una sola volta. Se è giusto si passa alla schermata dopo; se è sbagliato l'elemento si attenua (errore) e resta la stessa schermata. Dopo il numero di errori scelto restano attive solo le celle della riga che contiene l'intruso. A fine serie compare il riepilogo (giuste al primo tocco, con errori, con aiuto, tempo): per la % di riuscita conta solo il primo tocco. Il file scaricato si apre senza rete e non salva né invia dati.";
+    wrap.appendChild(touchNote);
     return wrap;
   },
   inversione: ()=>{
