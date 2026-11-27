@@ -166,7 +166,9 @@ window.addEventListener("load", function(){
 <script src="js/export/common.js"></script>
 <script src="js/export/griglie.js"></script>
 <script src="js/export/intruso.js"></script>
+<script src="js/export/player-base.js"></script>
 <script src="js/export/intruso-player.js"></script>
+<script src="js/export/griglie-player.js"></script>
 <script src="js/export/inversione.js"></script>
 <script src="js/export/serie.js"></script>
 <script src="js/export/classificazioni.js"></script>
@@ -181,7 +183,7 @@ window.addEventListener("load", function(){
 (function () {
   var attesi = ['genGriglie', 'genIntruso', 'genInversione', 'genSerie', 'genAccesso', 'genClassificazioni', 'genIntrusoConcettuale', 'genAnalogie', 'genCategorizzazioneV2', 'Engine', 'genFascicolo',
     'renderGriglie', 'renderIntruso', 'renderInversione', 'renderSerie', 'renderAccesso', 'renderClassificazioni', 'exportClassificazioni', 'renderIntrusoConcettuale', 'exportIntrusoConcettuale', 'renderAnalogie', 'exportAnalogie', 'renderCategorizzazione', 'renderFascicolo',
-    'initSharedHistory', 'loadHistory', 'checkOnlineSaving', 'progressMerge', 'PdmBackup', 'backupRefreshStatus', 'exportCurrent', 'exportFascicolo', 'intrusoBuildPlayerHtml', 'firebaseConfig'];
+    'initSharedHistory', 'loadHistory', 'checkOnlineSaving', 'progressMerge', 'PdmBackup', 'backupRefreshStatus', 'exportCurrent', 'exportFascicolo', 'intrusoBuildPlayerHtml', 'touchPlayerPage', 'griglieBuildPlayerHtml', 'firebaseConfig'];
   var mancano = attesi.filter(function (n) { try { return typeof eval(n) === 'undefined'; } catch (e) { return true; } });
   // il file CSS è caricato se la variabile di colore --bg (definita in css/style.css) ha un valore
   var cssOk = getComputedStyle(document.documentElement).getPropertyValue('--bg').trim() !== '';
