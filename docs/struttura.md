@@ -29,7 +29,7 @@ js/                         il codice, un file per argomento (passi 4, 5 e 8)
   engine/engine.js            motore del Fascicolo (logica pura senza DOM, testato in Node; passo 8)
   generators/                 genera il materiale: griglie, intruso, inversione, serie, accesso, fascicolo, categorizzazione (motore, passo 8), classificazioni
   renderers/                  lo disegna a schermo: i sei sopra + categorizzazione
-  export/                     esportazioni PowerPoint (un file per esercizio) e Word (fascicolo, con docbuilder.js); exporters.js sceglie quella giusta; intruso-player.js = lettore a tocco dell'Intruso percettivo (pagina HTML autonoma)
+  export/                     esportazioni PowerPoint (un file per esercizio) e Word (fascicolo, con docbuilder.js); exporters.js sceglie quella giusta; player-base.js = base comune dei lettori a tocco; griglie-player.js = lettore a tocco delle Griglie; intruso-player.js = lettore a tocco dell'Intruso percettivo (pagina HTML autonoma)
   history/                    cronologia condivisa (localStorage + Firestore), storico delle generazioni e avvisi sul salvataggio online (online-status.js)
   util.js                     utilità: casuale, pesca senza ripetizioni, livelli (passo 9)
   state.js                    stato dell'app, elenco degli esercizi, numerazione (passo 9)

@@ -567,8 +567,11 @@ function gridVarRules(cells, rows, cols, symbols, F, B, I, feat, effLevel){
   if(vk==="double"){
     const a = cnt(A.f), b = cnt(Bt.f);
     if(!inRange(a) || !inRange(b)) return null;
-    return mk({ vk, text:`Conta separatamente, tenendo due totali: quanti sono ${noun(A)} e quanti ${those(Bt)}.`,
+    const rule = mk({ vk, text:`Conta separatamente, tenendo due totali: quanti sono ${noun(A)} e quanti ${those(Bt)}.`,
       matches:c=>A.f(c)||Bt.f(c), count:Math.max(a,b), answer:`${a} e ${b}` });
+    // i due gruppi separati servono al lettore a tocco (due passaggi); non elencabile: non entra nel materiale salvato
+    Object.defineProperty(rule, "groups", { value:[{ label:noun(A), f:A.f }, { label:noun(Bt), f:Bt.f }] });
+    return rule;
   }
   if(vk==="compare"){
     const a = cnt(A.f), b = cnt(Bt.f);

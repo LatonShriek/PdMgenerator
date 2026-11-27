@@ -139,6 +139,23 @@ const EX_CONTROLS = {
     gridNote.className = "level-note";
     gridNote.textContent = "Ogni consegna conta da 4 a 14 elementi: con più celle aumentano gli elementi «di disturbo», non i numeri da contare. Il numero di consegne (di norma 10) si può portare fino a 30: la rampa di difficoltà si allunga in proporzione.";
     wrap.appendChild(gridNote);
+    // Lettore a tocco per l'uso individuale (tablet): si toccano le celle richieste e si conferma; due tentativi.
+    const touchRow = document.createElement("div");
+    touchRow.style.cssText = "display:flex; gap:8px; flex-wrap:wrap; margin-top:12px;";
+    const touchBtn = document.createElement("button");
+    touchBtn.className = "action primary"; touchBtn.style.cssText = "width:auto; margin:0;";
+    touchBtn.textContent = "▶ Avvia il lettore a tocco";
+    touchBtn.addEventListener("click", ()=>griglieOpenPlayer());
+    const touchDl = document.createElement("button");
+    touchDl.className = "action ghost"; touchDl.style.cssText = "width:auto; margin:0;";
+    touchDl.textContent = "Scarica come pagina";
+    touchDl.addEventListener("click", ()=>griglieDownloadPlayer());
+    touchRow.appendChild(touchBtn); touchRow.appendChild(touchDl);
+    wrap.appendChild(touchRow);
+    const touchNote = document.createElement("div");
+    touchNote.className = "level-note";
+    touchNote.textContent = "Per l'uso individuale su tablet (meglio in orizzontale): il paziente tocca tutte le celle richieste e preme «Conferma». Al primo errore le celle sbagliate vengono segnalate e tolte, e se ne mancano compare «Ne manca qualcuna»; al secondo errore si vede la soluzione. Il confronto fra gruppi e le domande su righe o colonne sono sostituiti da altre consegne sulla stessa griglia; il doppio conteggio si fa in due passaggi. Per la % di riuscita conta solo il primo tentativo. Il file scaricato si apre senza rete e non salva né invia dati.";
+    wrap.appendChild(touchNote);
     return wrap;
   },
   classificazioni: ()=>{

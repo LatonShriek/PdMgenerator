@@ -41,15 +41,10 @@ function intrusoPlayerSlides(deck){
 function intrusoBuildPlayerHtml(deck, level, hintAfter){
   const slides = intrusoPlayerSlides(deck);
   const data = JSON.stringify(slides).replace(/</g, "\\u003c");
-  return `<!DOCTYPE html>
-<html lang="it"><head><meta charset="UTF-8"><meta name="viewport" content="width=device-width,initial-scale=1,maximum-scale=1">
-<title>Intruso percettivo — livello ${level}</title>
-<style>
-html,body{margin:0;height:100%;background:#fff;overflow:hidden;font-family:${PPTX_FONT_STACK};color:#1e2a26;user-select:none;-webkit-user-select:none;-webkit-touch-callout:none;touch-action:manipulation;-webkit-tap-highlight-color:transparent}
-#top{position:fixed;left:0;right:0;top:0;height:44px;display:flex;align-items:center;justify-content:space-between;padding:0 12px;font-size:16px;color:#5c6b65;z-index:5}
-#top button{font:inherit;font-size:16px;min-height:36px;padding:0 12px;border:1px solid #c9d1cd;background:#f4f6f5;color:#5c6b65;border-radius:8px;cursor:pointer;opacity:.7}
-#top button:hover{opacity:1}
-#grid{position:fixed;left:10px;right:10px;top:48px;bottom:10px;display:grid;gap:8px}
+  return touchPlayerPage({
+    title: `Intruso percettivo — livello ${level}`,
+    intro: "Tocca l’unico elemento che compare <b>una sola volta</b>.",
+    css: `#grid{position:fixed;left:10px;right:10px;top:48px;bottom:10px;display:grid;gap:8px}
 .c{display:flex;align-items:center;justify-content:center;border:2px solid #d9dfd9;border-radius:10px;background:#fff;font-weight:700;line-height:1;white-space:nowrap;overflow:hidden;cursor:pointer;transition:opacity .25s,background .25s}
 .c.err{opacity:.28;background:#eceeed;border:2px dashed #9aa5a0;cursor:default}
 .c.off{opacity:.12;cursor:default;pointer-events:none}
@@ -60,21 +55,11 @@ html,body{margin:0;height:100%;background:#fff;overflow:hidden;font-family:${PPT
 .c .rt{position:absolute;left:50%;top:50%;white-space:nowrap}
 @keyframes sh{0%,100%{transform:translateX(0)}25%{transform:translateX(-5px)}75%{transform:translateX(5px)}}
 .c.shake{animation:sh .25s}
-#msg{position:fixed;inset:0;display:none;flex-direction:column;align-items:center;justify-content:center;gap:18px;text-align:center;padding:0 6vw;background:#fff;z-index:8;font-size:max(22px,3.4vh);line-height:1.35}
-#msg.on{display:flex}
-#msg button.big{font:inherit;font-size:max(20px,3vh);padding:14px 34px;border:0;border-radius:12px;background:#4f7a68;color:#fff;cursor:pointer}
-#msg table{border-collapse:collapse;font-size:max(18px,2.7vh)}
-#msg td{padding:6px 18px;text-align:left}
-#msg td+td{text-align:right;font-weight:700}
-#msg small{font-size:max(14px,2vh);color:#8a948f}
-</style></head><body>
-<div id="top"><span id="prog"></span><span><button id="bf" type="button" title="Schermo intero">⛶ Schermo intero</button></span></div>
-<div id="grid"></div>
-<div id="msg" class="on"><div>Intruso percettivo — livello ${level}</div><div style="font-size:.8em;color:#5c6b65">Tocca l’unico elemento che compare <b>una sola volta</b>.</div><button class="big" id="go" type="button">Inizia</button></div>
-<script>
-var SL=${data}, HINT=${Math.max(1, Math.min(5, Math.round(hintAfter)))}, FONT=${JSON.stringify(PPTX_FONT_STACK)}, FILL=0.84;
-var i=0, err=0, hinted=false, locked=false, t0=0, tS=0, res=[], started=false, wl=null;
-var grid=document.getElementById("grid"), msg=document.getElementById("msg"), prog=document.getElementById("prog");
+`,
+    body: `<div id="grid"></div>`,
+    script: `var SL=${data}, HINT=${Math.max(1, Math.min(5, Math.round(hintAfter)))}, FONT=${JSON.stringify(PPTX_FONT_STACK)}, FILL=0.84;
+var i=0, err=0, hinted=false, locked=false, t0=0, tS=0, res=[];
+var grid=document.getElementById("grid");
 
 // stesse regole di impaginazione dell'app: solo divisori esatti, così l'ultima riga è piena quanto le altre
 function bestCols(n,w,h){ var best=1,m=-1; for(var c=1;c<=n;c++){ if(n%c) continue; var r=n/c, s=Math.min(w/c,h/r); if(s>m){m=s;best=c;} } return best; }
@@ -150,17 +135,15 @@ function nextScreen(){
 function finish(){
   var first=0, afterErr=0, withHint=0, tot=0;
   res.forEach(function(r){ tot+=r.err; if(r.hint) withHint++; else if(r.err>0) afterErr++; else first++; });
-  var sec=Math.round((Date.now()-tS)/1000), mm=Math.floor(sec/60), ss=("0"+(sec%60)).slice(-2);
   var pct=Math.round(100*first/SL.length);
-  grid.innerHTML=""; prog.textContent="Fine";
-  msg.innerHTML='<div><b>Fatto!</b></div><table>'+
-    '<tr><td>Giuste al primo tocco</td><td>'+first+' / '+SL.length+' ('+pct+'%)</td></tr>'+
-    '<tr><td>Giuste dopo 1 errore</td><td>'+afterErr+'</td></tr>'+
-    '<tr><td>Giuste con l’aiuto (riga)</td><td>'+withHint+'</td></tr>'+
-    '<tr><td>Errori in tutto</td><td>'+tot+'</td></tr>'+
-    '<tr><td>Tempo</td><td>'+mm+':'+ss+'</td></tr></table>'+
-    '<small>Livello ${level}. Il riepilogo resta solo su questo schermo.</small><button class="big" id="go2" type="button">Ricomincia</button>';
-  msg.classList.add("on"); document.getElementById("go2").addEventListener("click",begin);
+  grid.innerHTML="";
+  showEnd([
+    ["Giuste al primo tocco", first+" / "+SL.length+" ("+pct+"%)"],
+    ["Giuste dopo 1 errore", afterErr],
+    ["Giuste con l’aiuto (riga)", withHint],
+    ["Errori in tutto", tot],
+    ["Tempo", clock(Date.now()-tS)]
+  ], "Livello ${level}. Il riepilogo resta solo su questo schermo.", begin);
 }
 grid.addEventListener("click",function(ev){
   if(!started||locked) return;
@@ -171,26 +154,19 @@ grid.addEventListener("click",function(ev){
   if(err>=HINT) hinted=true;
   applyState();
 });
-document.getElementById("go").addEventListener("click",function(){ keepAwake(); begin(); });
-function fs(){ var d=document,e=d.documentElement; if(d.fullscreenElement||d.webkitFullscreenElement){ (d.exitFullscreen||d.webkitExitFullscreen).call(d); } else { var r=e.requestFullscreen||e.webkitRequestFullscreen; if(r){ try{ var p=r.call(e); if(p&&p.catch){p.catch(function(){});} }catch(x){} } } }
-document.getElementById("bf").addEventListener("click",function(ev){ ev.stopPropagation(); fs(); });
-document.addEventListener("keydown",function(e){ if(e.key==="f"||e.key==="F") fs(); });
-function keepAwake(){ try{ if(navigator.wakeLock){ navigator.wakeLock.request("screen").then(function(l){ wl=l; l.addEventListener("release",function(){ wl=null; }); }).catch(function(){}); } }catch(x){} }
-document.addEventListener("visibilitychange",function(){ if(document.visibilityState==="visible"&&started&&!wl) keepAwake(); });
-var rt=null;
-window.addEventListener("resize",function(){ clearTimeout(rt); rt=setTimeout(function(){ if(started&&i<SL.length&&!msg.classList.contains("on")) build(); },150); });
-</script></body></html>`;
+onStart(begin);
+onRedraw(function(){ if(i<SL.length) build(); });`
+  });
 }
 
 function intrusoOpenPlayer(){
   if(!state.deck || !state.deck.slides) return;
   const html = intrusoBuildPlayerHtml(state.deck, state.level, intrusoHintAfterValue());
-  const url = URL.createObjectURL(new Blob([html], {type:"text/html"}));
-  window.open(url, "_blank");
+  touchPlayerOpen(html);
 }
 
 function intrusoDownloadPlayer(){
   if(!state.deck || !state.deck.slides) return;
   const html = intrusoBuildPlayerHtml(state.deck, state.level, intrusoHintAfterValue());
-  saveAs(new Blob([html], {type:"text/html;charset=utf-8"}), exportFileName("intruso", state.level, "html").replace(/\.html$/, " a tocco.html"));
+  touchPlayerDownload(html, "intruso", state.level);
 }
